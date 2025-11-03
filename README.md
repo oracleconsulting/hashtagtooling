@@ -2,6 +2,8 @@
 
 A modern e-commerce platform for selling custom woodworking tools, mallets, awls, engineering squares, and laser-cut EDC coins.
 
+**Live Site:** https://hashtagwoodworking.co.uk
+
 ## Tech Stack
 
 - **Frontend**: Next.js 14 with TypeScript
