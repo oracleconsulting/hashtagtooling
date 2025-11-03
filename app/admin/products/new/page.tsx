@@ -259,11 +259,9 @@ export default function NewProductPage() {
                     id="image-upload"
                     disabled={uploadingFiles}
                   />
-                  <label htmlFor="image-upload">
-                    <Button type="button" disabled={uploadingFiles} asChild>
-                      <span className="cursor-pointer">
-                        {uploadingFiles ? 'Uploading...' : 'Upload Images'}
-                      </span>
+                  <label htmlFor="image-upload" className="cursor-pointer">
+                    <Button type="button" disabled={uploadingFiles}>
+                      {uploadingFiles ? 'Uploading...' : 'Upload Images'}
                     </Button>
                   </label>
                   <p className="text-sm text-zinc-500 mt-2">
@@ -306,11 +304,9 @@ export default function NewProductPage() {
                     id="video-upload"
                     disabled={uploadingFiles}
                   />
-                  <label htmlFor="video-upload">
-                    <Button type="button" variant="outline" disabled={uploadingFiles} asChild>
-                      <span className="cursor-pointer">
-                        {uploadingFiles ? 'Uploading...' : 'Upload Video'}
-                      </span>
+                  <label htmlFor="video-upload" className="cursor-pointer">
+                    <Button type="button" variant="outline" disabled={uploadingFiles}>
+                      {uploadingFiles ? 'Uploading...' : 'Upload Video'}
                     </Button>
                   </label>
                 </div>
