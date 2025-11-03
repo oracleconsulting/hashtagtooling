@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { ProductCard } from '@/components/ProductCard'
 import { Button } from '@/components/ui/button'
 import { useSearchParams } from 'next/navigation'
@@ -71,7 +71,7 @@ const CATEGORIES = [
   { id: 'coins', name: 'EDC Coins' },
 ]
 
-export default function ShopPage() {
+function ShopContent() {
   const searchParams = useSearchParams()
   const categoryParam = searchParams.get('category') || 'all'
   const [selectedCategory, setSelectedCategory] = useState(categoryParam)
@@ -114,6 +114,21 @@ export default function ShopPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function ShopPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto px-4 py-12">
+        <h1 className="text-4xl font-bold mb-8">Shop</h1>
+        <div className="text-center py-12">
+          <p className="text-zinc-600">Loading products...</p>
+        </div>
+      </div>
+    }>
+      <ShopContent />
+    </Suspense>
   )
 }
 

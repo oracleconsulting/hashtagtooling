@@ -9,7 +9,13 @@ const nextConfig = {
       },
     ],
   },
+  // Suppress build errors for missing env vars during build
+  typescript: {
+    ignoreBuildErrors: false,
+  },
+  eslint: {
+    ignoreDuringBuilds: false,
+  },
 }
 
 module.exports = nextConfig
-
