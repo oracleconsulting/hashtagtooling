@@ -58,14 +58,14 @@ CREATE TRIGGER update_base_prices_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
--- Insert base prices for mallets
+-- Insert base prices for mallets (CORRECT PRICES FROM PDF)
 INSERT INTO base_prices (product_type, style_name, base_price, description) VALUES
-  ('mallet', 'Turned Carving Mallet', 85.00, 'Small turned head for detailed carving'),
-  ('mallet', 'Turned Detailing Mallet', 95.00, 'Medium turned head for general carving'),
-  ('mallet', 'Turned Framing Mallet', 120.00, 'Large turned head for heavy work'),
-  ('mallet', 'Square Carving Mallet', 90.00, 'Small square head for carving'),
-  ('mallet', 'Square Detailing Mallet', 100.00, 'Medium square head for general work'),
-  ('mallet', 'Square Framing Mallet', 130.00, 'Large square head for framing')
+  ('mallet', 'Turned Carving Mallet', 190.00, 'Small turned head for detailed carving'),
+  ('mallet', 'Turned Detailing Mallet', 210.00, 'Medium turned head for general carving'),
+  ('mallet', 'Turned Joiners Mallet', 230.00, 'Large turned head for heavy work'),
+  ('mallet', 'Square Carving Mallet', 250.00, 'Small square head for carving'),
+  ('mallet', 'Square Detailing Mallet', 275.00, 'Medium square head for general work'),
+  ('mallet', 'Square Joiners Mallet', 300.00, 'Large square head for framing')
 ON CONFLICT (product_type, style_name) DO NOTHING;
 
 -- Insert base prices for awls
@@ -76,6 +76,7 @@ INSERT INTO base_prices (product_type, style_name, base_price, description) VALU
 ON CONFLICT (product_type, style_name) DO NOTHING;
 
 -- Insert sample materials (base price materials - no premium)
+-- NOTE: User will provide ~100 wood types with their specific premiums
 INSERT INTO materials (name, category, color_hex, mallet_head_premium, mallet_handle_premium, awl_handle_premium) VALUES
   ('Ash', 'wood', '#E5D1B7', 0, 0, 0),
   ('Beech', 'wood', '#D9BE9C', 0, 0, 0),
@@ -84,6 +85,7 @@ INSERT INTO materials (name, category, color_hex, mallet_head_premium, mallet_ha
 ON CONFLICT DO NOTHING;
 
 -- Insert premium materials
+-- NOTE: These are examples - user has PDF with ~100 specific woods and premiums
 INSERT INTO materials (name, category, color_hex, mallet_head_premium, mallet_handle_premium, awl_handle_premium) VALUES
   ('Walnut', 'wood', '#3D2817', 15, 10, 8),
   ('Cherry', 'wood', '#9C4722', 12, 8, 6),
@@ -95,12 +97,12 @@ INSERT INTO materials (name, category, color_hex, mallet_head_premium, mallet_ha
   ('Wenge', 'wood', '#2E1A14', 28, 20, 16)
 ON CONFLICT DO NOTHING;
 
--- Insert transition materials
+-- Insert transition materials (CORRECT PRICES FROM PDF)
 INSERT INTO materials (name, category, color_hex, mallet_head_premium, mallet_handle_premium, awl_handle_premium) VALUES
-  ('Brass', 'transition', '#B5A642', 8, 8, 6),
-  ('Copper', 'transition', '#B87333', 10, 10, 8),
-  ('Bronze', 'transition', '#CD7F32', 12, 12, 10),
-  ('Aluminium', 'transition', '#C0C0C0', 5, 5, 4),
-  ('Stainless Steel', 'transition', '#A8A8A8', 15, 15, 12)
+  ('Aluminium', 'transition', '#C0C0C0', 0, 0, 0),
+  ('Brass', 'transition', '#B5A642', 0, 0, 0),
+  ('Bronze', 'transition', '#CD7F32', 5, 5, 5),
+  ('Copper', 'transition', '#B87333', 10, 10, 10),
+  ('Mokume Gane', 'transition', '#8B7355', 80, 80, 80)
 ON CONFLICT DO NOTHING;
 
