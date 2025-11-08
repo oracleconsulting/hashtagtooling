@@ -33,12 +33,18 @@ export type MalletType = typeof MALLET_TYPES[number]['id']
 export type TransitionMaterial = typeof TRANSITION_MATERIALS[number]['id']
 export type WoodType = typeof WOOD_TYPES[number]['id']
 
+// Updated to match dynamic database structure
 export interface CustomMalletConfig {
-  malletType: MalletType
-  headWood: WoodType
-  handleWood: WoodType
-  transitionMaterial: TransitionMaterial
+  styleId?: string
+  styleName?: string
+  headWoodId?: string
+  headWoodName?: string
+  handleWoodId?: string
+  handleWoodName?: string
+  transitionId?: string
+  transitionName?: string
 }
+
 
 
 
