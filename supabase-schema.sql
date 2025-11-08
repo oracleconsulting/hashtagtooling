@@ -72,3 +72,5 @@ INSERT INTO products (name, description, price, category, image_url, stock_statu
   ('Engineer''s Square 6"', 'Precision machined 6" engineer''s square', 65.00, 'square', 'https://placehold.co/600x400/C0C0C0/333?text=Engineer+Square', 'in_stock'),
   ('Titanium EDC Coin', 'Laser-engraved EDC coin in aerospace titanium', 35.00, 'coin', 'https://placehold.co/600x400/8C92AC/white?text=Ti+Coin', 'in_stock');
 
+
+

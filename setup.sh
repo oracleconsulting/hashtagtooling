@@ -80,3 +80,5 @@ echo "- ADMIN_GUIDE.md - Manage products and orders"
 echo "- supabase-schema.sql - Database setup"
 echo ""
 
+
+

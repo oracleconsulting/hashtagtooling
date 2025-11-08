@@ -176,3 +176,5 @@ Consider adding:
 4. **Monitor PayPal dashboard** for suspicious transactions
 5. **Regular backups** of product images and database
 
+
+

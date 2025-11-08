@@ -40,3 +40,5 @@ export interface CustomMalletConfig {
   transitionMaterial: TransitionMaterial
 }
 
+
+

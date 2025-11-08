@@ -87,6 +87,11 @@ export default function AdminProductsPage() {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-4xl font-bold">Manage Products</h1>
         <div className="flex gap-4">
+          <Link href="/admin/materials">
+            <Button size="lg" variant="outline">
+              Materials & Pricing
+            </Button>
+          </Link>
           <Link href="/admin/products/new">
             <Button size="lg">
               <Plus className="mr-2 h-5 w-5" />
@@ -148,4 +153,6 @@ export default function AdminProductsPage() {
     </div>
   )
 }
+
+
 

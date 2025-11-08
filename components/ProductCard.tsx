@@ -56,3 +56,5 @@ export function ProductCard({ id, name, description, price, image_url, category 
   )
 }
 
+
+
