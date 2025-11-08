@@ -128,7 +128,7 @@ export default function CustomMalletPage() {
     const handleWood = woods.find(w => w.id === selectedHandleWood)
     const transition = transitions.find(t => t.id === selectedTransition)
 
-    if (!style || !headWood || !handleWood || !transition) return
+    if (!style || !headWood || !handleWood || !transition || !selectedStyle || !selectedHeadWood || !selectedHandleWood || !selectedTransition) return
 
     const name = `Custom ${style.style_name} - ${headWood.name} / ${handleWood.name}`
     const price = calculatePrice()
