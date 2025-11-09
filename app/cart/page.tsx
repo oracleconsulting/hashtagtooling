@@ -5,19 +5,50 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatPrice } from '@/lib/utils'
-import { Trash2, Plus, Minus } from 'lucide-react'
+import { Trash2, Plus, Minus, CheckCircle } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js'
 import { useState } from 'react'
+import { supabase } from '@/lib/supabase'
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, getTotalPrice, clearCart } = useCart()
   const [showCheckout, setShowCheckout] = useState(false)
+  const [orderComplete, setOrderComplete] = useState(false)
+  const [orderNumber, setOrderNumber] = useState('')
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     email: '',
+    shippingAddress: '',
   })
+
+  if (orderComplete) {
+    return (
+      <div className="container mx-auto px-4 py-12">
+        <div className="max-w-2xl mx-auto text-center">
+          <div className="mb-6 flex justify-center">
+            <CheckCircle className="h-20 w-20 text-green-600" />
+          </div>
+          <h1 className="text-4xl font-bold mb-4">Order Complete!</h1>
+          <p className="text-zinc-600 mb-2">Thank you for your purchase, {customerInfo.name}!</p>
+          <p className="text-sm text-zinc-500 mb-8">
+            Order #{orderNumber.slice(0, 8).toUpperCase()}
+            <br />
+            A confirmation email has been sent to {customerInfo.email}
+          </p>
+          <div className="flex gap-4 justify-center">
+            <Link href="/shop">
+              <Button size="lg">Continue Shopping</Button>
+            </Link>
+            <Link href="/">
+              <Button size="lg" variant="outline">Back to Home</Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (items.length === 0) {
     return (
@@ -148,8 +179,16 @@ export default function CartPage() {
                       placeholder="your@email.com"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Shipping Address</label>
+                    <Input
+                      value={customerInfo.shippingAddress}
+                      onChange={(e) => setCustomerInfo({ ...customerInfo, shippingAddress: e.target.value })}
+                      placeholder="Full address"
+                    />
+                  </div>
 
-                  {customerInfo.name && customerInfo.email && (
+                  {customerInfo.name && customerInfo.email && customerInfo.shippingAddress && (
                     <PayPalScriptProvider 
                       options={{ 
                         clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || 'test',
@@ -165,17 +204,52 @@ export default function CartPage() {
                                 currency_code: 'GBP',
                                 value: totalPrice.toFixed(2),
                               },
+                              description: `Order from ${customerInfo.name}`,
                             }],
                           })
                         }}
-                        onApprove={(data, actions) => {
+                        onApprove={async (data, actions) => {
                           if (actions.order) {
-                            return actions.order.capture().then((details) => {
-                              alert('Transaction completed by ' + details.payer?.name?.given_name)
-                              clearCart()
+                            return actions.order.capture().then(async (details) => {
+                              // Save order to Supabase
+                              const { data: order, error } = await supabase
+                                .from('orders')
+                                .insert({
+                                  customer_name: customerInfo.name,
+                                  customer_email: customerInfo.email,
+                                  total_amount: totalPrice,
+                                  paypal_order_id: details.id,
+                                  status: 'paid',
+                                  order_details: {
+                                    items: items.map(item => ({
+                                      id: item.id,
+                                      name: item.name,
+                                      price: item.price,
+                                      quantity: item.quantity,
+                                      customConfig: item.customConfig,
+                                    })),
+                                    shipping_address: customerInfo.shippingAddress,
+                                    payer: details.payer,
+                                  },
+                                })
+                                .select()
+                                .single()
+
+                              if (error) {
+                                console.error('Error saving order:', error)
+                                alert('Payment successful but error saving order. Please contact support with order ID: ' + details.id)
+                              } else {
+                                setOrderNumber(order.id)
+                                setOrderComplete(true)
+                                clearCart()
+                              }
                             })
                           }
                           return Promise.resolve()
+                        }}
+                        onError={(err) => {
+                          console.error('PayPal Error:', err)
+                          alert('Payment failed. Please try again.')
                         }}
                       />
                     </PayPalScriptProvider>

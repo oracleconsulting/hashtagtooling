@@ -25,7 +25,7 @@ export default function Home() {
               </Link>
               <Link href="/custom-mallet">
                 <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
-                  Build Custom Mallet
+                  Build Custom Tool
                 </Button>
               </Link>
             </div>
@@ -80,18 +80,39 @@ export default function Home() {
       {/* Custom Section */}
       <section className="py-20 bg-zinc-50">
         <div className="container mx-auto px-4">
-          <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-3xl font-bold mb-6">Build Your Perfect Mallet</h2>
-            <p className="text-lg text-zinc-600 mb-8">
-              Choose from 100+ wood species, select your mallet style, and pick a transition material. 
-              Create a truly unique tool that's perfect for your workshop.
+          <div className="max-w-4xl mx-auto text-center mb-12">
+            <h2 className="text-3xl font-bold mb-6">Custom Tool Builders</h2>
+            <p className="text-lg text-zinc-600 mb-12">
+              Design your perfect tool with our interactive builders. Choose from 100+ wood species and premium materials.
             </p>
-            <Link href="/custom-mallet">
-              <Button size="lg">
-                Start Building
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            </Link>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            <div className="bg-white rounded-lg p-8 shadow-sm border border-zinc-200">
+              <h3 className="text-2xl font-bold mb-3">Custom Mallet Builder</h3>
+              <p className="text-zinc-600 mb-6">
+                Choose mallet style, head wood, handle wood, and transition material. Over 100 wood species available.
+              </p>
+              <Link href="/custom-mallet">
+                <Button size="lg" className="w-full">
+                  Build Mallet
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              </Link>
+            </div>
+
+            <div className="bg-white rounded-lg p-8 shadow-sm border border-zinc-200">
+              <h3 className="text-2xl font-bold mb-3">Custom Awl Builder</h3>
+              <p className="text-zinc-600 mb-6">
+                Select awl style, handle wood, and ferrule material. Perfect for precision marking and detailing work.
+              </p>
+              <Link href="/custom-awl">
+                <Button size="lg" className="w-full">
+                  Build Awl
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </section>

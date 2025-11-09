@@ -28,6 +28,9 @@ export function Header() {
             <Link href="/custom-mallet" className="text-sm font-medium hover:text-zinc-600 transition-colors">
               Custom Mallet
             </Link>
+            <Link href="/custom-awl" className="text-sm font-medium hover:text-zinc-600 transition-colors">
+              Custom Awl
+            </Link>
             <Link href="/commissions" className="text-sm font-medium hover:text-zinc-600 transition-colors">
               Commissions
             </Link>
@@ -63,6 +66,9 @@ export function Header() {
             </Link>
             <Link href="/custom-mallet" className="text-sm font-medium hover:text-zinc-600 transition-colors">
               Custom Mallet
+            </Link>
+            <Link href="/custom-awl" className="text-sm font-medium hover:text-zinc-600 transition-colors">
+              Custom Awl
             </Link>
             <Link href="/commissions" className="text-sm font-medium hover:text-zinc-600 transition-colors">
               Commissions
