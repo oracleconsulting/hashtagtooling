@@ -55,9 +55,6 @@ export default function AdminLoginPage() {
               Login
             </Button>
           </form>
-          <p className="text-xs text-zinc-500 mt-4 text-center">
-            Default password: hashtag2024 (change in .env)
-          </p>
         </CardContent>
       </Card>
     </div>
