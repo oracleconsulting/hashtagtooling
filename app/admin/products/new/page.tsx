@@ -264,11 +264,13 @@ export default function NewProductPage() {
                     id="image-upload"
                     disabled={uploadingFiles}
                   />
-                  <label htmlFor="image-upload" className="cursor-pointer">
-                    <Button type="button" disabled={uploadingFiles}>
-                      {uploadingFiles ? 'Uploading...' : 'Upload Images'}
-                    </Button>
-                  </label>
+                  <Button
+                    type="button"
+                    disabled={uploadingFiles}
+                    onClick={() => document.getElementById('image-upload')?.click()}
+                  >
+                    {uploadingFiles ? 'Uploading...' : 'Upload Images'}
+                  </Button>
                   <p className="text-sm text-zinc-500 mt-2">
                     JPG, PNG, WEBP (max 5MB each)
                   </p>
@@ -309,11 +311,14 @@ export default function NewProductPage() {
                     id="video-upload"
                     disabled={uploadingFiles}
                   />
-                  <label htmlFor="video-upload" className="cursor-pointer">
-                    <Button type="button" variant="outline" disabled={uploadingFiles}>
-                      {uploadingFiles ? 'Uploading...' : 'Upload Video'}
-                    </Button>
-                  </label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={uploadingFiles}
+                    onClick={() => document.getElementById('video-upload')?.click()}
+                  >
+                    {uploadingFiles ? 'Uploading...' : 'Upload Video'}
+                  </Button>
                 </div>
                 {videoUrl && (
                   <p className="text-sm text-green-600 mt-2">✓ Video uploaded</p>
