@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 import { Upload, X } from 'lucide-react'
 import { WOOD_TYPES } from '@/lib/constants'
-import heic2any from 'heic2any'
 
 export default function NewProductPage() {
   const router = useRouter()
@@ -47,9 +46,10 @@ export default function NewProductPage() {
         let file = files[i]
         let fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
 
-        // Convert HEIC/HEIF to JPEG
+        // Convert HEIC/HEIF to JPEG (dynamic import: heic2any uses window, so load only in browser)
         if (fileExt === 'heic' || fileExt === 'heif' || file.type === 'image/heic' || file.type === 'image/heif') {
           try {
+            const heic2any = (await import('heic2any')).default
             const convertedBlob = await heic2any({
               blob: file,
               toType: 'image/jpeg',

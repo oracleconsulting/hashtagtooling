@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
 import { Upload, Check, ArrowLeft, Loader2, Trash2 } from 'lucide-react'
-import heic2any from 'heic2any'
 
 interface SiteImage {
   id: string
@@ -82,11 +81,12 @@ export default function AdminSiteImagesPage() {
     setSuccessSection(null)
 
     try {
-      // Convert HEIC/HEIF to JPEG
+      // Convert HEIC/HEIF to JPEG (dynamic import: heic2any uses window, so load only in browser)
       let processedFile: File = file
       let fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
       if (fileExt === 'heic' || fileExt === 'heif' || file.type === 'image/heic' || file.type === 'image/heif') {
         try {
+          const heic2any = (await import('heic2any')).default
           const convertedBlob = await heic2any({
             blob: file,
             toType: 'image/jpeg',
