@@ -4,113 +4,131 @@ import { useState, useEffect, Suspense } from 'react'
 import { ProductCard } from '@/components/ProductCard'
 import { Button } from '@/components/ui/button'
 import { useSearchParams } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
+import { Loader2 } from 'lucide-react'
 
-// Placeholder products - these will come from Supabase later
-const PLACEHOLDER_PRODUCTS = [
-  {
-    id: '1',
-    name: 'Walnut Carving Mallet',
-    description: 'Beautifully turned carving mallet in black walnut with brass transition',
-    price: 89.99,
-    category: 'mallets',
-    image_url: 'https://placehold.co/600x400/3D2817/white?text=Walnut+Mallet',
-    stock_status: 'in_stock' as const,
-  },
-  {
-    id: '2',
-    name: 'Maple Detailing Mallet',
-    description: 'Precision turned detailing mallet in hard maple with copper accent',
-    price: 79.99,
-    category: 'mallets',
-    image_url: 'https://placehold.co/600x400/E8D5B7/333?text=Maple+Mallet',
-    stock_status: 'in_stock' as const,
-  },
-  {
-    id: '3',
-    name: 'Rosewood Square Mallet',
-    description: 'Square framing mallet in exotic rosewood with aluminium transition',
-    price: 129.99,
-    category: 'mallets',
-    image_url: 'https://placehold.co/600x400/65000B/white?text=Rosewood+Mallet',
-    stock_status: 'made_to_order' as const,
-  },
-  {
-    id: '4',
-    name: 'Precision Marking Awl',
-    description: 'Hand-turned marking awl with ebony handle',
-    price: 45.00,
-    category: 'awls',
-    image_url: 'https://placehold.co/600x400/282828/white?text=Marking+Awl',
-    stock_status: 'in_stock' as const,
-  },
-  {
-    id: '5',
-    name: 'Engineer\'s Square 6"',
-    description: 'Precision machined 6" engineer\'s square',
-    price: 65.00,
-    category: 'squares',
-    image_url: 'https://placehold.co/600x400/C0C0C0/333?text=Engineer+Square',
-    stock_status: 'in_stock' as const,
-  },
-  {
-    id: '6',
-    name: 'Titanium EDC Coin',
-    description: 'Laser-engraved EDC coin in aerospace titanium',
-    price: 35.00,
-    category: 'coins',
-    image_url: 'https://placehold.co/600x400/8C92AC/white?text=Ti+Coin',
-    stock_status: 'in_stock' as const,
-  },
-]
+interface Product {
+  id: string
+  name: string
+  description: string
+  price: number
+  category: string
+  image_url: string
+  stock_status: 'in_stock' | 'made_to_order' | 'sold' | 'out_of_stock'
+  subcategory?: string
+  metadata?: any
+}
 
 const CATEGORIES = [
   { id: 'all', name: 'All Products' },
-  { id: 'mallets', name: 'Mallets' },
-  { id: 'awls', name: 'Awls' },
-  { id: 'squares', name: 'Engineering Squares' },
-  { id: 'coins', name: 'EDC Coins' },
+  { id: 'mallet', name: 'Mallets' },
+  { id: 'awl', name: 'Awls' },
+  { id: 'wood', name: 'Wood for Sale' },
+  { id: 'coin', name: 'EDC Coins' },
 ]
 
 function ShopContent() {
   const searchParams = useSearchParams()
   const categoryParam = searchParams.get('category') || 'all'
   const [selectedCategory, setSelectedCategory] = useState(categoryParam)
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setSelectedCategory(categoryParam)
   }, [categoryParam])
 
-  const filteredProducts = selectedCategory === 'all' 
-    ? PLACEHOLDER_PRODUCTS 
-    : PLACEHOLDER_PRODUCTS.filter(p => p.category === selectedCategory)
+  useEffect(() => {
+    loadProducts()
+  }, [])
+
+  const loadProducts = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const { data, error: dbError } = await supabase
+        .from('products')
+        .select('*')
+        .neq('stock_status', 'out_of_stock')
+        .order('created_at', { ascending: false })
+
+      if (dbError) throw dbError
+      setProducts(data || [])
+    } catch (err) {
+      console.error('Error loading products:', err)
+      setError('Unable to load products. Please try again later.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Map URL params like "mallets" to DB category "mallet"
+  const mapCategory = (cat: string) => {
+    const mapping: Record<string, string> = {
+      mallets: 'mallet',
+      awls: 'awl',
+      coins: 'coin',
+      wood: 'wood',
+      squares: 'square',
+    }
+    return mapping[cat] || cat
+  }
+
+  const effectiveCategory = mapCategory(selectedCategory)
+
+  const filteredProducts = effectiveCategory === 'all'
+    ? products
+    : products.filter(p => p.category === effectiveCategory)
 
   return (
     <div className="container mx-auto px-4 py-12">
-      <h1 className="text-4xl font-bold mb-8">Shop</h1>
+      <h1 className="font-heading text-4xl font-bold mb-2 text-brand-orange">Shop</h1>
+      <p className="text-zinc-400 mb-8">Handcrafted tools and materials. Each piece is unique.</p>
 
       {/* Category Filter */}
       <div className="flex flex-wrap gap-3 mb-12">
         {CATEGORIES.map(cat => (
           <Button
             key={cat.id}
-            variant={selectedCategory === cat.id ? 'default' : 'outline'}
+            variant={effectiveCategory === cat.id || (effectiveCategory === 'all' && cat.id === 'all') ? 'default' : 'outline'}
             onClick={() => setSelectedCategory(cat.id)}
+            size="sm"
           >
             {cat.name}
           </Button>
         ))}
       </div>
 
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-brand-orange" />
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !loading && (
+        <div className="text-center py-20">
+          <p className="text-zinc-400 mb-4">{error}</p>
+          <Button onClick={loadProducts}>Try Again</Button>
+        </div>
+      )}
+
       {/* Products Grid */}
-      {filteredProducts.length > 0 ? (
+      {!loading && !error && filteredProducts.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredProducts.map(product => (
             <ProductCard key={product.id} {...product} />
           ))}
         </div>
-      ) : (
-        <div className="text-center py-12">
-          <p className="text-zinc-600">No products found in this category.</p>
+      )}
+
+      {/* Empty State */}
+      {!loading && !error && filteredProducts.length === 0 && (
+        <div className="text-center py-20">
+          <p className="text-zinc-400 mb-4">No products found in this category yet.</p>
+          <p className="text-zinc-500 text-sm">Check back soon — new pieces are added regularly.</p>
         </div>
       )}
     </div>
@@ -121,9 +139,9 @@ export default function ShopPage() {
   return (
     <Suspense fallback={
       <div className="container mx-auto px-4 py-12">
-        <h1 className="text-4xl font-bold mb-8">Shop</h1>
-        <div className="text-center py-12">
-          <p className="text-zinc-600">Loading products...</p>
+        <h1 className="font-heading text-4xl font-bold mb-8 text-brand-orange">Shop</h1>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-brand-orange" />
         </div>
       </div>
     }>
@@ -131,4 +149,3 @@ export default function ShopPage() {
     </Suspense>
   )
 }
-

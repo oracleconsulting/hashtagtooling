@@ -151,7 +151,7 @@ export default function NewProductPage() {
     <div className="container mx-auto px-4 py-12">
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold">Add New Product</h1>
+          <h1 className="font-heading text-4xl font-bold text-brand-orange">Add New Product</h1>
           <Button variant="outline" onClick={() => router.back()}>
             Cancel
           </Button>
@@ -159,17 +159,18 @@ export default function NewProductPage() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Info */}
-          <Card>
+          <Card className="bg-brand-dark-card border border-brand-dark-border">
             <CardHeader>
-              <CardTitle>Basic Information</CardTitle>
+              <CardTitle className="text-white">Basic Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-medium mb-2 text-zinc-300">
                   Product Name *
                 </label>
                 <Input
                   required
+                  className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g., Walnut Carving Mallet"
@@ -177,11 +178,12 @@ export default function NewProductPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-medium mb-2 text-zinc-300">
                   Description *
                 </label>
                 <Textarea
                   required
+                  className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Detailed description of your product..."
@@ -191,11 +193,11 @@ export default function NewProductPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">
                     Category *
                   </label>
                   <select
-                    className="w-full h-10 rounded-md border border-zinc-300 px-3"
+                    className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   >
@@ -203,33 +205,36 @@ export default function NewProductPage() {
                     <option value="awl">Awl</option>
                     <option value="square">Engineering Square</option>
                     <option value="coin">EDC Coin</option>
+                    <option value="wood">Wood for Sale</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">
                     Stock Status *
                   </label>
                   <select
-                    className="w-full h-10 rounded-md border border-zinc-300 px-3"
+                    className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
                     value={formData.stock_status}
                     onChange={(e) => setFormData({ ...formData, stock_status: e.target.value })}
                   >
                     <option value="in_stock">In Stock</option>
                     <option value="made_to_order">Made to Order</option>
                     <option value="out_of_stock">Out of Stock</option>
+                    <option value="sold">Sold</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-medium mb-2 text-zinc-300">
                   Price (£) *
                 </label>
                 <Input
                   type="number"
                   step="0.01"
                   required
+                  className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   placeholder="89.99"
@@ -239,17 +244,17 @@ export default function NewProductPage() {
           </Card>
 
           {/* Images & Video */}
-          <Card>
+          <Card className="bg-brand-dark-card border border-brand-dark-border">
             <CardHeader>
-              <CardTitle>Media</CardTitle>
+              <CardTitle className="text-white">Media</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-medium mb-2 text-zinc-300">
                   Product Images
                 </label>
-                <div className="border-2 border-dashed border-zinc-300 rounded-lg p-8 text-center">
-                  <Upload className="mx-auto h-12 w-12 text-zinc-400 mb-4" />
+                <div className="border-2 border-dashed border-brand-dark-border rounded-lg p-8 text-center">
+                  <Upload className="mx-auto h-12 w-12 text-zinc-500 mb-4" />
                   <input
                     type="file"
                     accept="image/*"
@@ -292,10 +297,10 @@ export default function NewProductPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-medium mb-2 text-zinc-300">
                   Product Video (Optional)
                 </label>
-                <div className="border-2 border-dashed border-zinc-300 rounded-lg p-8 text-center">
+                <div className="border-2 border-dashed border-brand-dark-border rounded-lg p-8 text-center">
                   <input
                     type="file"
                     accept="video/*"
@@ -318,19 +323,20 @@ export default function NewProductPage() {
           </Card>
 
           {/* Specifications */}
-          <Card>
+          <Card className="bg-brand-dark-card border border-brand-dark-border">
             <CardHeader>
-              <CardTitle>Specifications</CardTitle>
+              <CardTitle className="text-white">Specifications</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">
                     Weight (kg)
                   </label>
                   <Input
                     type="number"
                     step="0.01"
+                    className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
                     value={formData.weight_kg}
                     onChange={(e) => setFormData({ ...formData, weight_kg: e.target.value })}
                     placeholder="0.5"
@@ -338,10 +344,11 @@ export default function NewProductPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">
                     Dimensions
                   </label>
                   <Input
+                    className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
                     value={formData.dimensions}
                     onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
                     placeholder="11 x 3.5 inches"
@@ -350,7 +357,7 @@ export default function NewProductPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-medium mb-2 text-zinc-300">
                   Wood Types Used
                 </label>
                 <div className="border rounded-lg p-4 max-h-48 overflow-y-auto">
@@ -385,23 +392,23 @@ export default function NewProductPage() {
           </Card>
 
           {/* Shipping Calculator */}
-          <Card>
+          <Card className="bg-brand-dark-card border border-brand-dark-border">
             <CardHeader>
-              <CardTitle>Shipping Calculator</CardTitle>
+              <CardTitle className="text-white">Shipping Calculator</CardTitle>
             </CardHeader>
             <CardContent>
               {formData.weight_kg ? (
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-sm text-zinc-600">UK Shipping:</span>
+                    <span className="text-sm text-zinc-400">UK Shipping:</span>
                     <span className="font-semibold">£{shipping.uk.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm text-zinc-600">Europe Shipping:</span>
+                    <span className="text-sm text-zinc-400">Europe Shipping:</span>
                     <span className="font-semibold">£{shipping.europe.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm text-zinc-600">Rest of World:</span>
+                    <span className="text-sm text-zinc-400">Rest of World:</span>
                     <span className="font-semibold">£{shipping.world.toFixed(2)}</span>
                   </div>
                   <p className="text-xs text-zinc-500 mt-4">

@@ -1,15 +1,71 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { ArrowRight } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+
+interface SiteImages {
+  hero_background: string
+  wood_collection: string
+  brass_transitions: string
+  mallet_lineup: string
+}
 
 export default function Home() {
+  const [images, setImages] = useState<SiteImages>({
+    hero_background: '',
+    wood_collection: '',
+    brass_transitions: '',
+    mallet_lineup: '',
+  })
+
+  useEffect(() => {
+    loadSiteImages()
+  }, [])
+
+  const loadSiteImages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('site_images')
+        .select('section_key, image_url')
+
+      if (error) {
+        console.error('Error loading site images:', error)
+        return
+      }
+
+      if (data) {
+        const imageMap: Partial<SiteImages> = {}
+        data.forEach((row: { section_key: string; image_url: string }) => {
+          if (row.image_url) {
+            imageMap[row.section_key as keyof SiteImages] = row.image_url
+          }
+        })
+        setImages(prev => ({ ...prev, ...imageMap }))
+      }
+    } catch (error) {
+      console.error('Error loading site images:', error)
+    }
+  }
+
   return (
     <div>
-      {/* Hero Section - Full viewport, dark background */}
-      <section className="relative min-h-[80vh] flex items-center bg-brand-dark">
-        <div className="absolute inset-0 bg-gradient-to-r from-brand-dark via-brand-dark/95 to-brand-dark/70" />
+      {/* Hero Section - Full viewport, dark background with optional background image */}
+      <section className="relative min-h-[80vh] flex items-center bg-brand-dark overflow-hidden">
+        {images.hero_background && (
+          <Image
+            src={images.hero_background}
+            alt="Workshop"
+            fill
+            className="object-cover"
+            priority
+            sizes="100vw"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-r from-brand-dark via-brand-dark/90 to-brand-dark/60" />
         <div className="container mx-auto px-4 py-24 relative z-10">
           <div className="max-w-3xl">
             <h1 className="font-heading text-5xl md:text-7xl font-bold mb-6 tracking-tight">
@@ -18,7 +74,7 @@ export default function Home() {
               <span className="text-white">MALLET</span>
             </h1>
             <p className="text-xl text-zinc-300 mb-4 leading-relaxed max-w-2xl">
-              Unique amongst the world of handmade tools. Constructed from the world's finest timbers, meticulously chosen based on their density, hardness and strength.
+              Unique amongst the world of handmade tools. Constructed from the world&apos;s finest timbers, meticulously chosen based on their density, hardness and strength.
             </p>
             <p className="text-lg text-zinc-400 mb-10 max-w-2xl">
               Each mallet is balanced, finished, and assembled entirely by hand. No two will ever be the same.
@@ -56,15 +112,39 @@ export default function Home() {
             </p>
           </div>
         </div>
-        <div className="bg-brand-dark-card flex items-center justify-center min-h-[400px] lg:min-h-0">
-          <p className="text-zinc-500 text-sm italic">Product image — wood collection</p>
+        <div className="relative bg-brand-dark-card min-h-[400px] lg:min-h-0">
+          {images.wood_collection ? (
+            <Image
+              src={images.wood_collection}
+              alt="Collection of exotic wood species"
+              fill
+              className="object-cover"
+              sizes="(max-width: 1024px) 100vw, 50vw"
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full min-h-[400px]">
+              <p className="text-zinc-500 text-sm italic">Product image — wood collection</p>
+            </div>
+          )}
         </div>
       </section>
 
       {/* Transition Section - Image left, light panel right */}
       <section className="grid grid-cols-1 lg:grid-cols-2 min-h-[500px]">
-        <div className="bg-brand-dark-card flex items-center justify-center min-h-[400px] lg:min-h-0 order-2 lg:order-1">
-          <p className="text-zinc-500 text-sm italic">Product image — brass/copper transitions</p>
+        <div className="relative bg-brand-dark-card min-h-[400px] lg:min-h-0 order-2 lg:order-1">
+          {images.brass_transitions ? (
+            <Image
+              src={images.brass_transitions}
+              alt="Brass and copper transition materials"
+              fill
+              className="object-cover"
+              sizes="(max-width: 1024px) 100vw, 50vw"
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full min-h-[400px]">
+              <p className="text-zinc-500 text-sm italic">Product image — brass/copper transitions</p>
+            </div>
+          )}
         </div>
         <div className="bg-brand-light flex items-center p-12 lg:p-20 order-1 lg:order-2">
           <div>
@@ -105,7 +185,7 @@ export default function Home() {
               </div>
               <div>
                 <p className="text-zinc-300 mb-4 leading-relaxed">
-                  The portions of the 'tenon' that will be inserted in to the corresponding 'mortise' in the head and handle have multiple grooves turned into them. These serve two purposes:
+                  The portions of the &apos;tenon&apos; that will be inserted in to the corresponding &apos;mortise&apos; in the head and handle have multiple grooves turned into them. These serve two purposes:
                 </p>
                 <p className="text-zinc-300 mb-4 leading-relaxed">
                   <span className="text-brand-orange font-semibold">1.</span> They allow for fine adjustment of weight allocation between the head and the handle of the mallet.
@@ -132,8 +212,20 @@ export default function Home() {
             </p>
           </div>
         </div>
-        <div className="bg-brand-dark-card flex items-center justify-center min-h-[400px] lg:min-h-0">
-          <p className="text-zinc-500 text-sm italic">Product image — row of different mallets</p>
+        <div className="relative bg-brand-dark-card min-h-[400px] lg:min-h-0">
+          {images.mallet_lineup ? (
+            <Image
+              src={images.mallet_lineup}
+              alt="Row of different handcrafted mallets"
+              fill
+              className="object-cover"
+              sizes="(max-width: 1024px) 100vw, 50vw"
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full min-h-[400px]">
+              <p className="text-zinc-500 text-sm italic">Product image — row of different mallets</p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -191,7 +283,7 @@ export default function Home() {
           <div className="max-w-4xl mx-auto text-center">
             <h2 className="font-heading text-3xl md:text-4xl font-bold text-brand-orange mb-4">CUSTOM COMMISSIONS</h2>
             <p className="text-zinc-300 mb-8 text-lg max-w-2xl mx-auto">
-              Have a specific tool in mind? Join the commission waiting list and let's create something extraordinary together.
+              Have a specific tool in mind? Join the commission waiting list and let&apos;s create something extraordinary together.
             </p>
             <Link href="/commissions">
               <Button size="lg">

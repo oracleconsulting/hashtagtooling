@@ -28,19 +28,20 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-brand-dark">
+      <Card className="w-full max-w-md bg-brand-dark-card border border-brand-dark-border">
         <CardHeader>
-          <CardTitle className="text-2xl">Admin Login</CardTitle>
+          <CardTitle className="text-2xl text-white">Admin Login</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-sm font-medium mb-2 text-zinc-300">
                 Admin Password
               </label>
               <Input
                 type="password"
+                className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter admin password"

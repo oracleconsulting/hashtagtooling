@@ -159,7 +159,7 @@ export default function CustomMalletPage() {
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="flex items-center justify-center min-h-[400px]">
-          <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
+          <Loader2 className="h-8 w-8 animate-spin text-brand-orange" />
         </div>
       </div>
     )
@@ -168,8 +168,8 @@ export default function CustomMalletPage() {
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-bold mb-4">Build Your Custom Mallet</h1>
-        <p className="text-zinc-600 mb-12">
+        <h1 className="font-heading text-4xl font-bold mb-4 text-brand-orange">Build Your Custom Mallet</h1>
+        <p className="text-zinc-400 mb-12">
           Design your perfect mallet by selecting the style, woods, and transition material. 
           Each mallet is handcrafted to order.
         </p>
@@ -178,9 +178,9 @@ export default function CustomMalletPage() {
           {/* Configuration Panel */}
           <div className="space-y-6">
             {/* Mallet Type */}
-            <Card>
+            <Card className="bg-brand-dark-card border border-brand-dark-border">
               <CardHeader>
-                <CardTitle>1. Select Mallet Style</CardTitle>
+                <CardTitle className="text-white">1. Select Mallet Style</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {malletStyles.map(style => (
@@ -189,19 +189,19 @@ export default function CustomMalletPage() {
                     onClick={() => setSelectedStyle(style.id)}
                     className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
                       selectedStyle === style.id 
-                        ? 'border-zinc-900 bg-zinc-50' 
-                        : 'border-zinc-200 hover:border-zinc-300'
+                        ? 'border-brand-orange bg-brand-orange/10' 
+                        : 'border-brand-dark-border hover:border-zinc-500'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-medium">{style.style_name}</p>
-                        <p className="text-sm text-zinc-500">{style.description}</p>
+                        <p className="font-medium text-white">{style.style_name}</p>
+                        <p className="text-sm text-zinc-400">{style.description}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold">{formatPrice(style.base_price)}</p>
+                        <p className="font-bold text-brand-orange">{formatPrice(style.base_price)}</p>
                         {selectedStyle === style.id && (
-                          <Check className="h-5 w-5 text-zinc-900 mt-1 ml-auto" />
+                          <Check className="h-5 w-5 text-brand-orange mt-1 ml-auto" />
                         )}
                       </div>
                     </div>
@@ -211,9 +211,9 @@ export default function CustomMalletPage() {
             </Card>
 
             {/* Head Wood */}
-            <Card>
+            <Card className="bg-brand-dark-card border border-brand-dark-border">
               <CardHeader>
-                <CardTitle>2. Select Head Wood</CardTitle>
+                <CardTitle className="text-white">2. Select Head Wood</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
@@ -223,19 +223,19 @@ export default function CustomMalletPage() {
                       onClick={() => setSelectedHeadWood(wood.id)}
                       className={`p-3 rounded-lg border-2 transition-all ${
                         selectedHeadWood === wood.id 
-                          ? 'border-zinc-900 bg-zinc-50' 
-                          : 'border-zinc-200 hover:border-zinc-300'
+                          ? 'border-brand-orange bg-brand-orange/10' 
+                          : 'border-brand-dark-border hover:border-zinc-500'
                       }`}
                     >
                       <div className="flex items-center gap-2">
                         <div 
-                          className="w-6 h-6 rounded-full border border-zinc-300 flex-shrink-0"
+                          className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0"
                           style={{ backgroundColor: wood.color_hex }}
                         />
                         <div className="flex-1 text-left">
-                          <span className="text-sm font-medium block">{wood.name}</span>
+                          <span className="text-sm font-medium block text-white">{wood.name}</span>
                           {wood.mallet_head_premium > 0 && (
-                            <span className="text-xs text-zinc-500">+£{wood.mallet_head_premium}</span>
+                            <span className="text-xs text-zinc-400">+£{wood.mallet_head_premium}</span>
                           )}
                         </div>
                       </div>
@@ -246,9 +246,9 @@ export default function CustomMalletPage() {
             </Card>
 
             {/* Handle Wood */}
-            <Card>
+            <Card className="bg-brand-dark-card border border-brand-dark-border">
               <CardHeader>
-                <CardTitle>3. Select Handle Wood</CardTitle>
+                <CardTitle className="text-white">3. Select Handle Wood</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
@@ -258,19 +258,19 @@ export default function CustomMalletPage() {
                       onClick={() => setSelectedHandleWood(wood.id)}
                       className={`p-3 rounded-lg border-2 transition-all ${
                         selectedHandleWood === wood.id 
-                          ? 'border-zinc-900 bg-zinc-50' 
-                          : 'border-zinc-200 hover:border-zinc-300'
+                          ? 'border-brand-orange bg-brand-orange/10' 
+                          : 'border-brand-dark-border hover:border-zinc-500'
                       }`}
                     >
                       <div className="flex items-center gap-2">
                         <div 
-                          className="w-6 h-6 rounded-full border border-zinc-300 flex-shrink-0"
+                          className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0"
                           style={{ backgroundColor: wood.color_hex }}
                         />
                         <div className="flex-1 text-left">
-                          <span className="text-sm font-medium block">{wood.name}</span>
+                          <span className="text-sm font-medium block text-white">{wood.name}</span>
                           {wood.mallet_handle_premium > 0 && (
-                            <span className="text-xs text-zinc-500">+£{wood.mallet_handle_premium}</span>
+                            <span className="text-xs text-zinc-400">+£{wood.mallet_handle_premium}</span>
                           )}
                         </div>
                       </div>
@@ -281,9 +281,9 @@ export default function CustomMalletPage() {
             </Card>
 
             {/* Transition Material */}
-            <Card>
+            <Card className="bg-brand-dark-card border border-brand-dark-border">
               <CardHeader>
-                <CardTitle>4. Select Transition Material</CardTitle>
+                <CardTitle className="text-white">4. Select Transition Material</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {transitions.map(material => (
@@ -292,25 +292,25 @@ export default function CustomMalletPage() {
                     onClick={() => setSelectedTransition(material.id)}
                     className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
                       selectedTransition === material.id 
-                        ? 'border-zinc-900 bg-zinc-50' 
-                        : 'border-zinc-200 hover:border-zinc-300'
+                        ? 'border-brand-orange bg-brand-orange/10' 
+                        : 'border-brand-dark-border hover:border-zinc-500'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div 
-                          className="w-8 h-8 rounded-full border border-zinc-300"
+                          className="w-8 h-8 rounded-full border border-zinc-600"
                           style={{ backgroundColor: material.color_hex }}
                         />
                         <div>
-                          <span className="font-medium block">{material.name}</span>
+                          <span className="font-medium block text-white">{material.name}</span>
                           {material.mallet_head_premium > 0 && (
-                            <span className="text-xs text-zinc-500">+£{material.mallet_head_premium}</span>
+                            <span className="text-xs text-zinc-400">+£{material.mallet_head_premium}</span>
                           )}
                         </div>
                       </div>
                       {selectedTransition === material.id && (
-                        <Check className="h-5 w-5 text-zinc-900" />
+                        <Check className="h-5 w-5 text-brand-orange" />
                       )}
                     </div>
                   </button>
@@ -321,72 +321,72 @@ export default function CustomMalletPage() {
 
           {/* Preview & Summary */}
           <div className="lg:sticky lg:top-24 h-fit">
-            <Card>
+            <Card className="bg-brand-dark-card border border-brand-dark-border">
               <CardHeader>
-                <CardTitle>Your Custom Mallet</CardTitle>
+                <CardTitle className="text-white">Your Custom Mallet</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Placeholder Image */}
-                <div className="aspect-square bg-zinc-100 rounded-lg flex items-center justify-center">
-                  <p className="text-zinc-400">Preview Image</p>
+                <div className="aspect-square bg-brand-dark border border-brand-dark-border rounded-lg flex items-center justify-center">
+                  <p className="text-zinc-500">Preview Image</p>
                 </div>
 
                 {/* Configuration Summary */}
                 <div className="space-y-3 text-sm">
                   <div>
-                    <span className="text-zinc-600">Style:</span>
-                    <p className="font-medium">
+                    <span className="text-zinc-400">Style:</span>
+                    <p className="font-medium text-white">
                       {malletStyles.find(s => s.id === selectedStyle)?.style_name || 'Select a style'}
                     </p>
                   </div>
                   <div>
-                    <span className="text-zinc-600">Head Wood:</span>
-                    <p className="font-medium">
+                    <span className="text-zinc-400">Head Wood:</span>
+                    <p className="font-medium text-white">
                       {woods.find(w => w.id === selectedHeadWood)?.name || 'Select wood'}
                     </p>
                   </div>
                   <div>
-                    <span className="text-zinc-600">Handle Wood:</span>
-                    <p className="font-medium">
+                    <span className="text-zinc-400">Handle Wood:</span>
+                    <p className="font-medium text-white">
                       {woods.find(w => w.id === selectedHandleWood)?.name || 'Select wood'}
                     </p>
                   </div>
                   <div>
-                    <span className="text-zinc-600">Transition:</span>
-                    <p className="font-medium">
+                    <span className="text-zinc-400">Transition:</span>
+                    <p className="font-medium text-white">
                       {transitions.find(t => t.id === selectedTransition)?.name || 'Select material'}
                     </p>
                   </div>
                 </div>
 
-                <div className="border-t pt-4">
+                <div className="border-t border-brand-dark-border pt-4">
                   <div className="space-y-2 mb-4 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-zinc-600">Base price:</span>
-                      <span>{formatPrice(malletStyles.find(s => s.id === selectedStyle)?.base_price || 0)}</span>
+                      <span className="text-zinc-400">Base price:</span>
+                      <span className="text-white">{formatPrice(malletStyles.find(s => s.id === selectedStyle)?.base_price || 0)}</span>
                     </div>
                     {woods.find(w => w.id === selectedHeadWood)?.mallet_head_premium ? (
                       <div className="flex justify-between">
-                        <span className="text-zinc-600">Head wood premium:</span>
-                        <span>+{formatPrice(woods.find(w => w.id === selectedHeadWood)!.mallet_head_premium)}</span>
+                        <span className="text-zinc-400">Head wood premium:</span>
+                        <span className="text-white">+{formatPrice(woods.find(w => w.id === selectedHeadWood)!.mallet_head_premium)}</span>
                       </div>
                     ) : null}
                     {woods.find(w => w.id === selectedHandleWood)?.mallet_handle_premium ? (
                       <div className="flex justify-between">
-                        <span className="text-zinc-600">Handle wood premium:</span>
-                        <span>+{formatPrice(woods.find(w => w.id === selectedHandleWood)!.mallet_handle_premium)}</span>
+                        <span className="text-zinc-400">Handle wood premium:</span>
+                        <span className="text-white">+{formatPrice(woods.find(w => w.id === selectedHandleWood)!.mallet_handle_premium)}</span>
                       </div>
                     ) : null}
                     {transitions.find(t => t.id === selectedTransition)?.mallet_head_premium ? (
                       <div className="flex justify-between">
-                        <span className="text-zinc-600">Transition premium:</span>
-                        <span>+{formatPrice(transitions.find(t => t.id === selectedTransition)!.mallet_head_premium)}</span>
+                        <span className="text-zinc-400">Transition premium:</span>
+                        <span className="text-white">+{formatPrice(transitions.find(t => t.id === selectedTransition)!.mallet_head_premium)}</span>
                       </div>
                     ) : null}
                   </div>
-                  <div className="flex justify-between items-center mb-4 border-t pt-2">
+                  <div className="flex justify-between items-center mb-4 border-t border-brand-dark-border pt-2">
                     <span className="text-lg font-semibold">Total:</span>
-                    <span className="text-2xl font-bold">{formatPrice(calculatePrice())}</span>
+                    <span className="text-2xl font-bold text-brand-orange">{formatPrice(calculatePrice())}</span>
                   </div>
                   <Button 
                     onClick={handleAddToCart} 
