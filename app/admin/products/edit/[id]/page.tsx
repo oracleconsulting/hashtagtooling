@@ -1,0 +1,517 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter, useParams } from 'next/navigation'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/button'
+import { supabase } from '@/lib/supabase'
+import { Upload, X, Loader2 } from 'lucide-react'
+
+export default function EditProductPage() {
+  const router = useRouter()
+  const params = useParams()
+  const id = params.id as string
+  const [loading, setLoading] = useState(false)
+  const [pageLoading, setPageLoading] = useState(true)
+  const [uploadingFiles, setUploadingFiles] = useState(false)
+  const [imageUrls, setImageUrls] = useState<string[]>([])
+  const [videoUrl, setVideoUrl] = useState('')
+  const [availableWoods, setAvailableWoods] = useState<{ id: string; name: string; color_hex: string }[]>([])
+
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    price: '',
+    category: 'mallet',
+    stock_status: 'in_stock',
+    weight_kg: '',
+    dimensions: '',
+    head_wood: '',
+    handle_wood: '',
+    shipping_uk: '5.99',
+    shipping_europe: '15.99',
+    shipping_world: '25.99',
+    featured: false,
+    display_order: 0,
+  })
+
+  useEffect(() => {
+    const isAuthenticated = sessionStorage.getItem('admin_auth')
+    if (!isAuthenticated) {
+      router.push('/admin')
+      return
+    }
+    loadProduct()
+  }, [router, id])
+
+  useEffect(() => {
+    const loadWoods = async () => {
+      const { data, error } = await supabase
+        .from('materials')
+        .select('id, name, color_hex')
+        .eq('category', 'wood')
+        .order('name')
+      if (!error && data) setAvailableWoods(data)
+    }
+    loadWoods()
+  }, [])
+
+  const loadProduct = async () => {
+    if (!id) return
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+      if (error) throw error
+      if (!data) {
+        router.push('/admin/products')
+        return
+      }
+
+      setFormData({
+        name: data.name ?? '',
+        description: data.description ?? '',
+        price: String(data.price ?? ''),
+        category: data.category ?? 'mallet',
+        stock_status: data.stock_status ?? 'in_stock',
+        weight_kg: data.metadata?.weight_kg ?? '',
+        dimensions: data.metadata?.dimensions ?? '',
+        head_wood: data.metadata?.head_wood ?? '',
+        handle_wood: data.metadata?.handle_wood ?? '',
+        shipping_uk: data.metadata?.shipping?.uk?.toString() ?? '5.99',
+        shipping_europe: data.metadata?.shipping?.europe?.toString() ?? '15.99',
+        shipping_world: data.metadata?.shipping?.world?.toString() ?? '25.99',
+        featured: Boolean(data.metadata?.featured),
+        display_order: Number(data.metadata?.display_order) || 0,
+      })
+      setImageUrls(data.metadata?.images?.length ? data.metadata.images : (data.image_url ? [data.image_url] : []))
+      setVideoUrl(data.metadata?.video ?? '')
+    } catch (err) {
+      console.error('Error loading product:', err)
+      alert('Failed to load product')
+      router.push('/admin/products')
+    } finally {
+      setPageLoading(false)
+    }
+  }
+
+  const handleFileUpload = async (files: FileList | null, type: 'image' | 'video') => {
+    if (!files || files.length === 0) return
+
+    setUploadingFiles(true)
+    const uploadedUrls: string[] = []
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        let file = files[i]
+        let fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+
+        if (fileExt === 'heic' || fileExt === 'heif' || file.type === 'image/heic' || file.type === 'image/heif') {
+          try {
+            const heic2any = (await import('heic2any')).default
+            const convertedBlob = await heic2any({
+              blob: file,
+              toType: 'image/jpeg',
+              quality: 0.9,
+            })
+            const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
+            file = new File(
+              [blob],
+              file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
+              { type: 'image/jpeg' }
+            )
+            fileExt = 'jpg'
+          } catch (conversionError) {
+            console.error('HEIC conversion failed:', conversionError)
+            alert(`Could not convert ${file.name}. Try converting to JPG on your phone before uploading.`)
+            continue
+          }
+        }
+
+        const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`
+        const filePath = `products/${fileName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('products')
+          .upload(filePath, file)
+
+        if (uploadError) {
+          console.error('Upload error:', uploadError)
+          alert(`Failed to upload ${file.name}`)
+          continue
+        }
+
+        const { data } = supabase.storage.from('products').getPublicUrl(filePath)
+        if (data?.publicUrl) uploadedUrls.push(data.publicUrl)
+      }
+
+      if (type === 'image') {
+        setImageUrls((prev) => [...prev, ...uploadedUrls])
+      } else {
+        setVideoUrl(uploadedUrls[0] || '')
+      }
+    } catch (error) {
+      console.error('Error uploading files:', error)
+      alert('Error uploading files')
+    } finally {
+      setUploadingFiles(false)
+    }
+  }
+
+  const removeImage = (index: number) => {
+    setImageUrls((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({
+          name: formData.name,
+          description: formData.description,
+          price: parseFloat(formData.price),
+          category: formData.category,
+          stock_status: formData.stock_status,
+          image_url: imageUrls[0] || 'https://placehold.co/600x400/666/white?text=No+Image',
+          metadata: {
+            images: imageUrls,
+            video: videoUrl,
+            weight_kg: formData.weight_kg,
+            dimensions: formData.dimensions,
+            head_wood: formData.head_wood,
+            handle_wood: formData.handle_wood,
+            shipping: {
+              uk: parseFloat(formData.shipping_uk) || 0,
+              europe: parseFloat(formData.shipping_europe) || 0,
+              world: parseFloat(formData.shipping_world) || 0,
+            },
+            featured: formData.featured,
+            display_order: Number(formData.display_order) || 0,
+          },
+        })
+        .eq('id', id)
+
+      if (error) throw error
+
+      alert('Product updated successfully!')
+      router.push('/admin/products')
+    } catch (error) {
+      console.error('Error updating product:', error)
+      alert('Failed to update product')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (pageLoading) {
+    return (
+      <div className="container mx-auto px-4 py-12 flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-orange" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-12">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="font-heading text-4xl font-bold text-brand-orange">Edit Product</h1>
+          <Button variant="outline" onClick={() => router.back()}>
+            Cancel
+          </Button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <Card className="bg-brand-dark-card border border-brand-dark-border">
+            <CardHeader>
+              <CardTitle className="text-white">Basic Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Product Name *</label>
+                <Input
+                  required
+                  className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g., Walnut Carving Mallet"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Description *</label>
+                <Textarea
+                  required
+                  className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Detailed description..."
+                  rows={4}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">Category *</label>
+                  <select
+                    className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  >
+                    <option value="mallet">Mallet</option>
+                    <option value="awl">Awl</option>
+                    <option value="square">Engineering Square</option>
+                    <option value="coin">EDC Coin</option>
+                    <option value="wood">Wood for Sale</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">Stock Status *</label>
+                  <select
+                    className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
+                    value={formData.stock_status}
+                    onChange={(e) => setFormData({ ...formData, stock_status: e.target.value })}
+                  >
+                    <option value="in_stock">In Stock</option>
+                    <option value="made_to_order">Made to Order</option>
+                    <option value="out_of_stock">Out of Stock</option>
+                    <option value="sold">Sold</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Price (£) *</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  required
+                  className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                  value={formData.price}
+                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  placeholder="89.99"
+                />
+              </div>
+
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.featured}
+                    onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
+                    className="rounded border-brand-dark-border bg-brand-dark text-brand-orange focus:ring-brand-orange"
+                  />
+                  <span className="text-sm text-zinc-300">Featured (e.g. homepage)</span>
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Display order (lower = first in shop)</label>
+                <Input
+                  type="number"
+                  className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                  value={formData.display_order}
+                  onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value, 10) || 0 })}
+                  placeholder="0"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-brand-dark-card border border-brand-dark-border">
+            <CardHeader>
+              <CardTitle className="text-white">Media</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Product Images</label>
+                <div className="border-2 border-dashed border-brand-dark-border rounded-lg p-8 text-center">
+                  <Upload className="mx-auto h-12 w-12 text-zinc-500 mb-4" />
+                  <input
+                    type="file"
+                    accept="image/*,.heic,.HEIC"
+                    multiple
+                    onChange={(e) => handleFileUpload(e.target.files, 'image')}
+                    className="hidden"
+                    id="image-upload-edit"
+                    disabled={uploadingFiles}
+                  />
+                  <Button
+                    type="button"
+                    disabled={uploadingFiles}
+                    onClick={() => document.getElementById('image-upload-edit')?.click()}
+                  >
+                    {uploadingFiles ? 'Uploading...' : 'Upload Images'}
+                  </Button>
+                  <p className="text-sm text-zinc-500 mt-2">JPG, PNG, WEBP (max 5MB each)</p>
+                </div>
+                {imageUrls.length > 0 && (
+                  <div className="grid grid-cols-4 gap-4 mt-4">
+                    {imageUrls.map((url, index) => (
+                      <div key={index} className="relative aspect-square">
+                        <img
+                          src={url}
+                          alt={`Product ${index + 1}`}
+                          className="w-full h-full object-cover rounded-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Product Video (Optional)</label>
+                <div className="border-2 border-dashed border-brand-dark-border rounded-lg p-8 text-center">
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={(e) => handleFileUpload(e.target.files, 'video')}
+                    className="hidden"
+                    id="video-upload-edit"
+                    disabled={uploadingFiles}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={uploadingFiles}
+                    onClick={() => document.getElementById('video-upload-edit')?.click()}
+                  >
+                    {uploadingFiles ? 'Uploading...' : 'Upload Video'}
+                  </Button>
+                </div>
+                {videoUrl && <p className="text-sm text-green-600 mt-2">✓ Video uploaded</p>}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-brand-dark-card border border-brand-dark-border">
+            <CardHeader>
+              <CardTitle className="text-white">Specifications</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">Weight (kg)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                    value={formData.weight_kg}
+                    onChange={(e) => setFormData({ ...formData, weight_kg: e.target.value })}
+                    placeholder="0.5"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">Dimensions</label>
+                  <Input
+                    className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                    value={formData.dimensions}
+                    onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
+                    placeholder="11 x 3.5 inches"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">Head Wood</label>
+                  <select
+                    className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
+                    value={formData.head_wood}
+                    onChange={(e) => setFormData({ ...formData, head_wood: e.target.value })}
+                  >
+                    <option value="">Select head wood...</option>
+                    {availableWoods.map((wood) => (
+                      <option key={wood.id} value={wood.name}>{wood.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">Handle Wood</label>
+                  <select
+                    className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
+                    value={formData.handle_wood}
+                    onChange={(e) => setFormData({ ...formData, handle_wood: e.target.value })}
+                  >
+                    <option value="">Select handle wood...</option>
+                    {availableWoods.map((wood) => (
+                      <option key={wood.id} value={wood.name}>{wood.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-brand-dark-card border border-brand-dark-border">
+            <CardHeader>
+              <CardTitle className="text-white">Shipping Costs</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">UK Shipping (£)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.shipping_uk}
+                    onChange={(e) => setFormData({ ...formData, shipping_uk: e.target.value })}
+                    placeholder="5.99"
+                    className="bg-brand-dark border border-brand-dark-border text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">Europe Shipping (£)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.shipping_europe}
+                    onChange={(e) => setFormData({ ...formData, shipping_europe: e.target.value })}
+                    placeholder="15.99"
+                    className="bg-brand-dark border border-brand-dark-border text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">Rest of World (£)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.shipping_world}
+                    onChange={(e) => setFormData({ ...formData, shipping_world: e.target.value })}
+                    placeholder="25.99"
+                    className="bg-brand-dark border border-brand-dark-border text-white"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-zinc-500">Set to 0 for free shipping. These costs will be shown to the customer at checkout.</p>
+            </CardContent>
+          </Card>
+
+          <div className="flex gap-4">
+            <Button type="submit" size="lg" className="flex-1" disabled={loading || uploadingFiles}>
+              {loading ? 'Saving...' : 'Save Changes'}
+            </Button>
+            <Button type="button" variant="outline" size="lg" onClick={() => router.back()} disabled={loading}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}

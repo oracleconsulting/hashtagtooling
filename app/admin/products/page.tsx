@@ -87,6 +87,11 @@ export default function AdminProductsPage() {
       <div className="flex justify-between items-center mb-8">
         <h1 className="font-heading text-4xl font-bold text-brand-orange">Manage Products</h1>
         <div className="flex gap-4">
+          <Link href="/admin/dashboard">
+            <Button size="lg" variant="outline">
+              Dashboard
+            </Button>
+          </Link>
           <Link href="/admin/site-images">
             <Button size="lg" variant="outline">
               Site Images

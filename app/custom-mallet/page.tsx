@@ -176,10 +176,10 @@ export default function CustomMalletPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Configuration Panel */}
-          <div className="space-y-6">
+          <div className="space-y-8 md:space-y-6">
             {/* Mallet Type */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
-              <CardHeader>
+              <CardHeader className="sticky top-0 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
                 <CardTitle className="text-white">1. Select Mallet Style</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -212,7 +212,7 @@ export default function CustomMalletPage() {
 
             {/* Head Wood */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
-              <CardHeader>
+              <CardHeader className="sticky top-0 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
                 <CardTitle className="text-white">2. Select Head Wood</CardTitle>
               </CardHeader>
               <CardContent>
@@ -247,7 +247,7 @@ export default function CustomMalletPage() {
 
             {/* Handle Wood */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
-              <CardHeader>
+              <CardHeader className="sticky top-0 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
                 <CardTitle className="text-white">3. Select Handle Wood</CardTitle>
               </CardHeader>
               <CardContent>
@@ -282,7 +282,7 @@ export default function CustomMalletPage() {
 
             {/* Transition Material */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
-              <CardHeader>
+              <CardHeader className="sticky top-0 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
                 <CardTitle className="text-white">4. Select Transition Material</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">

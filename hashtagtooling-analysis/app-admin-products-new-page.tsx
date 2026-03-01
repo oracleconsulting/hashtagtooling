@@ -8,7 +8,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 import { Upload, X } from 'lucide-react'
-import { WOOD_TYPES } from '@/lib/constants'
 
 export default function NewProductPage() {
   const router = useRouter()
@@ -16,6 +15,7 @@ export default function NewProductPage() {
   const [uploadingFiles, setUploadingFiles] = useState(false)
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [videoUrl, setVideoUrl] = useState('')
+  const [availableWoods, setAvailableWoods] = useState<{ id: string; name: string; color_hex: string }[]>([])
   
   const [formData, setFormData] = useState({
     name: '',
@@ -25,7 +25,11 @@ export default function NewProductPage() {
     stock_status: 'in_stock',
     weight_kg: '',
     dimensions: '',
-    wood_types: [] as string[],
+    head_wood: '',
+    handle_wood: '',
+    shipping_uk: '5.99',
+    shipping_europe: '15.99',
+    shipping_world: '25.99',
   })
 
   useEffect(() => {
@@ -35,6 +39,18 @@ export default function NewProductPage() {
     }
   }, [router])
 
+  useEffect(() => {
+    const loadWoods = async () => {
+      const { data, error } = await supabase
+        .from('materials')
+        .select('id, name, color_hex')
+        .eq('category', 'wood')
+        .order('name')
+      if (!error && data) setAvailableWoods(data)
+    }
+    loadWoods()
+  }, [])
+
   const handleFileUpload = async (files: FileList | null, type: 'image' | 'video') => {
     if (!files || files.length === 0) return
 
@@ -43,12 +59,35 @@ export default function NewProductPage() {
 
     try {
       for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        const fileExt = file.name.split('.').pop()
+        let file = files[i]
+        let fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+
+        // Convert HEIC/HEIF to JPEG (dynamic import: heic2any uses window, so load only in browser)
+        if (fileExt === 'heic' || fileExt === 'heif' || file.type === 'image/heic' || file.type === 'image/heif') {
+          try {
+            const heic2any = (await import('heic2any')).default
+            const convertedBlob = await heic2any({
+              blob: file,
+              toType: 'image/jpeg',
+              quality: 0.9,
+            })
+            const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
+            file = new File(
+              [blob],
+              file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
+              { type: 'image/jpeg' }
+            )
+            fileExt = 'jpg'
+          } catch (conversionError) {
+            console.error('HEIC conversion failed:', conversionError)
+            alert(`Could not convert ${file.name}. Try converting to JPG on your phone before uploading.`)
+            continue
+          }
+        }
+
         const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`
         const filePath = `products/${fileName}`
 
-        // Upload to Supabase Storage
         const { error: uploadError } = await supabase.storage
           .from('products')
           .upload(filePath, file)
@@ -59,7 +98,6 @@ export default function NewProductPage() {
           continue
         }
 
-        // Get public URL
         const { data } = supabase.storage
           .from('products')
           .getPublicUrl(filePath)
@@ -86,34 +124,11 @@ export default function NewProductPage() {
     setImageUrls(imageUrls.filter((_, i) => i !== index))
   }
 
-  const calculateShipping = () => {
-    const weight = parseFloat(formData.weight_kg) || 0
-    
-    if (weight === 0) return { uk: 0, europe: 0, world: 0 }
-    
-    // Basic shipping calculation
-    let uk = 5.99
-    let europe = 15.99
-    let world = 25.99
-    
-    // Add extra for heavy items
-    if (weight > 2) {
-      const extraKg = weight - 2
-      uk += extraKg * 2
-      europe += extraKg * 5
-      world += extraKg * 8
-    }
-    
-    return { uk, europe, world }
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      const shipping = calculateShipping()
-      
       const { error } = await supabase.from('products').insert([
         {
           name: formData.name,
@@ -127,8 +142,13 @@ export default function NewProductPage() {
             video: videoUrl,
             weight_kg: formData.weight_kg,
             dimensions: formData.dimensions,
-            wood_types: formData.wood_types,
-            shipping,
+            head_wood: formData.head_wood,
+            handle_wood: formData.handle_wood,
+            shipping: {
+              uk: parseFloat(formData.shipping_uk) || 0,
+              europe: parseFloat(formData.shipping_europe) || 0,
+              world: parseFloat(formData.shipping_world) || 0,
+            },
           }
         }
       ])
@@ -144,8 +164,6 @@ export default function NewProductPage() {
       setLoading(false)
     }
   }
-
-  const shipping = calculateShipping()
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -257,18 +275,20 @@ export default function NewProductPage() {
                   <Upload className="mx-auto h-12 w-12 text-zinc-500 mb-4" />
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,.heic,.HEIC"
                     multiple
                     onChange={(e) => handleFileUpload(e.target.files, 'image')}
                     className="hidden"
                     id="image-upload"
                     disabled={uploadingFiles}
                   />
-                  <label htmlFor="image-upload" className="cursor-pointer">
-                    <Button type="button" disabled={uploadingFiles}>
-                      {uploadingFiles ? 'Uploading...' : 'Upload Images'}
-                    </Button>
-                  </label>
+                  <Button
+                    type="button"
+                    disabled={uploadingFiles}
+                    onClick={() => document.getElementById('image-upload')?.click()}
+                  >
+                    {uploadingFiles ? 'Uploading...' : 'Upload Images'}
+                  </Button>
                   <p className="text-sm text-zinc-500 mt-2">
                     JPG, PNG, WEBP (max 5MB each)
                   </p>
@@ -309,11 +329,14 @@ export default function NewProductPage() {
                     id="video-upload"
                     disabled={uploadingFiles}
                   />
-                  <label htmlFor="video-upload" className="cursor-pointer">
-                    <Button type="button" variant="outline" disabled={uploadingFiles}>
-                      {uploadingFiles ? 'Uploading...' : 'Upload Video'}
-                    </Button>
-                  </label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={uploadingFiles}
+                    onClick={() => document.getElementById('video-upload')?.click()}
+                  >
+                    {uploadingFiles ? 'Uploading...' : 'Upload Video'}
+                  </Button>
                 </div>
                 {videoUrl && (
                   <p className="text-sm text-green-600 mt-2">✓ Video uploaded</p>
@@ -356,70 +379,91 @@ export default function NewProductPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2 text-zinc-300">
-                  Wood Types Used
-                </label>
-                <div className="border rounded-lg p-4 max-h-48 overflow-y-auto">
-                  <div className="grid grid-cols-2 gap-2">
-                    {WOOD_TYPES.map((wood) => (
-                      <label key={wood.id} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.wood_types.includes(wood.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFormData({
-                                ...formData,
-                                wood_types: [...formData.wood_types, wood.id]
-                              })
-                            } else {
-                              setFormData({
-                                ...formData,
-                                wood_types: formData.wood_types.filter(id => id !== wood.id)
-                              })
-                            }
-                          }}
-                          className="rounded"
-                        />
-                        <span className="text-sm">{wood.name}</span>
-                      </label>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">
+                    Head Wood
+                  </label>
+                  <select
+                    className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
+                    value={formData.head_wood}
+                    onChange={(e) => setFormData({ ...formData, head_wood: e.target.value })}
+                  >
+                    <option value="">Select head wood...</option>
+                    {availableWoods.map(wood => (
+                      <option key={wood.id} value={wood.name}>{wood.name}</option>
                     ))}
-                  </div>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">
+                    Handle Wood
+                  </label>
+                  <select
+                    className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
+                    value={formData.handle_wood}
+                    onChange={(e) => setFormData({ ...formData, handle_wood: e.target.value })}
+                  >
+                    <option value="">Select handle wood...</option>
+                    {availableWoods.map(wood => (
+                      <option key={wood.id} value={wood.name}>{wood.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Shipping Calculator */}
+          {/* Shipping Costs */}
           <Card className="bg-brand-dark-card border border-brand-dark-border">
             <CardHeader>
-              <CardTitle className="text-white">Shipping Calculator</CardTitle>
+              <CardTitle className="text-white">Shipping Costs</CardTitle>
             </CardHeader>
-            <CardContent>
-              {formData.weight_kg ? (
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-zinc-400">UK Shipping:</span>
-                    <span className="font-semibold">£{shipping.uk.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-zinc-400">Europe Shipping:</span>
-                    <span className="font-semibold">£{shipping.europe.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-zinc-400">Rest of World:</span>
-                    <span className="font-semibold">£{shipping.world.toFixed(2)}</span>
-                  </div>
-                  <p className="text-xs text-zinc-500 mt-4">
-                    * Calculated based on weight. Adjust weight above to recalculate.
-                  </p>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">
+                    UK Shipping (£)
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.shipping_uk}
+                    onChange={(e) => setFormData({ ...formData, shipping_uk: e.target.value })}
+                    placeholder="5.99"
+                    className="bg-brand-dark border border-brand-dark-border text-white"
+                  />
                 </div>
-              ) : (
-                <p className="text-zinc-500 text-sm">
-                  Enter product weight to calculate shipping costs
-                </p>
-              )}
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">
+                    Europe Shipping (£)
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.shipping_europe}
+                    onChange={(e) => setFormData({ ...formData, shipping_europe: e.target.value })}
+                    placeholder="15.99"
+                    className="bg-brand-dark border border-brand-dark-border text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">
+                    Rest of World (£)
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.shipping_world}
+                    onChange={(e) => setFormData({ ...formData, shipping_world: e.target.value })}
+                    placeholder="25.99"
+                    className="bg-brand-dark border border-brand-dark-border text-white"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-zinc-500">
+                Set to 0 for free shipping. These costs will be shown to the customer at checkout.
+              </p>
             </CardContent>
           </Card>
 

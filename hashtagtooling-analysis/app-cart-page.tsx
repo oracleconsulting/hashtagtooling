@@ -17,11 +17,26 @@ export default function CartPage() {
   const [showCheckout, setShowCheckout] = useState(false)
   const [orderComplete, setOrderComplete] = useState(false)
   const [orderNumber, setOrderNumber] = useState('')
+  const [shippingRegion, setShippingRegion] = useState<'uk' | 'europe' | 'world'>('uk')
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     email: '',
     shippingAddress: '',
   })
+
+  const getShippingTotal = () => {
+    let maxShipping = 0
+    items.forEach(() => {
+      const rates: Record<string, number> = {
+        uk: 5.99,
+        europe: 15.99,
+        world: 25.99,
+      }
+      const rate = rates[shippingRegion] || 5.99
+      if (rate > maxShipping) maxShipping = rate
+    })
+    return maxShipping
+  }
 
   if (orderComplete) {
     return (
@@ -65,6 +80,8 @@ export default function CartPage() {
   }
 
   const totalPrice = getTotalPrice()
+  const shippingTotal = getShippingTotal()
+  const totalWithShipping = totalPrice + (items.length > 0 ? shippingTotal : 0)
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -136,18 +153,34 @@ export default function CartPage() {
               <h2 className="text-xl font-bold mb-4 text-white">Order Summary</h2>
               
               <div className="space-y-3 mb-6">
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">
+                    Shipping Region
+                  </label>
+                  <select
+                    className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
+                    value={shippingRegion}
+                    onChange={(e) => setShippingRegion(e.target.value as 'uk' | 'europe' | 'world')}
+                  >
+                    <option value="uk">United Kingdom</option>
+                    <option value="europe">Europe</option>
+                    <option value="world">Rest of World</option>
+                  </select>
+                </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-zinc-400">Subtotal</span>
                   <span>{formatPrice(totalPrice)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-zinc-400">Shipping</span>
-                  <span>Calculated at checkout</span>
+                  <span className="text-zinc-400">Shipping ({shippingRegion === 'uk' ? 'UK' : shippingRegion === 'europe' ? 'Europe' : 'Rest of World'}):</span>
+                  <span className="text-white">
+                    {items.length > 0 ? `£${shippingTotal.toFixed(2)}` : '£0.00'}
+                  </span>
                 </div>
                 <div className="border-t border-brand-dark-border pt-3">
                   <div className="flex justify-between font-bold text-lg">
                     <span>Total</span>
-                    <span className="text-brand-orange">{formatPrice(totalPrice)}</span>
+                    <span className="text-brand-orange">{formatPrice(totalWithShipping)}</span>
                   </div>
                 </div>
               </div>
@@ -205,7 +238,7 @@ export default function CartPage() {
                             purchase_units: [{
                               amount: {
                                 currency_code: 'GBP',
-                                value: totalPrice.toFixed(2),
+                                value: (totalPrice + getShippingTotal()).toFixed(2),
                               },
                               description: `Order from ${customerInfo.name}`,
                             }],
@@ -220,7 +253,7 @@ export default function CartPage() {
                                 .insert({
                                   customer_name: customerInfo.name,
                                   customer_email: customerInfo.email,
-                                  total_amount: totalPrice,
+                                  total_amount: totalPrice + getShippingTotal(),
                                   paypal_order_id: details.id,
                                   status: 'paid',
                                   order_details: {

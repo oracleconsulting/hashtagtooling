@@ -5,18 +5,23 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatPrice } from '@/lib/utils'
-import { Trash2, Plus, Minus, CheckCircle } from 'lucide-react'
+import { Trash2, Plus, Minus, CheckCircle, CreditCard, Loader2 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js'
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 
-export default function CartPage() {
+function CartContent() {
+  const searchParams = useSearchParams()
   const { items, removeItem, updateQuantity, getTotalPrice, clearCart } = useCart()
   const [showCheckout, setShowCheckout] = useState(false)
   const [orderComplete, setOrderComplete] = useState(false)
   const [orderNumber, setOrderNumber] = useState('')
+  const [stripeSuccess, setStripeSuccess] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<'paypal' | 'stripe'>('paypal')
+  const [stripeLoading, setStripeLoading] = useState(false)
   const [shippingRegion, setShippingRegion] = useState<'uk' | 'europe' | 'world'>('uk')
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
@@ -24,15 +29,21 @@ export default function CartPage() {
     shippingAddress: '',
   })
 
+  useEffect(() => {
+    const success = searchParams.get('success')
+    const sessionId = searchParams.get('session_id')
+    if (success === 'true' && sessionId) {
+      setStripeSuccess(true)
+      setOrderComplete(true)
+      clearCart()
+    }
+  }, [searchParams, clearCart])
+
   const getShippingTotal = () => {
+    const defaults = { uk: 5.99, europe: 15.99, world: 25.99 }
     let maxShipping = 0
-    items.forEach(() => {
-      const rates: Record<string, number> = {
-        uk: 5.99,
-        europe: 15.99,
-        world: 25.99,
-      }
-      const rate = rates[shippingRegion] || 5.99
+    items.forEach((item) => {
+      const rate = item.shipping?.[shippingRegion] ?? defaults[shippingRegion]
       if (rate > maxShipping) maxShipping = rate
     })
     return maxShipping
@@ -46,12 +57,18 @@ export default function CartPage() {
             <CheckCircle className="h-20 w-20 text-green-600" />
           </div>
           <h1 className="text-4xl font-bold mb-4 text-white">Order Complete!</h1>
-          <p className="text-zinc-400 mb-2">Thank you for your purchase, {customerInfo.name}!</p>
-          <p className="text-sm text-zinc-500 mb-8">
-            Order #{orderNumber.slice(0, 8).toUpperCase()}
-            <br />
-            A confirmation email has been sent to {customerInfo.email}
-          </p>
+          {stripeSuccess ? (
+            <p className="text-zinc-400 mb-8">Thank you for your purchase. A confirmation email has been sent to the email you used at checkout.</p>
+          ) : (
+            <>
+              <p className="text-zinc-400 mb-2">Thank you for your purchase, {customerInfo.name}!</p>
+              <p className="text-sm text-zinc-500 mb-8">
+                Order #{orderNumber.slice(0, 8).toUpperCase()}
+                <br />
+                A confirmation email has been sent to {customerInfo.email}
+              </p>
+            </>
+          )}
           <div className="flex gap-4 justify-center">
             <Link href="/shop">
               <Button size="lg">Continue Shopping</Button>
@@ -65,7 +82,7 @@ export default function CartPage() {
     )
   }
 
-  if (items.length === 0) {
+  if (items.length === 0 && !orderComplete) {
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-2xl mx-auto text-center">
@@ -115,14 +132,16 @@ export default function CartPage() {
                       <div className="flex items-center border border-brand-dark-border rounded-lg">
                         <button
                           onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
-                          className="p-2 hover:bg-white/10"
+                          className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-white/10"
+                          aria-label="Decrease quantity"
                         >
                           <Minus className="h-4 w-4" />
                         </button>
-                        <span className="px-4 py-2 font-medium">{item.quantity}</span>
+                        <span className="px-4 py-2 font-medium min-w-[44px] text-center">{item.quantity}</span>
                         <button
                           onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                          className="p-2 hover:bg-white/10"
+                          className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-white/10"
+                          aria-label="Increase quantity"
                         >
                           <Plus className="h-4 w-4" />
                         </button>
@@ -130,7 +149,8 @@ export default function CartPage() {
 
                       <button
                         onClick={() => removeItem(item.id)}
-                        className="text-red-600 hover:text-red-700 p-2"
+                        className="text-red-600 hover:text-red-700 p-3 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                        aria-label="Remove item"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -158,7 +178,7 @@ export default function CartPage() {
                     Shipping Region
                   </label>
                   <select
-                    className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
+                    className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3 text-base"
                     value={shippingRegion}
                     onChange={(e) => setShippingRegion(e.target.value as 'uk' | 'europe' | 'world')}
                   >
@@ -224,7 +244,72 @@ export default function CartPage() {
                     />
                   </div>
 
-                  {customerInfo.name && customerInfo.email && customerInfo.shippingAddress && (
+                  <div className="space-y-3">
+                    <label className="block text-sm font-medium text-zinc-300">Payment method</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('paypal')}
+                        className={`p-4 rounded-lg border-2 text-left transition-colors ${
+                          paymentMethod === 'paypal'
+                            ? 'border-brand-orange bg-brand-orange/10'
+                            : 'border-brand-dark-border hover:border-zinc-500'
+                        }`}
+                      >
+                        <span className="font-medium text-white">Pay with PayPal</span>
+                        <p className="text-xs text-zinc-400 mt-1">PayPal account or card</p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('stripe')}
+                        className={`p-4 rounded-lg border-2 text-left transition-colors ${
+                          paymentMethod === 'stripe'
+                            ? 'border-brand-orange bg-brand-orange/10'
+                            : 'border-brand-dark-border hover:border-zinc-500'
+                        }`}
+                      >
+                        <CreditCard className="h-5 w-5 text-brand-orange mb-1" />
+                        <span className="font-medium text-white">Pay with Card (Stripe)</span>
+                        <p className="text-xs text-zinc-400 mt-1">Credit or debit card</p>
+                      </button>
+                    </div>
+                  </div>
+
+                  {customerInfo.name && customerInfo.email && customerInfo.shippingAddress && paymentMethod === 'stripe' && (
+                    <Button
+                      type="button"
+                      size="lg"
+                      className="w-full"
+                      disabled={stripeLoading}
+                      onClick={async () => {
+                        setStripeLoading(true)
+                        try {
+                          const res = await fetch('/api/create-checkout-session', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              items: items.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity, image_url: i.image_url })),
+                              customerEmail: customerInfo.email,
+                              shippingAddress: customerInfo.shippingAddress,
+                              shippingCost: getShippingTotal(),
+                            }),
+                          })
+                          const data = await res.json()
+                          if (data.url) window.location.href = data.url
+                          else alert(data.error || 'Failed to start checkout')
+                        } catch (e) {
+                          console.error(e)
+                          alert('Failed to start checkout')
+                        } finally {
+                          setStripeLoading(false)
+                        }
+                      }}
+                    >
+                      {stripeLoading ? 'Redirecting...' : 'Pay with Card'}
+                    </Button>
+                  )}
+
+                  {customerInfo.name && customerInfo.email && customerInfo.shippingAddress && paymentMethod === 'paypal' && (
                     <PayPalScriptProvider 
                       options={{ 
                         clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || 'test',
@@ -278,6 +363,37 @@ export default function CartPage() {
                                 setOrderNumber(order.id)
                                 setOrderComplete(true)
                                 clearCart()
+                                const totalWithShipping = totalPrice + getShippingTotal()
+                                fetch('/api/send-order-email', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    customerName: customerInfo.name,
+                                    customerEmail: customerInfo.email,
+                                    orderNumber: order.id,
+                                    items: items.map((item) => ({
+                                      name: item.name,
+                                      price: item.price,
+                                      quantity: item.quantity,
+                                    })),
+                                    totalAmount: totalWithShipping,
+                                    shippingAddress: customerInfo.shippingAddress,
+                                  }),
+                                }).catch((err) => console.error('Email send failed:', err))
+                                fetch('/api/send-admin-notification', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    type: 'new_order',
+                                    data: {
+                                      customerName: customerInfo.name,
+                                      customerEmail: customerInfo.email,
+                                      total: totalWithShipping,
+                                      shippingAddress: customerInfo.shippingAddress,
+                                      items: items.map((item) => ({ name: item.name, quantity: item.quantity })),
+                                    },
+                                  }),
+                                }).catch(() => {})
                               }
                             })
                           }
@@ -300,5 +416,18 @@ export default function CartPage() {
   )
 }
 
+export default function CartPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="container mx-auto px-4 py-12 flex items-center justify-center min-h-[300px]">
+          <Loader2 className="h-8 w-8 animate-spin text-brand-orange" />
+        </div>
+      }
+    >
+      <CartContent />
+    </Suspense>
+  )
+}
 
 

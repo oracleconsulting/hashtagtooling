@@ -3,9 +3,11 @@
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useCart } from '@/lib/store'
+import { useWishlist } from '@/lib/wishlist-store'
 import { formatPrice } from '@/lib/utils'
 import Image from 'next/image'
 import Link from 'next/link'
+import { Heart } from 'lucide-react'
 
 interface ProductCardProps {
   id: string
@@ -15,10 +17,20 @@ interface ProductCardProps {
   image_url: string
   category: string
   stock_status: 'in_stock' | 'made_to_order' | 'sold' | 'out_of_stock'
+  metadata?: { shipping?: { uk: number; europe: number; world: number } }
 }
 
-export function ProductCard({ id, name, description, price, image_url, category, stock_status }: ProductCardProps) {
-  const addItem = useCart(state => state.addItem)
+export function ProductCard({ id, name, description, price, image_url, category, stock_status, metadata }: ProductCardProps) {
+  const addItem = useCart((state) => state.addItem)
+  const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlist()
+  const inWishlist = isInWishlist(id)
+
+  const toggleWishlist = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (inWishlist) removeFromWishlist(id)
+    else addToWishlist({ id, name, price, image_url })
+  }
 
   const handleAddToCart = () => {
     if (stock_status === 'sold') return
@@ -28,6 +40,7 @@ export function ProductCard({ id, name, description, price, image_url, category,
       price,
       quantity: 1,
       image_url,
+      shipping: metadata?.shipping,
     })
   }
 
@@ -55,6 +68,16 @@ export function ProductCard({ id, name, description, price, image_url, category,
             className="object-cover group-hover:scale-105 transition-transform duration-300"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           />
+          <button
+            type="button"
+            onClick={toggleWishlist}
+            className="absolute top-2 right-2 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors z-10"
+            aria-label={inWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
+          >
+            <Heart
+              className={`h-5 w-5 ${inWishlist ? 'fill-brand-orange text-brand-orange' : ''}`}
+            />
+          </button>
           {stock_status === 'sold' && (
             <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
               <span className="text-2xl font-heading font-bold text-white tracking-wider">SOLD</span>
@@ -72,9 +95,12 @@ export function ProductCard({ id, name, description, price, image_url, category,
       </CardContent>
       <CardFooter className="p-4 pt-0">
         {stock_status === 'sold' ? (
-          <Button variant="outline" className="w-full opacity-50 cursor-not-allowed" disabled>
-            Sold
-          </Button>
+          <Link
+            href={`/product/${id}`}
+            className="inline-flex items-center justify-center rounded-md font-medium border border-brand-orange text-brand-orange bg-transparent hover:bg-brand-orange hover:text-brand-dark w-full h-10 px-4 py-2"
+          >
+            Sold — View Details
+          </Link>
         ) : stock_status === 'made_to_order' ? (
           <Button onClick={handleAddToCart} className="w-full">
             Order Now (3-4 week lead time)

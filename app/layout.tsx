@@ -3,6 +3,7 @@ import { Playfair_Display, DM_Sans } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { CookieConsent } from "@/components/CookieConsent";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -19,17 +20,36 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "#TOOLING | Handcrafted Woodworking Tools",
+  metadataBase: new URL("https://hashtag.guru"),
+  title: {
+    default: "#TOOLING | Handcrafted Woodworking Tools from Exotic Timbers",
+    template: "%s | #TOOLING",
+  },
   description:
     "Custom woodworking mallets, awls, and tools handcrafted from the world's finest exotic timbers. Over 75 wood species available. Made to order in the UK.",
   keywords:
-    "woodworking mallets, custom mallets, handmade tools, exotic wood, woodworking awls, EDC coins, hashtag tooling",
+    "woodworking mallets, custom mallets, handmade tools, exotic wood, woodworking awls, EDC coins, bespoke woodworking tools, UK craftsman",
   openGraph: {
     title: "#TOOLING | Handcrafted Woodworking Tools",
     description:
-      "Custom woodworking mallets and awls handcrafted from exotic timbers.",
+      "Custom woodworking mallets and awls handcrafted from exotic timbers. Every piece unique.",
     siteName: "#TOOLING",
     type: "website",
+    locale: "en_GB",
+    url: "https://hashtag.guru",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "#TOOLING | Handcrafted Woodworking Tools",
+    description:
+      "Custom woodworking mallets and awls handcrafted from exotic timbers.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  alternates: {
+    canonical: "https://hashtag.guru",
   },
 };
 
@@ -44,6 +64,7 @@ export default function RootLayout({
         <Header />
         <main className="min-h-screen">{children}</main>
         <Footer />
+        <CookieConsent />
       </body>
     </html>
   );

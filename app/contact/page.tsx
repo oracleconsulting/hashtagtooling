@@ -1,12 +1,19 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import ContactForm from './ContactForm'
+
+export const metadata: Metadata = {
+  title: 'Contact',
+  description: 'Get in touch with #TOOLING for questions about custom woodworking tools, commissions, or orders.',
+}
 
 export default function ContactPage() {
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="max-w-3xl mx-auto">
         <h1 className="font-heading text-4xl font-bold mb-2 text-brand-orange">Contact</h1>
-        <p className="text-zinc-400 mb-8">Have questions about products, custom work, or commissions? I'd love to hear from you.</p>
+        <p className="text-zinc-400 mb-8">Have questions about products, custom work, or commissions? I&apos;d love to hear from you.</p>
 
         <div className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -29,10 +36,12 @@ export default function ContactPage() {
             </p>
           </div>
 
+          <ContactForm />
+
           <div className="bg-brand-orange rounded-lg p-8">
             <h3 className="text-xl font-heading font-semibold mb-2 text-brand-dark">Ready to Start a Custom Project?</h3>
             <p className="text-brand-dark/80 mb-4">
-              Join the commission waiting list and let's discuss your unique tool requirements.
+              Join the commission waiting list and let&apos;s discuss your unique tool requirements.
             </p>
             <Link href="/commissions">
               <Button size="lg" className="bg-brand-dark text-white hover:bg-brand-dark/90">

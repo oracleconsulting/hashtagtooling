@@ -20,7 +20,7 @@ export default function AdminLoginPage() {
     if (password === ADMIN_PASSWORD) {
       // Store in session
       sessionStorage.setItem('admin_auth', 'true')
-      router.push('/admin/products')
+      router.push('/admin/dashboard')
     } else {
       setError('Incorrect password')
       setPassword('')
