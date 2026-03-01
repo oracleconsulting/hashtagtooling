@@ -77,7 +77,7 @@ export default function AdminProductsPage() {
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-12">
-        <p>Loading...</p>
+        <p className="text-zinc-400">Loading...</p>
       </div>
     )
   }
@@ -85,11 +85,21 @@ export default function AdminProductsPage() {
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-bold">Manage Products</h1>
+        <h1 className="font-heading text-4xl font-bold text-brand-orange">Manage Products</h1>
         <div className="flex gap-4">
           <Link href="/admin/materials">
             <Button size="lg" variant="outline">
               Materials & Pricing
+            </Button>
+          </Link>
+          <Link href="/admin/orders">
+            <Button size="lg" variant="outline">
+              Orders
+            </Button>
+          </Link>
+          <Link href="/admin/commissions">
+            <Button size="lg" variant="outline">
+              Commissions
             </Button>
           </Link>
           <Link href="/admin/products/new">
@@ -105,9 +115,9 @@ export default function AdminProductsPage() {
       </div>
 
       {products.length === 0 ? (
-        <Card>
+        <Card className="bg-brand-dark-card border border-brand-dark-border">
           <CardContent className="p-12 text-center">
-            <p className="text-zinc-600 mb-4">No products yet</p>
+            <p className="text-zinc-400 mb-4">No products yet</p>
             <Link href="/admin/products/new">
               <Button>Add Your First Product</Button>
             </Link>
@@ -116,20 +126,20 @@ export default function AdminProductsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {products.map((product) => (
-            <Card key={product.id}>
+            <Card key={product.id} className="bg-brand-dark-card border border-brand-dark-border">
               <CardContent className="p-4">
-                <div className="aspect-square bg-zinc-100 rounded-lg mb-4 overflow-hidden">
+                <div className="aspect-square bg-brand-dark rounded-lg mb-4 overflow-hidden">
                   <img 
                     src={product.image_url} 
                     alt={product.name}
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <h3 className="font-semibold mb-1">{product.name}</h3>
-                <p className="text-sm text-zinc-600 mb-2 line-clamp-2">
+                <h3 className="font-semibold mb-1 text-white">{product.name}</h3>
+                <p className="text-sm text-zinc-400 mb-2 line-clamp-2">
                   {product.description}
                 </p>
-                <p className="text-lg font-bold mb-4">£{product.price.toFixed(2)}</p>
+                <p className="text-lg font-bold mb-4 text-brand-orange">£{product.price.toFixed(2)}</p>
                 <div className="flex gap-2">
                   <Link href={`/admin/products/edit/${product.id}`} className="flex-1">
                     <Button variant="outline" size="sm" className="w-full">

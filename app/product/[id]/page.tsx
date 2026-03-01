@@ -1,141 +1,204 @@
-import { notFound } from 'next/navigation'
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useParams } from 'next/navigation'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { formatPrice } from '@/lib/utils'
+import { useCart } from '@/lib/store'
+import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import { Loader2, ArrowLeft } from 'lucide-react'
 
-// This would come from Supabase in production
-const PLACEHOLDER_PRODUCTS = [
-  {
-    id: '1',
-    name: 'Walnut Carving Mallet',
-    description: 'Beautifully turned carving mallet in black walnut with brass transition',
-    price: 89.99,
-    category: 'mallets',
-    image_url: 'https://placehold.co/600x400/3D2817/white?text=Walnut+Mallet',
-    stock_status: 'in_stock',
-    long_description: 'This carving mallet features a turned head crafted from premium black walnut, known for its density and beautiful dark grain. The brass transition collar adds both visual appeal and structural integrity. Perfect for detailed carving work where control and precision are essential.',
-    specifications: {
-      'Head Diameter': '3.5 inches',
-      'Overall Length': '11 inches',
-      'Weight': '14 oz',
-      'Head Wood': 'Black Walnut',
-      'Handle Wood': 'Black Walnut',
-      'Transition': 'Brass',
-      'Finish': 'Danish Oil'
-    }
-  },
-  {
-    id: '2',
-    name: 'Maple Detailing Mallet',
-    description: 'Precision turned detailing mallet in hard maple with copper accent',
-    price: 79.99,
-    category: 'mallets',
-    image_url: 'https://placehold.co/600x400/E8D5B7/333?text=Maple+Mallet',
-    stock_status: 'in_stock',
-    long_description: 'Hard maple provides the perfect balance of hardness and weight for detail work. The lighter color showcases the wood grain beautifully, while the copper transition adds warmth and character.',
-    specifications: {
-      'Head Diameter': '3 inches',
-      'Overall Length': '10 inches',
-      'Weight': '12 oz',
-      'Head Wood': 'Hard Maple',
-      'Handle Wood': 'Hard Maple',
-      'Transition': 'Copper',
-      'Finish': 'Danish Oil'
-    }
-  },
-]
-
-interface ProductPageProps {
-  params: {
-    id: string
+interface Product {
+  id: string
+  name: string
+  description: string
+  price: number
+  category: string
+  image_url: string
+  stock_status: string
+  metadata?: {
+    images?: string[]
+    weight_kg?: string
+    dimensions?: string
+    wood_types?: string[]
   }
 }
 
-export default function ProductPage({ params }: ProductPageProps) {
-  // In production, fetch from Supabase
-  const product = PLACEHOLDER_PRODUCTS.find(p => p.id === params.id)
+export default function ProductPage() {
+  const params = useParams()
+  const id = params.id as string
+  const addItem = useCart(state => state.addItem)
+  const [product, setProduct] = useState<Product | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [selectedImage, setSelectedImage] = useState(0)
+
+  useEffect(() => {
+    if (id) loadProduct()
+  }, [id])
+
+  const loadProduct = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+      if (error) throw error
+      setProduct(data)
+    } catch (err) {
+      console.error('Error loading product:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAddToCart = () => {
+    if (!product || product.stock_status === 'sold') return
+    addItem({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      quantity: 1,
+      image_url: product.image_url,
+    })
+  }
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-12 flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-orange" />
+      </div>
+    )
+  }
 
   if (!product) {
-    notFound()
+    return (
+      <div className="container mx-auto px-4 py-12 text-center">
+        <h1 className="font-heading text-2xl font-bold text-white mb-4">Product Not Found</h1>
+        <Link href="/shop">
+          <Button>Back to Shop</Button>
+        </Link>
+      </div>
+    )
   }
+
+  const allImages = product.metadata?.images?.length
+    ? product.metadata.images
+    : [product.image_url]
 
   return (
     <div className="container mx-auto px-4 py-12">
-      <Link href="/shop" className="text-zinc-600 hover:text-zinc-900 mb-6 inline-block">
-        ← Back to Shop
+      <Link href="/shop" className="text-zinc-400 hover:text-brand-orange mb-6 inline-flex items-center gap-2 transition-colors">
+        <ArrowLeft className="h-4 w-4" />
+        Back to Shop
       </Link>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-6">
         {/* Product Images */}
         <div>
-          <div className="relative aspect-square bg-zinc-100 rounded-lg overflow-hidden mb-4">
+          <div className="relative aspect-square bg-brand-dark-card rounded-lg overflow-hidden mb-4">
             <Image
-              src={product.image_url}
+              src={allImages[selectedImage]}
               alt={product.name}
               fill
               className="object-cover"
               priority
             />
+            {product.stock_status === 'sold' && (
+              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                <span className="text-3xl font-heading font-bold text-white tracking-wider">SOLD</span>
+              </div>
+            )}
           </div>
+          {allImages.length > 1 && (
+            <div className="grid grid-cols-4 gap-2">
+              {allImages.map((url, index) => (
+                <button
+                  key={index}
+                  onClick={() => setSelectedImage(index)}
+                  className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-colors ${
+                    selectedImage === index ? 'border-brand-orange' : 'border-brand-dark-border hover:border-zinc-500'
+                  }`}
+                >
+                  <Image src={url} alt={`${product.name} ${index + 1}`} fill className="object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Product Info */}
         <div>
-          <h1 className="text-4xl font-bold mb-4">{product.name}</h1>
-          <p className="text-3xl font-bold mb-6">{formatPrice(product.price)}</p>
-          
+          <h1 className="font-heading text-3xl md:text-4xl font-bold mb-4 text-white">{product.name}</h1>
+          <p className="text-3xl font-bold mb-6 text-brand-orange">{formatPrice(product.price)}</p>
+
           <div className="mb-6">
-            <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-              product.stock_status === 'in_stock' 
-                ? 'bg-green-100 text-green-800' 
-                : 'bg-yellow-100 text-yellow-800'
-            }`}>
-              {product.stock_status === 'in_stock' ? 'In Stock' : 'Made to Order'}
-            </span>
+            {product.stock_status === 'in_stock' && (
+              <span className="px-3 py-1 bg-green-900/50 text-green-400 text-sm font-medium rounded">In Stock</span>
+            )}
+            {product.stock_status === 'made_to_order' && (
+              <span className="px-3 py-1 bg-brand-orange/20 text-brand-orange text-sm font-medium rounded">Made to Order</span>
+            )}
+            {product.stock_status === 'sold' && (
+              <span className="px-3 py-1 bg-red-900/50 text-red-400 text-sm font-medium rounded">Sold</span>
+            )}
           </div>
 
-          <p className="text-zinc-600 mb-8 leading-relaxed">
-            {product.long_description}
-          </p>
+          <p className="text-zinc-300 mb-8 leading-relaxed">{product.description}</p>
 
-          <Button size="lg" className="w-full mb-8">
-            Add to Cart
-          </Button>
+          {product.stock_status !== 'sold' ? (
+            <Button onClick={handleAddToCart} size="lg" className="w-full mb-8">
+              {product.stock_status === 'made_to_order' ? 'Order Now (3-4 week lead time)' : 'Add to Cart'}
+            </Button>
+          ) : (
+            <Button size="lg" className="w-full mb-8 opacity-50 cursor-not-allowed" disabled>
+              Sold
+            </Button>
+          )}
 
           {/* Specifications */}
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="font-semibold text-lg mb-4">Specifications</h3>
-              <dl className="space-y-3">
-                {Object.entries(product.specifications).map(([key, value]) => (
-                  <div key={key} className="flex justify-between text-sm">
-                    <dt className="text-zinc-600">{key}:</dt>
-                    <dd className="font-medium">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </CardContent>
-          </Card>
+          {(product.metadata?.weight_kg || product.metadata?.dimensions) && (
+            <Card className="mb-6">
+              <CardContent className="p-6">
+                <h3 className="font-semibold text-lg mb-4 text-white">Specifications</h3>
+                <dl className="space-y-3">
+                  {product.metadata?.weight_kg && (
+                    <div className="flex justify-between text-sm">
+                      <dt className="text-zinc-400">Weight:</dt>
+                      <dd className="font-medium text-white">{product.metadata.weight_kg} kg</dd>
+                    </div>
+                  )}
+                  {product.metadata?.dimensions && (
+                    <div className="flex justify-between text-sm">
+                      <dt className="text-zinc-400">Dimensions:</dt>
+                      <dd className="font-medium text-white">{product.metadata.dimensions}</dd>
+                    </div>
+                  )}
+                </dl>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Custom Option */}
-          <div className="mt-6 bg-zinc-50 rounded-lg p-6">
-            <h3 className="font-semibold mb-2">Want this in different woods?</h3>
-            <p className="text-sm text-zinc-600 mb-4">
-              Customize this design with your choice of wood species and transition material.
-            </p>
-            <Link href="/custom-mallet">
-              <Button variant="outline" className="w-full">
-                Build Custom Version
-              </Button>
-            </Link>
-          </div>
+          {(product.category === 'mallet' || product.category === 'awl') && (
+            <div className="bg-brand-dark-card border border-brand-dark-border rounded-lg p-6">
+              <h3 className="font-semibold mb-2 text-white">Want this in different woods?</h3>
+              <p className="text-sm text-zinc-400 mb-4">
+                Customise this design with your choice of wood species and transition material.
+              </p>
+              <Link href={product.category === 'mallet' ? '/custom-mallet' : '/custom-awl'}>
+                <Button variant="outline" className="w-full">
+                  Build Custom Version
+                </Button>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </div>
   )
 }
-
-
-

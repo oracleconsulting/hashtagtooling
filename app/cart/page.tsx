@@ -30,8 +30,8 @@ export default function CartPage() {
           <div className="mb-6 flex justify-center">
             <CheckCircle className="h-20 w-20 text-green-600" />
           </div>
-          <h1 className="text-4xl font-bold mb-4">Order Complete!</h1>
-          <p className="text-zinc-600 mb-2">Thank you for your purchase, {customerInfo.name}!</p>
+          <h1 className="text-4xl font-bold mb-4 text-white">Order Complete!</h1>
+          <p className="text-zinc-400 mb-2">Thank you for your purchase, {customerInfo.name}!</p>
           <p className="text-sm text-zinc-500 mb-8">
             Order #{orderNumber.slice(0, 8).toUpperCase()}
             <br />
@@ -54,8 +54,8 @@ export default function CartPage() {
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-2xl mx-auto text-center">
-          <h1 className="text-4xl font-bold mb-4">Your Cart</h1>
-          <p className="text-zinc-600 mb-8">Your cart is empty</p>
+          <h1 className="font-heading text-4xl font-bold mb-4 text-brand-orange">Your Cart</h1>
+          <p className="text-zinc-400 mb-8">Your cart is empty</p>
           <Link href="/shop">
             <Button size="lg">Continue Shopping</Button>
           </Link>
@@ -68,16 +68,16 @@ export default function CartPage() {
 
   return (
     <div className="container mx-auto px-4 py-12">
-      <h1 className="text-4xl font-bold mb-8">Your Cart</h1>
+      <h1 className="font-heading text-4xl font-bold mb-8 text-brand-orange">Your Cart</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Cart Items */}
         <div className="lg:col-span-2 space-y-4">
           {items.map((item) => (
-            <Card key={item.id}>
+            <Card key={item.id} className="bg-brand-dark-card border border-brand-dark-border">
               <CardContent className="p-4">
                 <div className="flex gap-4">
-                  <div className="relative w-24 h-24 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
+                  <div className="relative w-24 h-24 bg-brand-dark-card rounded-lg overflow-hidden flex-shrink-0">
                     <Image
                       src={item.image_url}
                       alt={item.name}
@@ -87,25 +87,25 @@ export default function CartPage() {
                   </div>
 
                   <div className="flex-1">
-                    <h3 className="font-semibold mb-1">{item.name}</h3>
-                    <p className="text-sm text-zinc-600 mb-2">{formatPrice(item.price)}</p>
+                    <h3 className="font-semibold mb-1 text-white">{item.name}</h3>
+                    <p className="text-sm text-zinc-400 mb-2">{formatPrice(item.price)}</p>
                     
                     {item.customConfig && (
                       <p className="text-xs text-zinc-500">Custom configuration</p>
                     )}
 
                     <div className="flex items-center gap-3 mt-3">
-                      <div className="flex items-center border rounded-lg">
+                      <div className="flex items-center border border-brand-dark-border rounded-lg">
                         <button
                           onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
-                          className="p-2 hover:bg-zinc-50"
+                          className="p-2 hover:bg-white/10"
                         >
                           <Minus className="h-4 w-4" />
                         </button>
                         <span className="px-4 py-2 font-medium">{item.quantity}</span>
                         <button
                           onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                          className="p-2 hover:bg-zinc-50"
+                          className="p-2 hover:bg-white/10"
                         >
                           <Plus className="h-4 w-4" />
                         </button>
@@ -131,23 +131,23 @@ export default function CartPage() {
 
         {/* Order Summary */}
         <div>
-          <Card className="sticky top-24">
+          <Card className="bg-brand-dark-card border border-brand-dark-border sticky top-24">
             <CardContent className="p-6">
-              <h2 className="text-xl font-bold mb-4">Order Summary</h2>
+              <h2 className="text-xl font-bold mb-4 text-white">Order Summary</h2>
               
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between text-sm">
-                  <span className="text-zinc-600">Subtotal</span>
+                  <span className="text-zinc-400">Subtotal</span>
                   <span>{formatPrice(totalPrice)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-zinc-600">Shipping</span>
+                  <span className="text-zinc-400">Shipping</span>
                   <span>Calculated at checkout</span>
                 </div>
-                <div className="border-t pt-3">
+                <div className="border-t border-brand-dark-border pt-3">
                   <div className="flex justify-between font-bold text-lg">
                     <span>Total</span>
-                    <span>{formatPrice(totalPrice)}</span>
+                    <span className="text-brand-orange">{formatPrice(totalPrice)}</span>
                   </div>
                 </div>
               </div>
@@ -163,25 +163,28 @@ export default function CartPage() {
               ) : (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Name</label>
+                    <label className="block text-sm font-medium mb-2 text-zinc-300">Name</label>
                     <Input
+                      className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
                       value={customerInfo.name}
                       onChange={(e) => setCustomerInfo({ ...customerInfo, name: e.target.value })}
                       placeholder="Your name"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Email</label>
+                    <label className="block text-sm font-medium mb-2 text-zinc-300">Email</label>
                     <Input
                       type="email"
+                      className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
                       value={customerInfo.email}
                       onChange={(e) => setCustomerInfo({ ...customerInfo, email: e.target.value })}
                       placeholder="your@email.com"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Shipping Address</label>
+                    <label className="block text-sm font-medium mb-2 text-zinc-300">Shipping Address</label>
                     <Input
+                      className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
                       value={customerInfo.shippingAddress}
                       onChange={(e) => setCustomerInfo({ ...customerInfo, shippingAddress: e.target.value })}
                       placeholder="Full address"

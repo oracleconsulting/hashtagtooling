@@ -127,8 +127,8 @@ export default function CustomAwlPage() {
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-zinc-600" />
-          <span className="ml-3 text-zinc-600">Loading awl builder...</span>
+          <Loader2 className="h-8 w-8 animate-spin text-brand-orange" />
+          <span className="ml-3 text-zinc-400">Loading awl builder...</span>
         </div>
       </div>
     )
@@ -140,8 +140,8 @@ export default function CustomAwlPage() {
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-bold mb-4">Custom Awl Builder</h1>
-        <p className="text-zinc-600 mb-8">
+        <h1 className="font-heading text-4xl font-bold mb-4 text-brand-orange">Custom Awl Builder</h1>
+        <p className="text-zinc-400 mb-8">
           Design your perfect custom awl by selecting a style, handle wood, and ferrule material.
           All prices include premium material costs.
         </p>
@@ -151,9 +151,9 @@ export default function CustomAwlPage() {
           <div className="lg:col-span-2 space-y-8">
             
             {/* Awl Style Selection */}
-            <Card>
+            <Card className="bg-brand-dark-card border border-brand-dark-border">
               <CardContent className="p-6">
-                <h2 className="text-2xl font-semibold mb-4">1. Choose Awl Style</h2>
+                <h2 className="text-2xl font-semibold mb-4 text-white">1. Choose Awl Style</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {awlStyles.map(style => (
                     <button
@@ -161,13 +161,13 @@ export default function CustomAwlPage() {
                       onClick={() => setSelectedStyle(style.id)}
                       className={`p-4 border-2 rounded-lg text-left transition-all ${
                         selectedStyle === style.id 
-                          ? 'border-black bg-zinc-50' 
-                          : 'border-zinc-200 hover:border-zinc-400'
+                          ? 'border-brand-orange bg-brand-orange/10' 
+                          : 'border-brand-dark-border hover:border-zinc-500'
                       }`}
                     >
-                      <h3 className="font-semibold mb-1">{style.style_name}</h3>
-                      <p className="text-sm text-zinc-600 mb-2">{style.description}</p>
-                      <p className="text-sm font-medium">Base: {formatPrice(style.base_price)}</p>
+                      <h3 className="font-semibold mb-1 text-white">{style.style_name}</h3>
+                      <p className="text-sm text-zinc-400 mb-2">{style.description}</p>
+                      <p className="text-sm font-medium text-brand-orange">Base: {formatPrice(style.base_price)}</p>
                     </button>
                   ))}
                 </div>
@@ -175,9 +175,9 @@ export default function CustomAwlPage() {
             </Card>
 
             {/* Handle Wood Selection */}
-            <Card>
+            <Card className="bg-brand-dark-card border border-brand-dark-border">
               <CardContent className="p-6">
-                <h2 className="text-2xl font-semibold mb-4">2. Choose Handle Wood</h2>
+                <h2 className="text-2xl font-semibold mb-4 text-white">2. Choose Handle Wood</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {handleWoods.map(wood => (
                     <button
@@ -185,20 +185,20 @@ export default function CustomAwlPage() {
                       onClick={() => setSelectedHandleWood(wood.id)}
                       className={`p-3 border-2 rounded-lg text-left transition-all ${
                         selectedHandleWood === wood.id 
-                          ? 'border-black bg-zinc-50' 
-                          : 'border-zinc-200 hover:border-zinc-400'
+                          ? 'border-brand-orange bg-brand-orange/10' 
+                          : 'border-brand-dark-border hover:border-zinc-500'
                       }`}
                     >
                       <div className="flex items-center gap-2 mb-1">
                         {wood.color_hex && (
                           <div 
-                            className="w-4 h-4 rounded-full border border-zinc-300"
+                            className="w-4 h-4 rounded-full border border-zinc-600"
                             style={{ backgroundColor: wood.color_hex }}
                           />
                         )}
-                        <span className="text-xs font-medium truncate">{wood.name}</span>
+                        <span className="text-xs font-medium truncate text-white">{wood.name}</span>
                       </div>
-                      <p className="text-xs text-zinc-600">
+                      <p className="text-xs text-zinc-400">
                         {wood.awl_handle_premium > 0 ? `+${formatPrice(wood.awl_handle_premium)}` : 'Base price'}
                       </p>
                     </button>
@@ -208,9 +208,9 @@ export default function CustomAwlPage() {
             </Card>
 
             {/* Ferrule Material Selection */}
-            <Card>
+            <Card className="bg-brand-dark-card border border-brand-dark-border">
               <CardContent className="p-6">
-                <h2 className="text-2xl font-semibold mb-4">3. Choose Ferrule Material</h2>
+                <h2 className="text-2xl font-semibold mb-4 text-white">3. Choose Ferrule Material</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {ferruleMaterials.map(ferrule => (
                     <button
@@ -218,20 +218,20 @@ export default function CustomAwlPage() {
                       onClick={() => setSelectedFerrule(ferrule.id)}
                       className={`p-4 border-2 rounded-lg text-left transition-all ${
                         selectedFerrule === ferrule.id 
-                          ? 'border-black bg-zinc-50' 
-                          : 'border-zinc-200 hover:border-zinc-400'
+                          ? 'border-brand-orange bg-brand-orange/10' 
+                          : 'border-brand-dark-border hover:border-zinc-500'
                       }`}
                     >
                       <div className="flex items-center gap-2 mb-2">
                         {ferrule.color_hex && (
                           <div 
-                            className="w-6 h-6 rounded border border-zinc-300"
+                            className="w-6 h-6 rounded border border-zinc-600"
                             style={{ backgroundColor: ferrule.color_hex }}
                           />
                         )}
-                        <span className="font-medium">{ferrule.name}</span>
+                        <span className="font-medium text-white">{ferrule.name}</span>
                       </div>
-                      <p className="text-sm text-zinc-600">
+                      <p className="text-sm text-zinc-400">
                         {ferrule.awl_ferrule_premium > 0 ? `+${formatPrice(ferrule.awl_ferrule_premium)}` : 'Base price'}
                       </p>
                     </button>
@@ -244,30 +244,30 @@ export default function CustomAwlPage() {
 
           {/* Summary & Add to Cart */}
           <div>
-            <Card className="sticky top-24">
+            <Card className="bg-brand-dark-card border border-brand-dark-border sticky top-24">
               <CardContent className="p-6">
-                <h2 className="text-xl font-bold mb-4">Your Custom Awl</h2>
+                <h2 className="text-xl font-bold mb-4 text-white">Your Custom Awl</h2>
                 
                 <div className="space-y-3 mb-6 text-sm">
                   <div>
-                    <p className="text-zinc-500">Style</p>
-                    <p className="font-medium">
+                    <p className="text-zinc-400">Style</p>
+                    <p className="font-medium text-white">
                       {selectedStyle 
                         ? awlStyles.find(s => s.id === selectedStyle)?.style_name 
                         : 'Not selected'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-zinc-500">Handle Wood</p>
-                    <p className="font-medium">
+                    <p className="text-zinc-400">Handle Wood</p>
+                    <p className="font-medium text-white">
                       {selectedHandleWood 
                         ? handleWoods.find(w => w.id === selectedHandleWood)?.name 
                         : 'Not selected'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-zinc-500">Ferrule</p>
-                    <p className="font-medium">
+                    <p className="text-zinc-400">Ferrule</p>
+                    <p className="font-medium text-white">
                       {selectedFerrule 
                         ? ferruleMaterials.find(f => f.id === selectedFerrule)?.name 
                         : 'Not selected'}
@@ -275,10 +275,10 @@ export default function CustomAwlPage() {
                   </div>
                 </div>
 
-                <div className="border-t pt-4 mb-6">
+                <div className="border-t border-brand-dark-border pt-4 mb-6">
                   <div className="flex justify-between text-lg font-bold">
-                    <span>Total Price</span>
-                    <span>{isConfigComplete ? formatPrice(currentPrice) : '—'}</span>
+                    <span className="text-white">Total Price</span>
+                    <span className="text-brand-orange">{isConfigComplete ? formatPrice(currentPrice) : '—'}</span>
                   </div>
                   {isConfigComplete && (
                     <p className="text-xs text-zinc-500 mt-2">

@@ -1,0 +1,63 @@
+.
+|-- ADMIN_GUIDE.md
+|-- DEPLOYMENT.md
+|-- PROJECT_STRUCTURE.txt
+|-- PROJECT_SUMMARY.md
+|-- QUICKSTART.md
+|-- README.md
+|-- app
+|   |-- about
+|   |   `-- page.tsx
+|   |-- cart
+|   |   `-- page.tsx
+|   |-- commissions
+|   |   `-- page.tsx
+|   |-- contact
+|   |   `-- page.tsx
+|   |-- custom-mallet
+|   |   `-- page.tsx
+|   |-- favicon.ico
+|   |-- globals.css
+|   |-- layout.tsx
+|   |-- not-found.tsx
+|   |-- page.tsx
+|   |-- product
+|   |   `-- [id]
+|   |-- shipping
+|   |   `-- page.tsx
+|   `-- shop
+|       `-- page.tsx
+|-- components
+|   |-- Footer.tsx
+|   |-- Header.tsx
+|   |-- ProductCard.tsx
+|   `-- ui
+|       |-- button.tsx
+|       |-- card.tsx
+|       |-- input.tsx
+|       `-- textarea.tsx
+|-- eslint.config.mjs
+|-- lib
+|   |-- constants.ts
+|   |-- store.ts
+|   |-- supabase.ts
+|   `-- utils.ts
+|-- next-env.d.ts
+|-- next.config.js
+|-- next.config.ts
+|-- package-lock.json
+|-- package.json
+|-- postcss.config.js
+|-- postcss.config.mjs
+|-- public
+|   |-- file.svg
+|   |-- globe.svg
+|   |-- next.svg
+|   |-- vercel.svg
+|   `-- window.svg
+|-- setup.sh
+|-- supabase-schema.sql
+|-- tailwind.config.ts
+`-- tsconfig.json
+
+15 directories, 46 files
