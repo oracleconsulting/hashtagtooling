@@ -24,6 +24,9 @@ interface Product {
     weight_kg?: string
     dimensions?: string
     wood_types?: string[]
+    head_wood?: string
+    handle_wood?: string
+    shipping?: { uk: number; europe: number; world: number }
   }
 }
 
@@ -161,7 +164,7 @@ export default function ProductPage() {
           )}
 
           {/* Specifications */}
-          {(product.metadata?.weight_kg || product.metadata?.dimensions) && (
+          {(product.metadata?.weight_kg || product.metadata?.dimensions || product.metadata?.head_wood || product.metadata?.handle_wood) && (
             <Card className="mb-6">
               <CardContent className="p-6">
                 <h3 className="font-semibold text-lg mb-4 text-white">Specifications</h3>
@@ -178,6 +181,43 @@ export default function ProductPage() {
                       <dd className="font-medium text-white">{product.metadata.dimensions}</dd>
                     </div>
                   )}
+                  {product.metadata?.head_wood && (
+                    <div className="flex justify-between text-sm">
+                      <dt className="text-zinc-400">Head Wood:</dt>
+                      <dd className="font-medium text-white">{product.metadata.head_wood}</dd>
+                    </div>
+                  )}
+                  {product.metadata?.handle_wood && (
+                    <div className="flex justify-between text-sm">
+                      <dt className="text-zinc-400">Handle Wood:</dt>
+                      <dd className="font-medium text-white">{product.metadata.handle_wood}</dd>
+                    </div>
+                  )}
+                </dl>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Shipping Costs */}
+          {product.metadata?.shipping && (
+            <Card className="mb-6">
+              <CardContent className="p-6">
+                <h3 className="font-semibold text-lg mb-4 text-white">Shipping</h3>
+                <dl className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <dt className="text-zinc-400">UK:</dt>
+                    <dd className="font-medium text-white">
+                      {product.metadata.shipping.uk === 0 ? 'Free' : `£${product.metadata.shipping.uk.toFixed(2)}`}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <dt className="text-zinc-400">Europe:</dt>
+                    <dd className="font-medium text-white">£{product.metadata.shipping.europe.toFixed(2)}</dd>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <dt className="text-zinc-400">Rest of World:</dt>
+                    <dd className="font-medium text-white">£{product.metadata.shipping.world.toFixed(2)}</dd>
+                  </div>
                 </dl>
               </CardContent>
             </Card>
