@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
 import { Upload, Check, ArrowLeft, Loader2, Trash2 } from 'lucide-react'
+import heic2any from 'heic2any'
 
 interface SiteImage {
   id: string
@@ -81,15 +82,39 @@ export default function AdminSiteImagesPage() {
     setSuccessSection(null)
 
     try {
+      // Convert HEIC/HEIF to JPEG
+      let processedFile: File = file
+      let fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+      if (fileExt === 'heic' || fileExt === 'heif' || file.type === 'image/heic' || file.type === 'image/heif') {
+        try {
+          const convertedBlob = await heic2any({
+            blob: file,
+            toType: 'image/jpeg',
+            quality: 0.9,
+          })
+          const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
+          processedFile = new File(
+            [blob],
+            file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
+            { type: 'image/jpeg' }
+          )
+          fileExt = 'jpg'
+        } catch (conversionError) {
+          console.error('HEIC conversion failed:', conversionError)
+          alert(`Could not convert ${file.name}. Try converting to JPG before uploading.`)
+          setUploadingSection(null)
+          return
+        }
+      }
+
       // Generate unique filename
-      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
       const fileName = `${sectionKey}-${Date.now()}.${fileExt}`
       const filePath = `homepage/${fileName}`
 
       // Upload to Supabase Storage bucket "site-images"
       const { error: uploadError } = await supabase.storage
         .from('site-images')
-        .upload(filePath, file, { upsert: true })
+        .upload(filePath, processedFile, { upsert: true })
 
       if (uploadError) {
         console.error('Upload error:', uploadError)
@@ -243,7 +268,7 @@ export default function AdminSiteImagesPage() {
                       <Upload className="mx-auto h-10 w-10 text-zinc-500 mb-4" />
                       <input
                         type="file"
-                        accept="image/jpeg,image/png,image/webp"
+                        accept="image/jpeg,image/png,image/webp,.heic,.HEIC"
                         onChange={(e) => {
                           const file = e.target.files?.[0]
                           if (file) handleUpload(section.key, file)

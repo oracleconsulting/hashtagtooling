@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 import { Upload, X } from 'lucide-react'
 import { WOOD_TYPES } from '@/lib/constants'
+import heic2any from 'heic2any'
 
 export default function NewProductPage() {
   const router = useRouter()
@@ -43,12 +44,34 @@ export default function NewProductPage() {
 
     try {
       for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        const fileExt = file.name.split('.').pop()
+        let file = files[i]
+        let fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+
+        // Convert HEIC/HEIF to JPEG
+        if (fileExt === 'heic' || fileExt === 'heif' || file.type === 'image/heic' || file.type === 'image/heif') {
+          try {
+            const convertedBlob = await heic2any({
+              blob: file,
+              toType: 'image/jpeg',
+              quality: 0.9,
+            })
+            const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
+            file = new File(
+              [blob],
+              file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
+              { type: 'image/jpeg' }
+            )
+            fileExt = 'jpg'
+          } catch (conversionError) {
+            console.error('HEIC conversion failed:', conversionError)
+            alert(`Could not convert ${file.name}. Try converting to JPG on your phone before uploading.`)
+            continue
+          }
+        }
+
         const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`
         const filePath = `products/${fileName}`
 
-        // Upload to Supabase Storage
         const { error: uploadError } = await supabase.storage
           .from('products')
           .upload(filePath, file)
@@ -59,7 +82,6 @@ export default function NewProductPage() {
           continue
         }
 
-        // Get public URL
         const { data } = supabase.storage
           .from('products')
           .getPublicUrl(filePath)
@@ -257,7 +279,7 @@ export default function NewProductPage() {
                   <Upload className="mx-auto h-12 w-12 text-zinc-500 mb-4" />
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,.heic,.HEIC"
                     multiple
                     onChange={(e) => handleFileUpload(e.target.files, 'image')}
                     className="hidden"
