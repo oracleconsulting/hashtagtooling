@@ -105,10 +105,9 @@ CREATE INDEX IF NOT EXISTS idx_materials_available ON materials(available);
 CREATE INDEX IF NOT EXISTS idx_base_prices_type ON base_prices(product_type);
 
 -- ============================================
--- TRIGGERS
+-- TRIGGERS (drop first so script is re-runnable)
 -- ============================================
 
--- Trigger for updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -117,16 +116,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_products_updated_at ON products;
 CREATE TRIGGER update_products_updated_at
   BEFORE UPDATE ON products
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_materials_updated_at ON materials;
 CREATE TRIGGER update_materials_updated_at
   BEFORE UPDATE ON materials
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_base_prices_updated_at ON base_prices;
 CREATE TRIGGER update_base_prices_updated_at
   BEFORE UPDATE ON base_prices
   FOR EACH ROW
