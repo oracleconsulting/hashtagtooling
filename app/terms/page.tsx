@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = {
   title: 'Terms & Conditions',
   description: 'Terms and conditions of sale for #TOOLING handcrafted woodworking tools.',
+  alternates: { canonical: 'https://hashtag.guru/terms' },
 }
 
 export default function TermsPage() {

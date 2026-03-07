@@ -30,6 +30,8 @@ export default function NewProductPage() {
     shipping_uk: '5.99',
     shipping_europe: '15.99',
     shipping_world: '25.99',
+    featured: false,
+    display_order: 0,
   })
 
   useEffect(() => {
@@ -149,6 +151,8 @@ export default function NewProductPage() {
               europe: parseFloat(formData.shipping_europe) || 0,
               world: parseFloat(formData.shipping_world) || 0,
             },
+            featured: formData.featured,
+            display_order: Number(formData.display_order) || 0,
           }
         }
       ])
@@ -256,6 +260,31 @@ export default function NewProductPage() {
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   placeholder="89.99"
+                />
+              </div>
+
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.featured}
+                    onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
+                    className="rounded border-brand-dark-border bg-brand-dark text-brand-orange focus:ring-brand-orange"
+                  />
+                  <span className="text-sm text-zinc-300">Featured (e.g. homepage)</span>
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-zinc-300">
+                  Display order (lower = first in shop)
+                </label>
+                <Input
+                  type="number"
+                  className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                  value={formData.display_order}
+                  onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value, 10) || 0 })}
+                  placeholder="0"
                 />
               </div>
             </CardContent>

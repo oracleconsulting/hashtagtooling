@@ -19,6 +19,7 @@ export function CookieConsent() {
     if (typeof window === 'undefined') return
     localStorage.setItem(CONSENT_KEY, 'true')
     setVisible(false)
+    window.dispatchEvent(new CustomEvent('cookie_consent_accepted'))
   }
 
   if (!visible) return null
@@ -32,7 +33,7 @@ export function CookieConsent() {
     >
       <div className="container mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
         <p className="text-sm text-zinc-300 text-center sm:text-left">
-          This site uses cookies to remember your cart and improve your experience.
+          This site uses cookies to remember your cart and to help us understand how visitors use the site.
         </p>
         <div className="flex items-center gap-3 shrink-0">
           <Link href="/privacy">

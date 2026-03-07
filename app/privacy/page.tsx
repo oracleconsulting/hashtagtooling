@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = {
   title: 'Privacy Policy',
   description: 'Privacy policy for #TOOLING. How we collect, use, and protect your data.',
+  alternates: { canonical: 'https://hashtag.guru/privacy' },
 }
 
 export default function PrivacyPage() {

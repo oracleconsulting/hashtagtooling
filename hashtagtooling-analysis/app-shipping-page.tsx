@@ -1,3 +1,10 @@
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'Shipping & Delivery',
+  description: 'Shipping rates, delivery times, and returns policy for #TOOLING handcrafted woodworking tools. UK and international delivery available.',
+}
+
 export default function ShippingPage() {
   return (
     <div className="container mx-auto px-4 py-12">

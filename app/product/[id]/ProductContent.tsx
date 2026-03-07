@@ -161,7 +161,7 @@ export default function ProductContent() {
           >
             <Image
               src={allImages[selectedImage]}
-              alt={product.name}
+              alt={`${product.name} — handcrafted by #TOOLING`}
               fill
               className="object-cover"
               priority
@@ -183,7 +183,7 @@ export default function ProductContent() {
                     selectedImage === index ? 'border-brand-orange' : 'border-brand-dark-border hover:border-zinc-500'
                   }`}
                 >
-                  <Image src={url} alt={`${product.name} ${index + 1}`} fill className="object-cover" />
+                  <Image src={url} alt={`${product.name} — image ${index + 1}`} fill className="object-cover" />
                 </button>
               ))}
             </div>

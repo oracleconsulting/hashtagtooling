@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   title: 'Wood Species Library',
   description:
     'Explore over 75 exotic wood species used in #TOOLING handcrafted mallets and awls. Learn about density, hardness, origin, and characteristics of each timber.',
+  alternates: { canonical: 'https://hashtag.guru/wood-library' },
 }
 
 export default async function WoodLibraryPage() {

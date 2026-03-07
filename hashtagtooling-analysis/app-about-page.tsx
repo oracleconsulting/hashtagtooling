@@ -1,5 +1,11 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+
+export const metadata: Metadata = {
+  title: 'My Story',
+  description: "The story behind #TOOLING — how a house renovation led to crafting the world's finest woodworking mallets from exotic timbers.",
+}
 
 export default function AboutPage() {
   return (

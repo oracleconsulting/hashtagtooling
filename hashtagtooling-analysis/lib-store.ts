@@ -9,6 +9,7 @@ interface CartItem {
   quantity: number
   image_url: string
   customConfig?: CustomMalletConfig
+  shipping?: { uk: number; europe: number; world: number }
 }
 
 interface CartStore {

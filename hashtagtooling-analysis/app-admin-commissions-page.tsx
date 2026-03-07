@@ -111,9 +111,14 @@ export default function AdminCommissionsPage() {
           Commissions
         </h1>
         <div className="flex gap-4">
+          <Link href="/admin/dashboard">
+            <Button size="lg" variant="outline">
+              Dashboard
+            </Button>
+          </Link>
           <Link href="/admin/products">
             <Button size="lg" variant="outline">
-              Back to Products
+              Products
             </Button>
           </Link>
           <Button variant="outline" onClick={logout}>

@@ -63,7 +63,7 @@ export function ProductCard({ id, name, description, price, image_url, category,
         <div className="relative h-64 bg-brand-dark-card">
           <Image
             src={image_url}
-            alt={name}
+            alt={`${name} — exotic wood tool by #TOOLING`}
             fill
             className="object-cover group-hover:scale-105 transition-transform duration-300"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"

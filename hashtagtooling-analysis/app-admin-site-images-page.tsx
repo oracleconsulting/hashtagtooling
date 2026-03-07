@@ -210,9 +210,12 @@ export default function AdminSiteImagesPage() {
     <div className="container mx-auto px-4 py-12">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <Link href="/admin/products" className="text-zinc-400 hover:text-brand-orange text-sm mb-2 inline-flex items-center gap-1 transition-colors">
+          <Link href="/admin/dashboard" className="text-zinc-400 hover:text-brand-orange text-sm mb-2 inline-flex items-center gap-1 transition-colors">
             <ArrowLeft className="h-4 w-4" />
-            Back to Products
+            Dashboard
+          </Link>
+          <Link href="/admin/products" className="text-zinc-400 hover:text-brand-orange text-sm mb-2 ml-2 inline-flex items-center gap-1 transition-colors">
+            Products
           </Link>
           <h1 className="font-heading text-4xl font-bold text-brand-orange">Site Images</h1>
           <p className="text-zinc-400 mt-1">Upload and manage homepage section images</p>

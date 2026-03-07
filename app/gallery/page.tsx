@@ -14,6 +14,7 @@ export const metadata: Metadata = {
   title: 'Gallery — Past Work',
   description:
     "Browse the gallery of sold #TOOLING pieces. Every handcrafted mallet and awl is unique — see what's been created from exotic timbers.",
+  alternates: { canonical: 'https://hashtag.guru/gallery' },
 }
 
 interface SoldProduct {

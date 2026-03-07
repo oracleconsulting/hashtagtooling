@@ -4,6 +4,7 @@ import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { CookieConsent } from "@/components/CookieConsent";
+import { AnalyticsLoader } from "@/components/AnalyticsLoader";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -37,6 +38,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_GB",
     url: "https://hashtag.guru",
+    images: [{ url: "https://hashtag.guru/og-image.jpg", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
@@ -65,6 +67,7 @@ export default function RootLayout({
         <main className="min-h-screen">{children}</main>
         <Footer />
         <CookieConsent />
+        <AnalyticsLoader />
       </body>
     </html>
   );
