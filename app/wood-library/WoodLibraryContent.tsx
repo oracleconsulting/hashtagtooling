@@ -16,6 +16,15 @@ export interface WoodItem {
   mallet_handle_premium: number
   awl_handle_premium: number
   available: boolean
+  grain_image_url?: string | null
+  janka_hardness?: number | null
+  specific_gravity?: number | null
+  origin?: string | null
+  grain_description?: string | null
+  grain_type?: string | null
+  texture?: string | null
+  durability?: string | null
+  color_description?: string | null
 }
 
 interface WoodLibraryContentProps {
@@ -68,15 +77,44 @@ export default function WoodLibraryContent({ woods }: WoodLibraryContentProps) {
               key={wood.id}
               className="bg-brand-dark-card border border-brand-dark-border rounded-lg overflow-hidden hover:border-brand-orange transition-all"
             >
-              <div
-                className="h-24 w-full border-b border-brand-dark-border"
-                style={{ backgroundColor: wood.color_hex || '#333' }}
-                title={wood.name}
-              />
+              <div className="w-full aspect-[4/3] rounded-lg overflow-hidden bg-brand-dark mb-4">
+                {wood.grain_image_url ? (
+                  <img src={wood.grain_image_url} alt={`${wood.name} wood grain`} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: wood.color_hex || '#333' }}>
+                    <span className="text-xs text-white/50 italic">Grain photo coming soon</span>
+                  </div>
+                )}
+              </div>
               <div className="p-4">
                 <h3 className="font-semibold text-lg text-white mb-2">{wood.name}</h3>
+                {wood.origin && <p className="text-xs text-zinc-500 mb-1">{wood.origin}</p>}
+                {(wood.janka_hardness != null || wood.specific_gravity != null || wood.texture || wood.durability) && (
+                  <p className="text-xs text-zinc-400 mb-2">
+                    {wood.janka_hardness != null && `Janka ${wood.janka_hardness} lbf`}
+                    {wood.janka_hardness != null && wood.specific_gravity != null && ' · '}
+                    {wood.specific_gravity != null && `SG ${wood.specific_gravity}`}
+                    {wood.texture && ` · ${wood.texture}`}
+                    {wood.durability && ` · ${wood.durability.replace('_', ' ')}`}
+                  </p>
+                )}
+                {wood.janka_hardness != null && (
+                  <div className="mt-3">
+                    <div className="flex justify-between text-xs text-zinc-500 mb-1">
+                      <span>Soft</span>
+                      <span>Hard</span>
+                    </div>
+                    <div className="h-2 bg-brand-dark rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-brand-orange/60 to-brand-orange rounded-full"
+                        style={{ width: `${Math.min(100, (wood.janka_hardness / 3800) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+                {wood.grain_description && <p className="text-sm text-zinc-400 mt-3 leading-relaxed">{wood.grain_description}</p>}
                 {badges.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mb-2">
+                  <div className="flex flex-wrap gap-1 mt-3">
                     {badges.map((b) => (
                       <span
                         key={b}

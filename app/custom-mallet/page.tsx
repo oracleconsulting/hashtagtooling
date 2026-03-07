@@ -16,6 +16,7 @@ interface Material {
   mallet_head_premium: number
   mallet_handle_premium: number
   available: boolean
+  grain_image_url?: string | null
 }
 
 interface BasePrice {
@@ -166,7 +167,7 @@ export default function CustomMalletPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-12">
+    <div className="container mx-auto px-4 py-12 pb-32 md:pb-12">
       <div className="max-w-6xl mx-auto">
         <h1 className="font-heading text-4xl font-bold mb-4 text-brand-orange">Build Your Custom Mallet</h1>
         <p className="text-zinc-400 mb-12">
@@ -179,7 +180,7 @@ export default function CustomMalletPage() {
           <div className="space-y-8 md:space-y-6">
             {/* Mallet Type */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
-              <CardHeader className="sticky top-0 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
+              <CardHeader className="sticky top-16 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
                 <CardTitle className="text-white">1. Select Mallet Style</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -212,7 +213,7 @@ export default function CustomMalletPage() {
 
             {/* Head Wood */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
-              <CardHeader className="sticky top-0 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
+              <CardHeader className="sticky top-16 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
                 <CardTitle className="text-white">2. Select Head Wood</CardTitle>
               </CardHeader>
               <CardContent>
@@ -227,12 +228,13 @@ export default function CustomMalletPage() {
                           : 'border-brand-dark-border hover:border-zinc-500'
                       }`}
                     >
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0"
-                          style={{ backgroundColor: wood.color_hex }}
-                        />
-                        <div className="flex-1 text-left">
+                      <div className="flex items-center gap-2 text-left">
+                        {wood.grain_image_url ? (
+                          <img src={wood.grain_image_url} alt={wood.name} className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0 object-cover" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0" style={{ backgroundColor: wood.color_hex }} />
+                        )}
+                        <div className="flex-1 min-w-0">
                           <span className="text-sm font-medium block text-white">{wood.name}</span>
                           {wood.mallet_head_premium > 0 && (
                             <span className="text-xs text-zinc-400">+£{wood.mallet_head_premium}</span>
@@ -247,7 +249,7 @@ export default function CustomMalletPage() {
 
             {/* Handle Wood */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
-              <CardHeader className="sticky top-0 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
+              <CardHeader className="sticky top-16 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
                 <CardTitle className="text-white">3. Select Handle Wood</CardTitle>
               </CardHeader>
               <CardContent>
@@ -262,12 +264,13 @@ export default function CustomMalletPage() {
                           : 'border-brand-dark-border hover:border-zinc-500'
                       }`}
                     >
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0"
-                          style={{ backgroundColor: wood.color_hex }}
-                        />
-                        <div className="flex-1 text-left">
+                      <div className="flex items-center gap-2 text-left">
+                        {wood.grain_image_url ? (
+                          <img src={wood.grain_image_url} alt={wood.name} className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0 object-cover" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0" style={{ backgroundColor: wood.color_hex }} />
+                        )}
+                        <div className="flex-1 min-w-0">
                           <span className="text-sm font-medium block text-white">{wood.name}</span>
                           {wood.mallet_handle_premium > 0 && (
                             <span className="text-xs text-zinc-400">+£{wood.mallet_handle_premium}</span>
@@ -282,7 +285,7 @@ export default function CustomMalletPage() {
 
             {/* Transition Material */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
-              <CardHeader className="sticky top-0 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
+              <CardHeader className="sticky top-16 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
                 <CardTitle className="text-white">4. Select Transition Material</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -339,14 +342,20 @@ export default function CustomMalletPage() {
                       {malletStyles.find(s => s.id === selectedStyle)?.style_name || 'Select a style'}
                     </p>
                   </div>
-                  <div>
+                  <div className="flex items-center gap-2">
                     <span className="text-zinc-400">Head Wood:</span>
+                    {woods.find(w => w.id === selectedHeadWood)?.grain_image_url ? (
+                      <img src={woods.find(w => w.id === selectedHeadWood)!.grain_image_url!} alt="" className="w-12 h-12 rounded-full border border-zinc-600 object-cover flex-shrink-0" />
+                    ) : null}
                     <p className="font-medium text-white">
                       {woods.find(w => w.id === selectedHeadWood)?.name || 'Select wood'}
                     </p>
                   </div>
-                  <div>
+                  <div className="flex items-center gap-2">
                     <span className="text-zinc-400">Handle Wood:</span>
+                    {woods.find(w => w.id === selectedHandleWood)?.grain_image_url ? (
+                      <img src={woods.find(w => w.id === selectedHandleWood)!.grain_image_url!} alt="" className="w-12 h-12 rounded-full border border-zinc-600 object-cover flex-shrink-0" />
+                    ) : null}
                     <p className="font-medium text-white">
                       {woods.find(w => w.id === selectedHandleWood)?.name || 'Select wood'}
                     </p>
@@ -409,6 +418,22 @@ export default function CustomMalletPage() {
               </CardContent>
             </Card>
           </div>
+        </div>
+
+        {/* Fixed mobile CTA — only shows when all selections are made */}
+        <div className="fixed bottom-0 left-0 right-0 bg-brand-dark-card border-t border-brand-dark-border p-4 md:hidden z-40">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-zinc-400 text-sm">Total</span>
+            <span className="text-xl font-bold text-brand-orange">{formatPrice(calculatePrice())}</span>
+          </div>
+          <Button
+            onClick={handleAddToCart}
+            size="lg"
+            className="w-full"
+            disabled={!selectedStyle || !selectedHeadWood || !selectedHandleWood || !selectedTransition}
+          >
+            Add Custom Mallet to Cart
+          </Button>
         </div>
       </div>
     </div>

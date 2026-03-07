@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
-import { Plus, Pencil, Trash2, ArrowLeft } from 'lucide-react'
+import { Plus, Pencil, Trash2, ArrowLeft, Upload, Loader2 } from 'lucide-react'
 
 interface Material {
   id: string
@@ -18,6 +18,15 @@ interface Material {
   mallet_handle_premium: number
   awl_handle_premium: number
   available: boolean
+  grain_image_url?: string | null
+  janka_hardness?: number | null
+  specific_gravity?: number | null
+  origin?: string | null
+  grain_description?: string | null
+  grain_type?: string | null
+  texture?: string | null
+  durability?: string | null
+  color_description?: string | null
 }
 
 interface BasePrice {
@@ -37,6 +46,7 @@ export default function MaterialsAdminPage() {
   const [editingBasePrice, setEditingBasePrice] = useState<BasePrice | null>(null)
   const [showAddMaterial, setShowAddMaterial] = useState(false)
   const [showAddBasePrice, setShowAddBasePrice] = useState(false)
+  const [uploadingGrainId, setUploadingGrainId] = useState<string | null>(null)
 
   const [newMaterial, setNewMaterial] = useState({
     name: '',
@@ -104,6 +114,39 @@ export default function MaterialsAdminPage() {
     }
   }
 
+  const uploadGrainImage = async (materialId: string, file: File) => {
+    setUploadingGrainId(materialId)
+    try {
+      let processedFile: File = file
+      let fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+      if (fileExt === 'heic' || fileExt === 'heif' || file.type === 'image/heic' || file.type === 'image/heif') {
+        try {
+          const heic2any = (await import('heic2any')).default
+          const convertedBlob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 })
+          const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
+          processedFile = new File([blob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' })
+          fileExt = 'jpg'
+        } catch {
+          alert('Could not convert HEIC. Try uploading a JPG.')
+          setUploadingGrainId(null)
+          return
+        }
+      }
+      const filePath = `grains/${materialId}-${Date.now()}.${fileExt}`
+      const { error: uploadError } = await supabase.storage.from('wood-grains').upload(filePath, processedFile, { upsert: true })
+      if (uploadError) throw uploadError
+      const { data: urlData } = supabase.storage.from('wood-grains').getPublicUrl(filePath)
+      const { error: updateError } = await supabase.from('materials').update({ grain_image_url: urlData.publicUrl }).eq('id', materialId)
+      if (updateError) throw updateError
+      loadData()
+    } catch (error) {
+      console.error('Grain upload error:', error)
+      alert('Failed to upload grain image')
+    } finally {
+      setUploadingGrainId(null)
+    }
+  }
+
   const updateMaterial = async (material: Material) => {
     try {
       const { error } = await supabase
@@ -113,6 +156,14 @@ export default function MaterialsAdminPage() {
           mallet_handle_premium: material.mallet_handle_premium,
           awl_handle_premium: material.awl_handle_premium,
           available: material.available,
+          janka_hardness: material.janka_hardness ?? null,
+          specific_gravity: material.specific_gravity ?? null,
+          origin: material.origin ?? null,
+          grain_description: material.grain_description ?? null,
+          grain_type: material.grain_type ?? null,
+          texture: material.texture ?? null,
+          durability: material.durability ?? null,
+          color_description: material.color_description ?? null,
         })
         .eq('id', material.id)
 
@@ -357,6 +408,7 @@ export default function MaterialsAdminPage() {
               <thead>
                 <tr className="border-b">
                   <th className="text-left p-2">Material</th>
+                  <th className="text-center p-2">Grain</th>
                   <th className="text-right p-2">Mallet Head</th>
                   <th className="text-right p-2">Mallet Handle</th>
                   <th className="text-right p-2">Awl Handle</th>
@@ -366,7 +418,8 @@ export default function MaterialsAdminPage() {
               </thead>
               <tbody>
                 {woodMaterials.map(mat => (
-                  <tr key={mat.id} className="border-b">
+                  <Fragment key={mat.id}>
+                  <tr className="border-b">
                     {editingMaterial?.id === mat.id ? (
                       <>
                         <td className="p-2">
@@ -377,6 +430,29 @@ export default function MaterialsAdminPage() {
                             />
                             <span className="font-medium">{mat.name}</span>
                           </div>
+                        </td>
+                        <td className="p-2">
+                          <input
+                            type="file"
+                            id={`grain-${mat.id}`}
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => { if (e.target.files?.[0]) uploadGrainImage(mat.id, e.target.files[0]) }}
+                            disabled={uploadingGrainId === mat.id}
+                          />
+                          {uploadingGrainId === mat.id ? (
+                            <div className="w-12 h-12 rounded border border-dashed flex items-center justify-center">
+                              <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />
+                            </div>
+                          ) : mat.grain_image_url ? (
+                            <label htmlFor={`grain-${mat.id}`} className="cursor-pointer block w-12 h-12 rounded overflow-hidden border border-zinc-600 hover:opacity-80">
+                              <img src={mat.grain_image_url} alt="" className="w-full h-full object-cover" title="Replace grain image" />
+                            </label>
+                          ) : (
+                            <label htmlFor={`grain-${mat.id}`} className="cursor-pointer w-12 h-12 rounded border border-dashed border-zinc-500 flex items-center justify-center hover:bg-zinc-800">
+                              <Upload className="h-5 w-5 text-zinc-500" />
+                            </label>
+                          )}
                         </td>
                         <td className="p-2">
                           <Input
@@ -446,6 +522,16 @@ export default function MaterialsAdminPage() {
                             <span className="font-medium">{mat.name}</span>
                           </div>
                         </td>
+                        <td className="p-2">
+                          <input type="file" id={`grain-${mat.id}`} accept="image/*" className="hidden" onChange={(e) => { if (e.target.files?.[0]) uploadGrainImage(mat.id, e.target.files[0]) }} disabled={uploadingGrainId === mat.id} />
+                          {uploadingGrainId === mat.id ? (
+                            <div className="w-12 h-12 rounded border border-dashed flex items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-zinc-500" /></div>
+                          ) : mat.grain_image_url ? (
+                            <label htmlFor={`grain-${mat.id}`} className="cursor-pointer block w-12 h-12 rounded overflow-hidden border"><img src={mat.grain_image_url} alt="" className="w-full h-full object-cover" /></label>
+                          ) : (
+                            <label htmlFor={`grain-${mat.id}`} className="cursor-pointer w-12 h-12 rounded border border-dashed flex items-center justify-center"><Upload className="h-5 w-5 text-zinc-500" /></label>
+                          )}
+                        </td>
                         <td className="p-2 text-right">
                           {mat.mallet_head_premium === 0 ? '—' : `+£${mat.mallet_head_premium.toFixed(2)}`}
                         </td>
@@ -471,6 +557,66 @@ export default function MaterialsAdminPage() {
                       </>
                     )}
                   </tr>
+                  {editingMaterial?.id === mat.id && (
+                    <tr>
+                      <td colSpan={7} className="p-4 bg-zinc-100 dark:bg-zinc-900 border-b">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <label className="block font-medium mb-1">Janka Hardness</label>
+                            <Input type="number" value={editingMaterial.janka_hardness ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, janka_hardness: e.target.value ? parseInt(e.target.value, 10) : null })} className="w-full" />
+                          </div>
+                          <div>
+                            <label className="block font-medium mb-1">Specific Gravity</label>
+                            <Input type="number" step="0.01" value={editingMaterial.specific_gravity ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, specific_gravity: e.target.value ? parseFloat(e.target.value) : null })} className="w-full" />
+                          </div>
+                          <div>
+                            <label className="block font-medium mb-1">Origin</label>
+                            <Input value={editingMaterial.origin ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, origin: e.target.value || null })} className="w-full" placeholder="e.g. North America" />
+                          </div>
+                          <div>
+                            <label className="block font-medium mb-1">Grain Type</label>
+                            <select className="w-full h-9 rounded border px-2" value={editingMaterial.grain_type ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, grain_type: e.target.value || null })}>
+                              <option value="">—</option>
+                              <option value="straight">Straight</option>
+                              <option value="interlocked">Interlocked</option>
+                              <option value="wavy">Wavy</option>
+                              <option value="irregular">Irregular</option>
+                              <option value="spiral">Spiral</option>
+                              <option value="roey">Roey</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block font-medium mb-1">Texture</label>
+                            <select className="w-full h-9 rounded border px-2" value={editingMaterial.texture ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, texture: e.target.value || null })}>
+                              <option value="">—</option>
+                              <option value="fine">Fine</option>
+                              <option value="medium">Medium</option>
+                              <option value="coarse">Coarse</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block font-medium mb-1">Durability</label>
+                            <select className="w-full h-9 rounded border px-2" value={editingMaterial.durability ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, durability: e.target.value || null })}>
+                              <option value="">—</option>
+                              <option value="very_high">Very High</option>
+                              <option value="high">High</option>
+                              <option value="moderate">Moderate</option>
+                              <option value="low">Low</option>
+                            </select>
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block font-medium mb-1">Grain Description</label>
+                            <textarea rows={2} className="w-full rounded border px-2 py-1 text-sm" value={editingMaterial.grain_description ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, grain_description: e.target.value || null })} placeholder="Describe the grain and figure" />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block font-medium mb-1">Colour Description</label>
+                            <Input value={editingMaterial.color_description ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, color_description: e.target.value || null })} className="w-full" placeholder="e.g. Dark chocolate brown" />
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

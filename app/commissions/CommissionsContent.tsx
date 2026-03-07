@@ -102,7 +102,7 @@ export default function CommissionsContent() {
                   <Input
                     id="name"
                     required
-                    className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                    className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500 text-base"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="John Smith"
@@ -117,7 +117,7 @@ export default function CommissionsContent() {
                     id="email"
                     type="email"
                     required
-                    className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                    className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500 text-base"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="john@example.com"
@@ -132,7 +132,7 @@ export default function CommissionsContent() {
                 <Textarea
                   id="project_description"
                   required
-                  className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                  className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500 text-base"
                   value={formData.project_description}
                   onChange={(e) => setFormData({ ...formData, project_description: e.target.value })}
                   placeholder="Describe your custom tool request in detail. Include dimensions, materials, and any specific requirements..."
@@ -146,7 +146,7 @@ export default function CommissionsContent() {
                 </label>
                 <Textarea
                   id="preferred_custom_build"
-                  className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                  className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500 text-base"
                   value={formData.preferred_custom_build}
                   onChange={(e) => setFormData({ ...formData, preferred_custom_build: e.target.value })}
                   placeholder="Do you have preferences for wood types, metals, dimensions, or design elements?"
@@ -161,7 +161,7 @@ export default function CommissionsContent() {
                   </label>
                   <Input
                     id="budget"
-                    className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                    className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500 text-base"
                     value={formData.budget}
                     onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
                     placeholder="£100 - £200"
@@ -174,7 +174,7 @@ export default function CommissionsContent() {
                   </label>
                   <Input
                     id="timeline"
-                    className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                    className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500 text-base"
                     value={formData.timeline}
                     onChange={(e) => setFormData({ ...formData, timeline: e.target.value })}
                     placeholder="No rush / By Christmas"
