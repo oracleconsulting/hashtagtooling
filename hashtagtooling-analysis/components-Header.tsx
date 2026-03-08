@@ -100,6 +100,9 @@ export function Header() {
             <Link href="/commissions" onClick={closeMenu} className="text-sm font-medium text-zinc-300 hover:text-brand-orange transition-colors">
               Commissions
             </Link>
+            <Link href="/gift-vouchers" onClick={closeMenu} className="text-sm font-medium text-zinc-300 hover:text-brand-orange transition-colors">
+              Gift Vouchers
+            </Link>
             <Link href="/gallery" onClick={closeMenu} className="text-sm font-medium text-zinc-300 hover:text-brand-orange transition-colors">
               Gallery
             </Link>
