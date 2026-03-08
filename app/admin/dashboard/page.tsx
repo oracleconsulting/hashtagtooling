@@ -125,6 +125,9 @@ export default function AdminDashboardPage() {
           <Link href="/admin/blog">
             <Button variant="outline" size="sm">Blog</Button>
           </Link>
+          <Link href="/admin/gift-vouchers">
+            <Button variant="outline" size="sm">Gift Vouchers</Button>
+          </Link>
           <Button variant="outline" size="sm" onClick={logout}>Logout</Button>
         </div>
       </div>

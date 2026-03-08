@@ -10,7 +10,7 @@ function getStripe() {
 export async function POST(req: NextRequest) {
   try {
     const stripe = getStripe()
-    const { items, customerEmail, shippingAddress, shippingCost } = await req.json()
+    const { items, customerEmail, shippingAddress, shippingCost, voucherCode, voucherDiscount } = await req.json()
 
     const lineItems = items.map((item: { name: string; price: number; quantity: number; image_url?: string }) => ({
       price_data: {
@@ -35,6 +35,18 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    // Apply gift voucher discount as a negative line item
+    if (voucherCode && Number(voucherDiscount) > 0) {
+      lineItems.push({
+        price_data: {
+          currency: 'gbp',
+          product_data: { name: `Gift Voucher (${voucherCode})`, images: [] },
+          unit_amount: -Math.round(Number(voucherDiscount) * 100),
+        },
+        quantity: 1,
+      })
+    }
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: lineItems,
@@ -45,6 +57,8 @@ export async function POST(req: NextRequest) {
       metadata: {
         shippingAddress: shippingAddress || '',
         customerEmail: customerEmail || '',
+        voucher_code: voucherCode || '',
+        voucher_discount: voucherDiscount ? String(voucherDiscount) : '',
       },
     })
 
