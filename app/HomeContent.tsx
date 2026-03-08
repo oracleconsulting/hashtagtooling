@@ -26,6 +26,7 @@ interface LatestProduct {
 
 interface HomeContentProps {
   images: SiteImages
+  heroVideoUrl?: string
   latestProducts?: LatestProduct[]
   categoryImages?: Record<string, string>
 }
@@ -37,11 +38,39 @@ const CATEGORIES = [
   { id: 'coin', name: 'EDC Coins', href: '/shop?category=coins', desc: 'Laser-cut carry coins from exotic materials' },
 ]
 
-export default function HomeContent({ images, latestProducts = [], categoryImages = {} }: HomeContentProps) {
+export default function HomeContent({ images, heroVideoUrl, latestProducts = [], categoryImages = {} }: HomeContentProps) {
   return (
     <div>
       <section className="relative min-h-[80vh] flex items-center bg-brand-dark overflow-hidden">
-        {images.hero_background && (
+        {/* Hero background: video on md+, static image on mobile or fallback */}
+        {heroVideoUrl ? (
+          <>
+            <div className="absolute inset-0 hidden md:block">
+              <video
+                autoPlay
+                muted
+                loop
+                playsInline
+                poster={images.hero_background || undefined}
+                className="absolute inset-0 w-full h-full object-cover"
+              >
+                <source src={heroVideoUrl} type="video/mp4" />
+              </video>
+            </div>
+            {images.hero_background && (
+              <div className="absolute inset-0 md:hidden">
+                <Image
+                  src={images.hero_background}
+                  alt="Collection of handcrafted woodworking mallets made from exotic timbers"
+                  fill
+                  className="object-cover"
+                  priority
+                  sizes="100vw"
+                />
+              </div>
+            )}
+          </>
+        ) : images.hero_background ? (
           <Image
             src={images.hero_background}
             alt="Collection of handcrafted woodworking mallets made from exotic timbers"
@@ -50,7 +79,7 @@ export default function HomeContent({ images, latestProducts = [], categoryImage
             priority
             sizes="100vw"
           />
-        )}
+        ) : null}
         <div className="absolute inset-0 bg-gradient-to-r from-brand-dark via-brand-dark/90 to-brand-dark/60" />
         <div className="container mx-auto px-4 py-24 relative z-10">
           <div className="max-w-3xl">

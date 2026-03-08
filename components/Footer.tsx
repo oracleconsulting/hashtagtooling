@@ -93,8 +93,10 @@ export function Footer() {
               <li><Link href="/shop?category=mallets" className="hover:text-brand-orange transition-colors">Mallets</Link></li>
               <li><Link href="/shop?category=awls" className="hover:text-brand-orange transition-colors">Awls</Link></li>
               <li><Link href="/shop?category=wood" className="hover:text-brand-orange transition-colors">Wood for Sale</Link></li>
+              <li><Link href="/adopt" className="hover:text-brand-orange transition-colors">Adopt a Blank</Link></li>
               <li><Link href="/shop?category=coins" className="hover:text-brand-orange transition-colors">EDC Coins</Link></li>
               <li><Link href="/gift-vouchers" className="hover:text-brand-orange transition-colors">Gift Vouchers</Link></li>
+              <li><Link href="/mystery-box" className="hover:text-brand-orange transition-colors">Mystery Box</Link></li>
               <li><Link href="/referrals" className="hover:text-brand-orange transition-colors">Refer a Friend</Link></li>
             </ul>
           </div>

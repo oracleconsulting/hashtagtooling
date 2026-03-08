@@ -166,6 +166,39 @@ export async function POST(req: NextRequest) {
           }),
         }).catch((err) => console.error('Digital download email webhook error:', err))
       }
+
+      // Adopt a Blank — create adoption records and send confirmation
+      const adoptProductIds = [...new Set(orderItems.map((i) => i.id).filter(Boolean))] as string[]
+      if (adoptProductIds.length > 0) {
+        const { data: products } = await supabase.from('products').select('id, name, category, subcategory').in('id', adoptProductIds)
+        const adoptProducts = (products || []).filter((p) => p.category === 'wood' && p.subcategory === 'adopt')
+        const customerName = session.customer_details?.name || 'Unknown'
+        const customerEmail = session.customer_details?.email || meta.customerEmail || ''
+
+        for (const product of adoptProducts) {
+          await supabase.from('blank_adoptions').insert({
+            product_id: product.id,
+            customer_name: customerName,
+            customer_email: customerEmail,
+            status: 'adopted',
+            stripe_payment_id: session.id,
+          })
+          await supabase.from('products').update({ stock_status: 'made_to_order' }).eq('id', product.id)
+          await fetch(`${siteUrl}/api/send-adoption-update`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              customerName,
+              customerEmail,
+              productName: product.name,
+              updateText: "You've adopted a blank! I'll start working on it soon. You'll receive email updates as it progresses from rough stock to finished tool.",
+              imageUrl: null,
+              adoptionPageUrl: `${siteUrl}/adopt/${product.id}`,
+              subject: `You've adopted ${product.name}!`,
+            }),
+          }).catch((err) => console.error('Adoption confirmation email error:', err))
+        }
+      }
     }
   }
 

@@ -26,6 +26,7 @@ const CATEGORIES = [
   { id: 'awl', name: 'Awls' },
   { id: 'wood', name: 'Wood for Sale' },
   { id: 'coin', name: 'EDC Coins' },
+  { id: 'mystery', name: 'Mystery Box' },
 ]
 
 const WOOD_SUBCATEGORIES = [

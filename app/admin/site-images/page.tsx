@@ -23,22 +23,33 @@ const SECTION_CONFIG = [
     title: 'Hero Background',
     description: 'Full-width background image behind "THE HASHTAG MALLET" heading. Recommended: 1920x1080px or larger, landscape orientation. A dramatic workshop shot or close-up of wood grain works well here.',
     aspect: 'aspect-[16/9]',
+    accept: 'image/jpeg,image/png,image/webp,.heic,.HEIC',
+  },
+  {
+    key: 'hero_video',
+    title: 'Hero Background Video',
+    description: 'Looping workshop video for homepage hero (MP4, recommended 1920x1080, under 15MB). Falls back to static image on mobile.',
+    aspect: 'aspect-[16/9]',
+    accept: 'video/mp4',
   },
   {
     key: 'wood_collection',
     title: 'Wood Collection',
+    accept: 'image/jpeg,image/png,image/webp,.heic,.HEIC',
     description: 'Displayed next to the "WOOD CHOICE" text section. Should show your exotic wood collection — timber blanks, turning blanks, end grain patterns. Recommended: 800x600px or larger.',
     aspect: 'aspect-[4/3]',
   },
   {
     key: 'brass_transitions',
     title: 'Brass & Copper Transitions',
+    accept: 'image/jpeg,image/png,image/webp,.heic,.HEIC',
     description: 'Displayed next to "THE TRANSITION" text section. Should show your transition materials — brass rings, copper dowels, mokume gane pieces on the workbench. Recommended: 800x600px or larger.',
     aspect: 'aspect-[4/3]',
   },
   {
     key: 'mallet_lineup',
     title: 'Mallet Lineup',
+    accept: 'image/jpeg,image/png,image/webp,.heic,.HEIC',
     description: 'Displayed next to "TOTALLY UNIQUE AND PERSONAL" text. Should show a row/group of different completed mallets showcasing variety. Recommended: 800x600px or larger.',
     aspect: 'aspect-[4/3]',
   },
@@ -81,10 +92,12 @@ export default function AdminSiteImagesPage() {
     setSuccessSection(null)
 
     try {
-      // Convert HEIC/HEIF to JPEG (dynamic import: heic2any uses window, so load only in browser)
       let processedFile: File = file
       let fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-      if (fileExt === 'heic' || fileExt === 'heif' || file.type === 'image/heic' || file.type === 'image/heif') {
+      const isVideo = sectionKey === 'hero_video' || file.type.startsWith('video/')
+
+      // Convert HEIC/HEIF to JPEG only for images
+      if (!isVideo && (fileExt === 'heic' || fileExt === 'heif' || file.type === 'image/heic' || file.type === 'image/heif')) {
         try {
           const heic2any = (await import('heic2any')).default
           const convertedBlob = await heic2any({
@@ -106,6 +119,8 @@ export default function AdminSiteImagesPage() {
           return
         }
       }
+
+      if (isVideo) fileExt = 'mp4'
 
       // Generate unique filename
       const fileName = `${sectionKey}-${Date.now()}.${fileExt}`
@@ -243,17 +258,27 @@ export default function AdminSiteImagesPage() {
                   <div className={`${section.aspect} bg-brand-dark border border-brand-dark-border rounded-lg overflow-hidden relative`}>
                     {currentUrl ? (
                       <>
-                        <Image
-                          src={currentUrl}
-                          alt={section.title}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 768px) 100vw, 50vw"
-                        />
+                        {section.key === 'hero_video' ? (
+                          <video
+                            src={currentUrl}
+                            muted
+                            loop
+                            playsInline
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Image
+                            src={currentUrl}
+                            alt={section.title}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 768px) 100vw, 50vw"
+                          />
+                        )}
                         <button
                           onClick={() => handleRemove(section.key)}
                           className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1.5 hover:bg-red-700 transition-colors"
-                          title="Remove image"
+                          title="Remove"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -271,7 +296,7 @@ export default function AdminSiteImagesPage() {
                       <Upload className="mx-auto h-10 w-10 text-zinc-500 mb-4" />
                       <input
                         type="file"
-                        accept="image/jpeg,image/png,image/webp,.heic,.HEIC"
+                        accept={section.accept || 'image/jpeg,image/png,image/webp,.heic,.HEIC'}
                         onChange={(e) => {
                           const file = e.target.files?.[0]
                           if (file) handleUpload(section.key, file)
@@ -301,7 +326,7 @@ export default function AdminSiteImagesPage() {
                         </Button>
                       </label>
                       <p className="text-xs text-zinc-500 mt-3">
-                        JPG, PNG, or WEBP. Max 5MB.
+                        {section.key === 'hero_video' ? 'MP4. Max 15MB.' : 'JPG, PNG, or WEBP. Max 5MB.'}
                       </p>
                     </div>
                   </div>

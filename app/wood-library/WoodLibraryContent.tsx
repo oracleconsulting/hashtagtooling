@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Volume2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Search } from 'lucide-react'
 
@@ -17,6 +17,8 @@ export interface WoodItem {
   awl_handle_premium: number
   available: boolean
   grain_image_url?: string | null
+  tap_audio_url?: string | null
+  tap_audio_description?: string | null
   janka_hardness?: number | null
   specific_gravity?: number | null
   origin?: string | null
@@ -33,12 +35,42 @@ interface WoodLibraryContentProps {
 
 export default function WoodLibraryContent({ woods }: WoodLibraryContentProps) {
   const [search, setSearch] = useState('')
+  const [audioOnly, setAudioOnly] = useState(false)
+  const [playingId, setPlayingId] = useState<string | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const filteredWoods = useMemo(() => {
-    if (!search.trim()) return woods
-    const q = search.trim().toLowerCase()
-    return woods.filter((w) => w.name.toLowerCase().includes(q))
-  }, [woods, search])
+    let list = woods
+    if (audioOnly) list = list.filter((w) => w.tap_audio_url)
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      list = list.filter((w) => w.name.toLowerCase().includes(q))
+    }
+    return list
+  }, [woods, search, audioOnly])
+
+  const speciesWithAudio = useMemo(() => woods.filter((w) => w.tap_audio_url).length, [woods])
+
+  const handlePlay = useCallback(
+    (wood: WoodItem) => {
+      if (!wood.tap_audio_url) return
+      if (playingId === wood.id) {
+        audioRef.current?.pause()
+        setPlayingId(null)
+        return
+      }
+      if (audioRef.current) {
+        audioRef.current.pause()
+      }
+      const audio = new Audio(wood.tap_audio_url)
+      audioRef.current = audio
+      audio.onended = () => setPlayingId(null)
+      audio.onpause = () => setPlayingId(null)
+      audio.play()
+      setPlayingId(wood.id)
+    },
+    [playingId]
+  )
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -47,6 +79,25 @@ export default function WoodLibraryContent({ woods }: WoodLibraryContentProps) {
         <p className="text-zinc-400 text-lg max-w-2xl mx-auto">
           Over 75 exotic timbers to choose from. Each species chosen for its density, hardness, and unique character.
         </p>
+      </div>
+
+      {/* Sound Library section */}
+      <div className="mb-8 p-6 rounded-lg bg-brand-dark-card border border-brand-dark-border">
+        <p className="text-zinc-300 mb-2">
+          🔊 Listen to the tap test — hear how each species rings when struck. Every timber has its own voice.
+        </p>
+        <div className="flex flex-wrap items-center gap-4">
+          <span className="text-zinc-400 text-sm">{speciesWithAudio} species with audio</span>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={audioOnly}
+              onChange={(e) => setAudioOnly(e.target.checked)}
+              className="rounded border-brand-dark-border"
+            />
+            <span className="text-sm text-zinc-400">Show species with audio only</span>
+          </label>
+        </div>
       </div>
 
       <div className="mb-8 max-w-md mx-auto">
@@ -113,6 +164,30 @@ export default function WoodLibraryContent({ woods }: WoodLibraryContentProps) {
                   </div>
                 )}
                 {wood.grain_description && <p className="text-sm text-zinc-400 mt-3 leading-relaxed">{wood.grain_description}</p>}
+                {wood.tap_audio_url && (
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={() => handlePlay(wood)}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-brand-dark-border hover:border-brand-orange transition-colors text-sm"
+                      aria-label={`Play tap test for ${wood.name}`}
+                    >
+                      <Volume2 className="h-4 w-4 text-brand-orange" />
+                      <span className="text-zinc-300">Tap test</span>
+                      {playingId === wood.id && (
+                        <span className="flex gap-0.5 items-end h-4">
+                          <span className="waveform-bar w-1 bg-brand-orange rounded-full origin-bottom" style={{ height: 8, animationDelay: '0ms' }} />
+                          <span className="waveform-bar w-1 bg-brand-orange rounded-full origin-bottom" style={{ height: 12, animationDelay: '100ms' }} />
+                          <span className="waveform-bar w-1 bg-brand-orange rounded-full origin-bottom" style={{ height: 6, animationDelay: '200ms' }} />
+                          <span className="waveform-bar w-1 bg-brand-orange rounded-full origin-bottom" style={{ height: 10, animationDelay: '300ms' }} />
+                        </span>
+                      )}
+                    </button>
+                    {wood.tap_audio_description && (
+                      <p className="text-xs text-zinc-500 mt-1.5 italic">{wood.tap_audio_description}</p>
+                    )}
+                  </div>
+                )}
                 {badges.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-3">
                     {badges.map((b) => (

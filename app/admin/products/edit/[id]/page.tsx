@@ -44,6 +44,7 @@ export default function EditProductPage() {
   const [digitalFileUrl, setDigitalFileUrl] = useState('')
   const [digitalFileName, setDigitalFileName] = useState('')
   const [uploadingDigital, setUploadingDigital] = useState(false)
+  const [mysteryTier, setMysteryTier] = useState<'carver' | 'detailer' | 'joiner'>('carver')
 
   useEffect(() => {
     const isAuthenticated = sessionStorage.getItem('admin_auth')
@@ -103,6 +104,7 @@ export default function EditProductPage() {
       })
       setDigitalFileUrl(data.digital_file_url ?? '')
       setDigitalFileName(data.digital_file_name ?? '')
+      setMysteryTier((data.metadata?.tier as 'carver' | 'detailer' | 'joiner') || 'carver')
       setImageUrls(data.metadata?.images?.length ? data.metadata.images : (data.image_url ? [data.image_url] : []))
       setVideoUrl(data.metadata?.video ?? '')
 
@@ -235,6 +237,7 @@ export default function EditProductPage() {
             weight_kg: formData.is_digital ? undefined : formData.weight_kg,
             dimensions: formData.is_digital ? undefined : formData.dimensions,
             species: formData.category === 'wood' ? (formData.wood_species || undefined) : undefined,
+            tier: formData.category === 'mystery' ? mysteryTier : undefined,
             head_wood: formData.head_wood,
             handle_wood: formData.handle_wood,
             shipping: formData.is_digital
@@ -346,6 +349,7 @@ export default function EditProductPage() {
                     <option value="square">Engineering Square</option>
                     <option value="coin">EDC Coin</option>
                     <option value="wood">Wood for Sale</option>
+                    <option value="mystery">Mystery Box</option>
                   </select>
                 </div>
                 <div>
@@ -375,10 +379,26 @@ export default function EditProductPage() {
                     onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
                   >
                     <option value="">Select subcategory...</option>
+                    <option value="adopt">Adopt a Blank</option>
                     <option value="offcut">Offcut / Turning Blank</option>
                     <option value="sample_pack">Sample Pack</option>
                     <option value="slab">Slab / Board</option>
                     <option value="pen_blank">Pen Blank</option>
+                  </select>
+                </div>
+              )}
+
+              {formData.category === 'mystery' && (
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">Tier</label>
+                  <select
+                    className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
+                    value={mysteryTier}
+                    onChange={(e) => setMysteryTier(e.target.value as 'carver' | 'detailer' | 'joiner')}
+                  >
+                    <option value="carver">Carver</option>
+                    <option value="detailer">Detailer</option>
+                    <option value="joiner">Joiner</option>
                   </select>
                 </div>
               )}

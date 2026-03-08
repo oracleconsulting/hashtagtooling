@@ -1,12 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useCart } from '@/lib/store'
 import { formatPrice } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import { Check, Loader2 } from 'lucide-react'
+
+const MalletPreview3D = dynamic(() => import('@/components/MalletPreview3D').then((m) => m.MalletPreview3D), { ssr: false })
 
 interface Material {
   id: string
@@ -176,8 +179,25 @@ export default function CustomMalletPage() {
         </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* 3D Preview - left on desktop, top on mobile */}
+          <div className="order-1 lg:sticky lg:top-24 h-fit">
+            <div className="sticky top-20 z-10 bg-brand-dark py-2 md:py-0 md:static lg:bg-transparent">
+              <MalletPreview3D
+                headColor={woods.find((w) => w.id === selectedHeadWood)?.color_hex || '#555'}
+                handleColor={woods.find((w) => w.id === selectedHandleWood)?.color_hex || '#555'}
+                transitionColor={transitions.find((t) => t.id === selectedTransition)?.color_hex || '#555'}
+                style={
+                  malletStyles.find((s) => s.id === selectedStyle)?.style_name?.toLowerCase().startsWith('turn')
+                    ? 'turned'
+                    : 'square'
+                }
+              />
+              <p className="text-zinc-500 text-xs mt-2 text-center">Drag to rotate • Colours are approximate</p>
+            </div>
+          </div>
+
           {/* Configuration Panel */}
-          <div className="space-y-8 md:space-y-6">
+          <div className="space-y-8 md:space-y-6 order-2">
             {/* Mallet Type */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
               <CardHeader className="sticky top-16 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
@@ -320,20 +340,13 @@ export default function CustomMalletPage() {
                 ))}
               </CardContent>
             </Card>
-          </div>
 
-          {/* Preview & Summary */}
-          <div className="lg:sticky lg:top-24 h-fit">
+            {/* Summary */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
               <CardHeader>
                 <CardTitle className="text-white">Your Custom Mallet</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Placeholder Image */}
-                <div className="aspect-square bg-brand-dark border border-brand-dark-border rounded-lg flex items-center justify-center">
-                  <p className="text-zinc-500">Preview Image</p>
-                </div>
-
                 {/* Configuration Summary */}
                 <div className="space-y-3 text-sm">
                   <div>
