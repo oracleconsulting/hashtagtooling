@@ -22,9 +22,11 @@ export default function NewProductPage() {
     description: '',
     price: '',
     category: 'mallet',
+    subcategory: '',
     stock_status: 'in_stock',
     weight_kg: '',
     dimensions: '',
+    wood_species: '',
     head_wood: '',
     handle_wood: '',
     shipping_uk: '5.99',
@@ -137,6 +139,7 @@ export default function NewProductPage() {
           description: formData.description,
           price: parseFloat(formData.price),
           category: formData.category,
+          subcategory: formData.category === 'wood' ? (formData.subcategory || null) : null,
           stock_status: formData.stock_status,
           image_url: imageUrls[0] || 'https://placehold.co/600x400/666/white?text=No+Image',
           metadata: {
@@ -144,6 +147,7 @@ export default function NewProductPage() {
             video: videoUrl,
             weight_kg: formData.weight_kg,
             dimensions: formData.dimensions,
+            species: formData.category === 'wood' ? (formData.wood_species || undefined) : undefined,
             head_wood: formData.head_wood,
             handle_wood: formData.handle_wood,
             shipping: {
@@ -247,6 +251,25 @@ export default function NewProductPage() {
                   </select>
                 </div>
               </div>
+
+              {formData.category === 'wood' && (
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">
+                    Subcategory
+                  </label>
+                  <select
+                    className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
+                    value={formData.subcategory}
+                    onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
+                  >
+                    <option value="">Select subcategory...</option>
+                    <option value="offcut">Offcut / Turning Blank</option>
+                    <option value="sample_pack">Sample Pack</option>
+                    <option value="slab">Slab / Board</option>
+                    <option value="pen_blank">Pen Blank</option>
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium mb-2 text-zinc-300">
@@ -374,17 +397,36 @@ export default function NewProductPage() {
             </CardContent>
           </Card>
 
-          {/* Specifications */}
-          <Card className="bg-brand-dark-card border border-brand-dark-border">
-            <CardHeader>
-              <CardTitle className="text-white">Specifications</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+          {formData.category === 'wood' && (
+            <Card className="bg-brand-dark-card border border-brand-dark-border">
+              <CardHeader>
+                <CardTitle className="text-white">Wood Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-zinc-300">
-                    Weight (kg)
-                  </label>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">Species</label>
+                  <select
+                    className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
+                    value={formData.wood_species}
+                    onChange={(e) => setFormData({ ...formData, wood_species: e.target.value })}
+                  >
+                    <option value="">Select species...</option>
+                    {availableWoods.map((wood) => (
+                      <option key={wood.id} value={wood.name}>{wood.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">Approximate dimensions</label>
+                  <Input
+                    className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                    value={formData.dimensions}
+                    onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
+                    placeholder="e.g. 150mm x 40mm x 40mm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">Weight (kg)</label>
                   <Input
                     type="number"
                     step="0.01"
@@ -394,20 +436,47 @@ export default function NewProductPage() {
                     placeholder="0.5"
                   />
                 </div>
+              </CardContent>
+            </Card>
+          )}
 
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-zinc-300">
-                    Dimensions
-                  </label>
-                  <Input
-                    className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
-                    value={formData.dimensions}
-                    onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
-                    placeholder="11 x 3.5 inches"
-                  />
+          {/* Specifications */}
+          <Card className="bg-brand-dark-card border border-brand-dark-border">
+            <CardHeader>
+              <CardTitle className="text-white">Specifications</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {formData.category !== 'wood' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-zinc-300">
+                      Weight (kg)
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                      value={formData.weight_kg}
+                      onChange={(e) => setFormData({ ...formData, weight_kg: e.target.value })}
+                      placeholder="0.5"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-zinc-300">
+                      Dimensions
+                    </label>
+                    <Input
+                      className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                      value={formData.dimensions}
+                      onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
+                      placeholder="11 x 3.5 inches"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
+              {formData.category !== 'wood' && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-2 text-zinc-300">
@@ -440,6 +509,7 @@ export default function NewProductPage() {
                   </select>
                 </div>
               </div>
+              )}
             </CardContent>
           </Card>
 

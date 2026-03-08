@@ -28,10 +28,19 @@ const CATEGORIES = [
   { id: 'coin', name: 'EDC Coins' },
 ]
 
+const WOOD_SUBCATEGORIES = [
+  { id: 'all', name: 'All Wood' },
+  { id: 'offcut', name: 'Offcuts & Blanks' },
+  { id: 'sample_pack', name: 'Sample Packs' },
+  { id: 'slab', name: 'Slabs' },
+  { id: 'pen_blank', name: 'Pen Blanks' },
+]
+
 function ShopContentInner() {
   const searchParams = useSearchParams()
   const categoryParam = searchParams.get('category') || 'all'
   const [selectedCategory, setSelectedCategory] = useState(categoryParam)
+  const [selectedWoodSub, setSelectedWoodSub] = useState<string>('all')
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -76,27 +85,49 @@ function ShopContentInner() {
   }
 
   const effectiveCategory = mapCategory(selectedCategory)
-  const filteredProducts = effectiveCategory === 'all'
+  let filteredProducts = effectiveCategory === 'all'
     ? products
     : products.filter(p => p.category === effectiveCategory)
+
+  if (effectiveCategory === 'wood' && selectedWoodSub !== 'all') {
+    filteredProducts = filteredProducts.filter(p => p.subcategory === selectedWoodSub)
+  }
 
   return (
     <div className="container mx-auto px-4 py-12">
       <h1 className="font-heading text-4xl font-bold mb-2 text-brand-orange">Shop</h1>
       <p className="text-zinc-400 mb-8">Handcrafted tools and materials. Each piece is unique.</p>
 
-      <div className="flex flex-wrap gap-3 mb-12">
+      <div className="flex flex-wrap gap-3 mb-6">
         {CATEGORIES.map(cat => (
           <Button
             key={cat.id}
             variant={effectiveCategory === cat.id || (effectiveCategory === 'all' && cat.id === 'all') ? 'default' : 'outline'}
-            onClick={() => setSelectedCategory(cat.id)}
+            onClick={() => { setSelectedCategory(cat.id); setSelectedWoodSub('all') }}
             size="sm"
           >
             {cat.name}
           </Button>
         ))}
       </div>
+
+      {effectiveCategory === 'wood' && (
+        <div className="flex flex-wrap gap-2 mb-10">
+          {WOOD_SUBCATEGORIES.map(sub => (
+            <button
+              key={sub.id}
+              onClick={() => setSelectedWoodSub(sub.id)}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                selectedWoodSub === sub.id
+                  ? 'bg-brand-orange text-brand-dark'
+                  : 'border border-brand-dark-border text-zinc-300 hover:border-zinc-500 hover:text-white'
+              }`}
+            >
+              {sub.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
