@@ -36,6 +36,7 @@ export default function AdminDashboardPage() {
     totalRevenue: 0,
     pendingCommissions: 0,
     productsInStock: 0,
+    newsletterSubscribers: 0,
   })
   const [recentOrders, setRecentOrders] = useState<Order[]>([])
   const [recentCommissions, setRecentCommissions] = useState<Commission[]>([])
@@ -51,7 +52,7 @@ export default function AdminDashboardPage() {
 
   const loadDashboard = async () => {
     try {
-      const [productsRes, ordersCountRes, ordersRes, commissionsRes, inStockRes, ordersListRes, commissionsListRes] = await Promise.all([
+      const [productsRes, ordersCountRes, ordersRes, commissionsRes, inStockRes, ordersListRes, commissionsListRes, newsletterRes] = await Promise.all([
         supabase.from('products').select('id', { count: 'exact', head: true }),
         supabase.from('orders').select('id', { count: 'exact', head: true }),
         supabase.from('orders').select('total_amount, status'),
@@ -59,6 +60,7 @@ export default function AdminDashboardPage() {
         supabase.from('products').select('id', { count: 'exact', head: true }).eq('stock_status', 'in_stock'),
         supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(5),
         supabase.from('commissions').select('*').order('created_at', { ascending: false }).limit(5),
+        supabase.from('newsletter_subscribers').select('id', { count: 'exact', head: true }).eq('unsubscribed', false),
       ])
 
       const totalProducts = productsRes.count ?? 0
@@ -76,6 +78,7 @@ export default function AdminDashboardPage() {
         totalRevenue,
         pendingCommissions,
         productsInStock,
+        newsletterSubscribers: newsletterRes.count ?? 0,
       })
       setRecentOrders((ordersListRes.data ?? []) as Order[])
       setRecentCommissions((commissionsListRes.data ?? []) as Commission[])
@@ -126,7 +129,7 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-10">
         <Card className="bg-brand-dark-card border border-brand-dark-border">
           <CardContent className="p-6">
             <p className="text-3xl font-bold text-brand-orange">{stats.totalProducts}</p>
@@ -150,6 +153,12 @@ export default function AdminDashboardPage() {
           <CardContent className="p-6">
             <p className="text-3xl font-bold text-brand-orange">{stats.productsInStock}</p>
             <p className="text-zinc-400 text-sm mt-1">Products In Stock</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-brand-dark-card border border-brand-dark-border">
+          <CardContent className="p-6">
+            <p className="text-3xl font-bold text-brand-orange">{stats.newsletterSubscribers}</p>
+            <p className="text-zinc-400 text-sm mt-1">Newsletter Subscribers</p>
           </CardContent>
         </Card>
       </div>
