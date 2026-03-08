@@ -4,6 +4,7 @@ import { useEffect, useState, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
 import { ChevronDown, ChevronRight } from 'lucide-react'
@@ -15,14 +16,25 @@ interface Order {
   customer_email: string
   total_amount: number
   status: string
+  tracking_number?: string | null
+  tracking_url?: string | null
+  shipped_at?: string | null
   order_details?: {
-    items?: { name: string; price: number; quantity: number }[]
+    items?: { id?: string; name: string; price: number; quantity: number }[]
     shipping_address?: string
     payer?: unknown
   }
 }
 
-const STATUS_OPTIONS = ['pending', 'paid', 'shipped', 'completed'] as const
+const STATUS_OPTIONS = ['pending', 'paid', 'shipped', 'completed', 'refunded'] as const
+
+const STATUS_BADGE: Record<string, string> = {
+  pending: 'bg-zinc-700 text-zinc-300',
+  paid: 'bg-blue-900/50 text-blue-400',
+  shipped: 'bg-brand-orange/20 text-brand-orange',
+  completed: 'bg-green-900/50 text-green-400',
+  refunded: 'bg-red-900/50 text-red-400',
+}
 
 export default function AdminOrdersPage() {
   const router = useRouter()
@@ -30,6 +42,8 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [shippingId, setShippingId] = useState<string | null>(null)
+  const [trackingInputs, setTrackingInputs] = useState<Record<string, { trackingNumber: string; trackingUrl: string }>>({})
 
   useEffect(() => {
     const isAuthenticated = sessionStorage.getItem('admin_auth')
@@ -73,6 +87,62 @@ export default function AdminOrdersPage() {
       alert('Failed to update status')
     } finally {
       setUpdatingId(null)
+    }
+  }
+
+  const markAsShipped = async (order: Order) => {
+    const { trackingNumber, trackingUrl } = trackingInputs[order.id] ?? { trackingNumber: '', trackingUrl: '' }
+    setShippingId(order.id)
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          status: 'shipped',
+          tracking_number: trackingNumber || null,
+          tracking_url: trackingUrl || null,
+          shipped_at: new Date().toISOString(),
+        })
+        .eq('id', order.id)
+
+      if (error) throw error
+
+      await fetch('/api/send-shipping-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: order.customer_name,
+          customerEmail: order.customer_email,
+          orderNumber: order.id,
+          trackingNumber: trackingNumber || undefined,
+          trackingUrl: trackingUrl || undefined,
+          items: order.order_details?.items ?? [],
+        }),
+      }).catch((err) => console.error('Shipping email failed:', err))
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === order.id
+            ? {
+                ...o,
+                status: 'shipped',
+                tracking_number: trackingNumber || null,
+                tracking_url: trackingUrl || null,
+                shipped_at: new Date().toISOString(),
+              }
+            : o
+        )
+      )
+      setTrackingInputs((prev) => {
+        const next = { ...prev }
+        delete next[order.id]
+        return next
+      })
+      alert('✓ Shipped — customer notified')
+    } catch (error) {
+      console.error('Error marking as shipped:', error)
+      alert('Failed to mark as shipped')
+    } finally {
+      setShippingId(null)
     }
   }
 
@@ -192,6 +262,9 @@ export default function AdminOrdersPage() {
                         {formatPrice(order.total_amount)}
                       </td>
                       <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium mr-2 ${STATUS_BADGE[order.status] ?? 'bg-zinc-700 text-zinc-300'}`}>
+                          {order.status}
+                        </span>
                         <select
                           value={order.status}
                           onChange={(e) =>
@@ -211,18 +284,90 @@ export default function AdminOrdersPage() {
                         {itemsCount(order)}
                       </td>
                     </tr>
-                    {expandedId === order.id && order.order_details && (
+                    {expandedId === order.id && (
                       <tr key={`${order.id}-details`}>
                         <td
                           colSpan={7}
-                          className="bg-brand-dark/80 p-4 border-b border-brand-dark-border"
+                          className="bg-brand-dark/80 p-6 border-b border-brand-dark-border"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <p className="text-white font-semibold mb-2">
-                            Order details
-                          </p>
-                          <pre className="text-zinc-400 text-sm overflow-x-auto rounded-lg p-4 bg-brand-dark-card border border-brand-dark-border whitespace-pre-wrap break-words">
-                            {JSON.stringify(order.order_details, null, 2)}
-                          </pre>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
+                            <div>
+                              <p className="text-white font-semibold mb-2">Items</p>
+                              <ul className="space-y-1 text-sm text-zinc-300">
+                                {(order.order_details?.items ?? []).map((item, i) => (
+                                  <li key={i}>
+                                    {item.name} × {item.quantity} — {formatPrice((item.price ?? 0) * (item.quantity ?? 1))}
+                                  </li>
+                                ))}
+                                {(!order.order_details?.items || order.order_details.items.length === 0) && (
+                                  <li className="text-zinc-500">No items</li>
+                                )}
+                              </ul>
+                            </div>
+                            <div>
+                              <p className="text-white font-semibold mb-2">Shipping address</p>
+                              <p className="text-zinc-400 text-sm whitespace-pre-wrap">
+                                {order.order_details?.shipping_address || '—'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="mt-6 pt-6 border-t border-brand-dark-border">
+                            <p className="text-white font-semibold mb-3">Tracking</p>
+                            {order.status === 'shipped' && (order.tracking_number || order.shipped_at) ? (
+                              <div className="space-y-1 text-sm">
+                                {order.tracking_number && (
+                                  <p className="text-zinc-300">Tracking: <span className="font-mono">{order.tracking_number}</span></p>
+                                )}
+                                {order.tracking_url && (
+                                  <a href={order.tracking_url} target="_blank" rel="noopener noreferrer" className="text-brand-orange hover:underline">
+                                    Track package →
+                                  </a>
+                                )}
+                                {order.shipped_at && (
+                                  <p className="text-zinc-500">Shipped {formatDate(order.shipped_at)}</p>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="space-y-3 max-w-md">
+                                <Input
+                                  placeholder="Tracking number"
+                                  value={trackingInputs[order.id]?.trackingNumber ?? ''}
+                                  onChange={(e) =>
+                                    setTrackingInputs((prev) => ({
+                                      ...prev,
+                                      [order.id]: {
+                                        ...(prev[order.id] ?? { trackingNumber: '', trackingUrl: '' }),
+                                        trackingNumber: e.target.value,
+                                      },
+                                    }))
+                                  }
+                                  className="bg-brand-dark border border-brand-dark-border text-white"
+                                />
+                                <Input
+                                  placeholder="Tracking URL (optional)"
+                                  value={trackingInputs[order.id]?.trackingUrl ?? ''}
+                                  onChange={(e) =>
+                                    setTrackingInputs((prev) => ({
+                                      ...prev,
+                                      [order.id]: {
+                                        ...(prev[order.id] ?? { trackingNumber: '', trackingUrl: '' }),
+                                        trackingUrl: e.target.value,
+                                      },
+                                    }))
+                                  }
+                                  className="bg-brand-dark border border-brand-dark-border text-white"
+                                />
+                                <Button
+                                  onClick={() => markAsShipped(order)}
+                                  disabled={shippingId === order.id}
+                                >
+                                  {shippingId === order.id ? 'Saving...' : 'Mark as Shipped & Notify Customer'}
+                                </Button>
+                              </div>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )}

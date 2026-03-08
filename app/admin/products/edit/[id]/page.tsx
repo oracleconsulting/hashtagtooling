@@ -20,6 +20,8 @@ export default function EditProductPage() {
   const [videoUrl, setVideoUrl] = useState('')
   const [availableWoods, setAvailableWoods] = useState<{ id: string; name: string; color_hex: string }[]>([])
 
+  const [originalStockStatus, setOriginalStockStatus] = useState<string>('')
+  const [waitlistCount, setWaitlistCount] = useState(0)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -75,6 +77,7 @@ export default function EditProductPage() {
         return
       }
 
+      setOriginalStockStatus(data.stock_status ?? '')
       setFormData({
         name: data.name ?? '',
         description: data.description ?? '',
@@ -95,6 +98,13 @@ export default function EditProductPage() {
       })
       setImageUrls(data.metadata?.images?.length ? data.metadata.images : (data.image_url ? [data.image_url] : []))
       setVideoUrl(data.metadata?.video ?? '')
+
+      const { count } = await supabase
+        .from('stock_notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('product_id', id)
+        .eq('notified', false)
+      setWaitlistCount(count ?? 0)
     } catch (err) {
       console.error('Error loading product:', err)
       alert('Failed to load product')
@@ -207,7 +217,31 @@ export default function EditProductPage() {
 
       if (error) throw error
 
-      alert('Product updated successfully!')
+      const stockChangedToInStock = originalStockStatus !== 'in_stock' && formData.stock_status === 'in_stock'
+      let notifiedCount = 0
+      if (stockChangedToInStock && waitlistCount > 0) {
+        try {
+          const res = await fetch('/api/send-stock-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productId: id,
+              productName: formData.name,
+              productUrl: `/product/${id}`,
+            }),
+          })
+          const data = await res.json()
+          notifiedCount = data.count ?? 0
+        } catch {
+          // Non-blocking
+        }
+      }
+
+      if (notifiedCount > 0) {
+        alert(`✓ Saved — ${notifiedCount} customer${notifiedCount === 1 ? '' : 's'} notified`)
+      } else {
+        alert('Product updated successfully!')
+      }
       router.push('/admin/products')
     } catch (error) {
       console.error('Error updating product:', error)
@@ -291,6 +325,9 @@ export default function EditProductPage() {
                     <option value="out_of_stock">Out of Stock</option>
                     <option value="sold">Sold</option>
                   </select>
+                  {waitlistCount > 0 && (
+                    <p className="text-zinc-400 text-sm mt-1.5">📧 {waitlistCount} customer{waitlistCount === 1 ? '' : 's'} waiting for notification</p>
+                  )}
                 </div>
               </div>
 
