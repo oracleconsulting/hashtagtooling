@@ -23,6 +23,7 @@ interface Product {
   category: string
   image_url: string
   stock_status: string
+  is_digital?: boolean
   metadata?: {
     images?: string[]
     weight_kg?: string
@@ -90,6 +91,7 @@ export default function ProductContent() {
       quantity: 1,
       image_url: product.image_url,
       shipping: product.metadata?.shipping,
+      is_digital: product.is_digital,
     })
   }
 
@@ -283,7 +285,11 @@ export default function ProductContent() {
             </Card>
           )}
 
-          {product.metadata?.shipping && (
+          {product.is_digital && (
+            <p className="text-zinc-400 text-sm mb-6">Instant delivery — download link sent by email after purchase.</p>
+          )}
+
+          {product.metadata?.shipping && !product.is_digital && (
             <Card className="mb-6">
               <CardContent className="p-6">
                 <h3 className="font-semibold text-lg mb-4 text-white">Shipping</h3>
@@ -337,6 +343,7 @@ export default function ProductContent() {
                 image_url={p.image_url}
                 category={p.category}
                 stock_status={p.stock_status as 'in_stock' | 'made_to_order' | 'sold' | 'out_of_stock'}
+                is_digital={p.is_digital}
                 metadata={p.metadata}
               />
             ))}

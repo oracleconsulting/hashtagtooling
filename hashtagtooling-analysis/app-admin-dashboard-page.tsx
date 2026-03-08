@@ -37,6 +37,9 @@ export default function AdminDashboardPage() {
     pendingCommissions: 0,
     productsInStock: 0,
     newsletterSubscribers: 0,
+    referralCodesGenerated: 0,
+    referralUses: 0,
+    referralRewardsGiven: 0,
   })
   const [recentOrders, setRecentOrders] = useState<Order[]>([])
   const [recentCommissions, setRecentCommissions] = useState<Commission[]>([])
@@ -52,7 +55,7 @@ export default function AdminDashboardPage() {
 
   const loadDashboard = async () => {
     try {
-      const [productsRes, ordersCountRes, ordersRes, commissionsRes, inStockRes, ordersListRes, commissionsListRes, newsletterRes] = await Promise.all([
+      const [productsRes, ordersCountRes, ordersRes, commissionsRes, inStockRes, ordersListRes, commissionsListRes, newsletterRes, referralCodesRes, referralUsesRes, referralRewardsRes] = await Promise.all([
         supabase.from('products').select('id', { count: 'exact', head: true }),
         supabase.from('orders').select('id', { count: 'exact', head: true }),
         supabase.from('orders').select('total_amount, status'),
@@ -61,6 +64,9 @@ export default function AdminDashboardPage() {
         supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(5),
         supabase.from('commissions').select('*').order('created_at', { ascending: false }).limit(5),
         supabase.from('newsletter_subscribers').select('id', { count: 'exact', head: true }).eq('unsubscribed', false),
+        supabase.from('referral_codes').select('id', { count: 'exact', head: true }),
+        supabase.from('referral_uses').select('id', { count: 'exact', head: true }),
+        supabase.from('referral_uses').select('id').eq('reward_generated', true),
       ])
 
       const totalProducts = productsRes.count ?? 0
@@ -72,6 +78,7 @@ export default function AdminDashboardPage() {
       const pendingCommissions = commissionsRes.count ?? 0
       const productsInStock = inStockRes.count ?? 0
 
+      const referralRewardsCount = referralRewardsRes.data?.length ?? 0
       setStats({
         totalProducts,
         totalOrders,
@@ -79,6 +86,9 @@ export default function AdminDashboardPage() {
         pendingCommissions,
         productsInStock,
         newsletterSubscribers: newsletterRes.count ?? 0,
+        referralCodesGenerated: referralCodesRes.count ?? 0,
+        referralUses: referralUsesRes.count ?? 0,
+        referralRewardsGiven: referralRewardsCount,
       })
       setRecentOrders((ordersListRes.data ?? []) as Order[])
       setRecentCommissions((commissionsListRes.data ?? []) as Commission[])
@@ -135,7 +145,7 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
         <Card className="bg-brand-dark-card border border-brand-dark-border">
           <CardContent className="p-6">
             <p className="text-3xl font-bold text-brand-orange">{stats.totalProducts}</p>
@@ -165,6 +175,13 @@ export default function AdminDashboardPage() {
           <CardContent className="p-6">
             <p className="text-3xl font-bold text-brand-orange">{stats.newsletterSubscribers}</p>
             <p className="text-zinc-400 text-sm mt-1">Newsletter Subscribers</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-brand-dark-card border border-brand-dark-border">
+          <CardContent className="p-6">
+            <p className="text-3xl font-bold text-brand-orange">{stats.referralCodesGenerated}</p>
+            <p className="text-zinc-400 text-sm mt-1">Referral Codes</p>
+            <p className="text-zinc-500 text-xs">{stats.referralUses} uses, £{stats.referralRewardsGiven * 10} rewards given</p>
           </CardContent>
         </Card>
       </div>

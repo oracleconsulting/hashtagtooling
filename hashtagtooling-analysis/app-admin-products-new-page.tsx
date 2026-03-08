@@ -22,9 +22,12 @@ export default function NewProductPage() {
     description: '',
     price: '',
     category: 'mallet',
+    subcategory: '',
     stock_status: 'in_stock',
+    is_digital: false,
     weight_kg: '',
     dimensions: '',
+    wood_species: '',
     head_wood: '',
     handle_wood: '',
     shipping_uk: '5.99',
@@ -33,6 +36,9 @@ export default function NewProductPage() {
     featured: false,
     display_order: 0,
   })
+  const [digitalFileUrl, setDigitalFileUrl] = useState('')
+  const [digitalFileName, setDigitalFileName] = useState('')
+  const [uploadingDigital, setUploadingDigital] = useState(false)
 
   useEffect(() => {
     const isAuthenticated = sessionStorage.getItem('admin_auth')
@@ -52,6 +58,25 @@ export default function NewProductPage() {
     }
     loadWoods()
   }, [])
+
+  const handleDigitalFileUpload = async (files: FileList | null) => {
+    if (!files?.length) return
+    setUploadingDigital(true)
+    try {
+      const file = files[0]
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf'
+      const path = `${Math.random().toString(36).substring(2)}-${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from('digital-downloads').upload(path, file)
+      if (error) throw error
+      setDigitalFileUrl(path)
+      setDigitalFileName(file.name)
+    } catch (e) {
+      console.error('Digital upload error:', e)
+      alert('Failed to upload file')
+    } finally {
+      setUploadingDigital(false)
+    }
+  }
 
   const handleFileUpload = async (files: FileList | null, type: 'image' | 'video') => {
     if (!files || files.length === 0) return
@@ -128,6 +153,10 @@ export default function NewProductPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (formData.is_digital && !digitalFileUrl) {
+      alert('Please upload a digital file for digital products.')
+      return
+    }
     setLoading(true)
 
     try {
@@ -137,20 +166,27 @@ export default function NewProductPage() {
           description: formData.description,
           price: parseFloat(formData.price),
           category: formData.category,
+          subcategory: formData.category === 'wood' ? (formData.subcategory || null) : null,
           stock_status: formData.stock_status,
+          is_digital: formData.is_digital,
+          digital_file_url: formData.is_digital && digitalFileUrl ? digitalFileUrl : null,
+          digital_file_name: formData.is_digital && digitalFileName ? digitalFileName : null,
           image_url: imageUrls[0] || 'https://placehold.co/600x400/666/white?text=No+Image',
           metadata: {
             images: imageUrls,
             video: videoUrl,
-            weight_kg: formData.weight_kg,
-            dimensions: formData.dimensions,
+            weight_kg: formData.is_digital ? undefined : formData.weight_kg,
+            dimensions: formData.is_digital ? undefined : formData.dimensions,
+            species: formData.category === 'wood' ? (formData.wood_species || undefined) : undefined,
             head_wood: formData.head_wood,
             handle_wood: formData.handle_wood,
-            shipping: {
-              uk: parseFloat(formData.shipping_uk) || 0,
-              europe: parseFloat(formData.shipping_europe) || 0,
-              world: parseFloat(formData.shipping_world) || 0,
-            },
+            shipping: formData.is_digital
+              ? undefined
+              : {
+                  uk: parseFloat(formData.shipping_uk) || 0,
+                  europe: parseFloat(formData.shipping_europe) || 0,
+                  world: parseFloat(formData.shipping_world) || 0,
+                },
             featured: formData.featured,
             display_order: Number(formData.display_order) || 0,
           }
@@ -248,6 +284,25 @@ export default function NewProductPage() {
                 </div>
               </div>
 
+              {formData.category === 'wood' && (
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">
+                    Subcategory
+                  </label>
+                  <select
+                    className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
+                    value={formData.subcategory}
+                    onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
+                  >
+                    <option value="">Select subcategory...</option>
+                    <option value="offcut">Offcut / Turning Blank</option>
+                    <option value="sample_pack">Sample Pack</option>
+                    <option value="slab">Slab / Board</option>
+                    <option value="pen_blank">Pen Blank</option>
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium mb-2 text-zinc-300">
                   Price (£) *
@@ -263,7 +318,7 @@ export default function NewProductPage() {
                 />
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-6">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -273,7 +328,42 @@ export default function NewProductPage() {
                   />
                   <span className="text-sm text-zinc-300">Featured (e.g. homepage)</span>
                 </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_digital}
+                    onChange={(e) => setFormData({ ...formData, is_digital: e.target.checked })}
+                    className="rounded border-brand-dark-border bg-brand-dark text-brand-orange focus:ring-brand-orange"
+                  />
+                  <span className="text-sm text-zinc-300">Digital Product</span>
+                </label>
               </div>
+
+              {formData.is_digital && (
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">Digital File</label>
+                  <div className="border-2 border-dashed border-brand-dark-border rounded-lg p-6 text-center">
+                    <Upload className="mx-auto h-10 w-10 text-zinc-500 mb-3" />
+                    <input
+                      type="file"
+                      accept=".pdf,.zip,.doc,.docx"
+                      onChange={(e) => handleDigitalFileUpload(e.target.files)}
+                      className="hidden"
+                      id="digital-upload"
+                      disabled={uploadingDigital}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={uploadingDigital}
+                      onClick={() => document.getElementById('digital-upload')?.click()}
+                    >
+                      {uploadingDigital ? 'Uploading...' : digitalFileName ? 'Replace File' : 'Upload File'}
+                    </Button>
+                    {digitalFileName && <p className="text-sm text-zinc-400 mt-2">Current: {digitalFileName}</p>}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium mb-2 text-zinc-300">
@@ -374,17 +464,36 @@ export default function NewProductPage() {
             </CardContent>
           </Card>
 
-          {/* Specifications */}
-          <Card className="bg-brand-dark-card border border-brand-dark-border">
-            <CardHeader>
-              <CardTitle className="text-white">Specifications</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+          {formData.category === 'wood' && !formData.is_digital && (
+            <Card className="bg-brand-dark-card border border-brand-dark-border">
+              <CardHeader>
+                <CardTitle className="text-white">Wood Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-zinc-300">
-                    Weight (kg)
-                  </label>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">Species</label>
+                  <select
+                    className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
+                    value={formData.wood_species}
+                    onChange={(e) => setFormData({ ...formData, wood_species: e.target.value })}
+                  >
+                    <option value="">Select species...</option>
+                    {availableWoods.map((wood) => (
+                      <option key={wood.id} value={wood.name}>{wood.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">Approximate dimensions</label>
+                  <Input
+                    className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                    value={formData.dimensions}
+                    onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
+                    placeholder="e.g. 150mm x 40mm x 40mm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">Weight (kg)</label>
                   <Input
                     type="number"
                     step="0.01"
@@ -394,20 +503,48 @@ export default function NewProductPage() {
                     placeholder="0.5"
                   />
                 </div>
+              </CardContent>
+            </Card>
+          )}
 
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-zinc-300">
-                    Dimensions
-                  </label>
-                  <Input
-                    className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
-                    value={formData.dimensions}
-                    onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
-                    placeholder="11 x 3.5 inches"
-                  />
+          {/* Specifications */}
+          {!formData.is_digital && (
+          <Card className="bg-brand-dark-card border border-brand-dark-border">
+            <CardHeader>
+              <CardTitle className="text-white">Specifications</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {formData.category !== 'wood' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-zinc-300">
+                      Weight (kg)
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                      value={formData.weight_kg}
+                      onChange={(e) => setFormData({ ...formData, weight_kg: e.target.value })}
+                      placeholder="0.5"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-zinc-300">
+                      Dimensions
+                    </label>
+                    <Input
+                      className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                      value={formData.dimensions}
+                      onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
+                      placeholder="11 x 3.5 inches"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
+              {formData.category !== 'wood' && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-2 text-zinc-300">
@@ -440,10 +577,13 @@ export default function NewProductPage() {
                   </select>
                 </div>
               </div>
+              )}
             </CardContent>
           </Card>
+          )}
 
           {/* Shipping Costs */}
+          {!formData.is_digital && (
           <Card className="bg-brand-dark-card border border-brand-dark-border">
             <CardHeader>
               <CardTitle className="text-white">Shipping Costs</CardTitle>
@@ -495,6 +635,7 @@ export default function NewProductPage() {
               </p>
             </CardContent>
           </Card>
+          )}
 
           {/* Submit */}
           <div className="flex gap-4">
