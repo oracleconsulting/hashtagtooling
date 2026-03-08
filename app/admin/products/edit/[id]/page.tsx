@@ -29,6 +29,7 @@ export default function EditProductPage() {
     category: 'mallet',
     subcategory: '',
     stock_status: 'in_stock',
+    is_digital: false,
     weight_kg: '',
     dimensions: '',
     wood_species: '',
@@ -40,6 +41,9 @@ export default function EditProductPage() {
     featured: false,
     display_order: 0,
   })
+  const [digitalFileUrl, setDigitalFileUrl] = useState('')
+  const [digitalFileName, setDigitalFileName] = useState('')
+  const [uploadingDigital, setUploadingDigital] = useState(false)
 
   useEffect(() => {
     const isAuthenticated = sessionStorage.getItem('admin_auth')
@@ -85,6 +89,7 @@ export default function EditProductPage() {
         category: data.category ?? 'mallet',
         subcategory: data.subcategory ?? '',
         stock_status: data.stock_status ?? 'in_stock',
+        is_digital: Boolean(data.is_digital),
         weight_kg: data.metadata?.weight_kg ?? '',
         dimensions: data.metadata?.dimensions ?? '',
         wood_species: data.metadata?.species ?? '',
@@ -96,6 +101,8 @@ export default function EditProductPage() {
         featured: Boolean(data.metadata?.featured),
         display_order: Number(data.metadata?.display_order) || 0,
       })
+      setDigitalFileUrl(data.digital_file_url ?? '')
+      setDigitalFileName(data.digital_file_name ?? '')
       setImageUrls(data.metadata?.images?.length ? data.metadata.images : (data.image_url ? [data.image_url] : []))
       setVideoUrl(data.metadata?.video ?? '')
 
@@ -111,6 +118,25 @@ export default function EditProductPage() {
       router.push('/admin/products')
     } finally {
       setPageLoading(false)
+    }
+  }
+
+  const handleDigitalFileUpload = async (files: FileList | null) => {
+    if (!files?.length) return
+    setUploadingDigital(true)
+    try {
+      const file = files[0]
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf'
+      const path = `${Math.random().toString(36).substring(2)}-${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from('digital-downloads').upload(path, file)
+      if (error) throw error
+      setDigitalFileUrl(path)
+      setDigitalFileName(file.name)
+    } catch (e) {
+      console.error('Digital upload error:', e)
+      alert('Failed to upload file')
+    } finally {
+      setUploadingDigital(false)
     }
   }
 
@@ -183,6 +209,10 @@ export default function EditProductPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (formData.is_digital && !digitalFileUrl) {
+      alert('Please upload a digital file for digital products.')
+      return
+    }
     setLoading(true)
 
     try {
@@ -195,20 +225,25 @@ export default function EditProductPage() {
           category: formData.category,
           subcategory: formData.category === 'wood' ? (formData.subcategory || null) : null,
           stock_status: formData.stock_status,
+          is_digital: formData.is_digital,
+          digital_file_url: formData.is_digital && digitalFileUrl ? digitalFileUrl : null,
+          digital_file_name: formData.is_digital && digitalFileName ? digitalFileName : null,
           image_url: imageUrls[0] || 'https://placehold.co/600x400/666/white?text=No+Image',
           metadata: {
             images: imageUrls,
             video: videoUrl,
-            weight_kg: formData.weight_kg,
-            dimensions: formData.dimensions,
+            weight_kg: formData.is_digital ? undefined : formData.weight_kg,
+            dimensions: formData.is_digital ? undefined : formData.dimensions,
             species: formData.category === 'wood' ? (formData.wood_species || undefined) : undefined,
             head_wood: formData.head_wood,
             handle_wood: formData.handle_wood,
-            shipping: {
-              uk: parseFloat(formData.shipping_uk) || 0,
-              europe: parseFloat(formData.shipping_europe) || 0,
-              world: parseFloat(formData.shipping_world) || 0,
-            },
+            shipping: formData.is_digital
+              ? undefined
+              : {
+                  uk: parseFloat(formData.shipping_uk) || 0,
+                  europe: parseFloat(formData.shipping_europe) || 0,
+                  world: parseFloat(formData.shipping_world) || 0,
+                },
             featured: formData.featured,
             display_order: Number(formData.display_order) || 0,
           },
@@ -361,7 +396,7 @@ export default function EditProductPage() {
                 />
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-6">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -371,7 +406,42 @@ export default function EditProductPage() {
                   />
                   <span className="text-sm text-zinc-300">Featured (e.g. homepage)</span>
                 </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_digital}
+                    onChange={(e) => setFormData({ ...formData, is_digital: e.target.checked })}
+                    className="rounded border-brand-dark-border bg-brand-dark text-brand-orange focus:ring-brand-orange"
+                  />
+                  <span className="text-sm text-zinc-300">Digital Product</span>
+                </label>
               </div>
+
+              {formData.is_digital && (
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-zinc-300">Digital File</label>
+                  <div className="border-2 border-dashed border-brand-dark-border rounded-lg p-6 text-center">
+                    <Upload className="mx-auto h-10 w-10 text-zinc-500 mb-3" />
+                    <input
+                      type="file"
+                      accept=".pdf,.zip,.doc,.docx"
+                      onChange={(e) => handleDigitalFileUpload(e.target.files)}
+                      className="hidden"
+                      id="digital-upload-edit"
+                      disabled={uploadingDigital}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={uploadingDigital}
+                      onClick={() => document.getElementById('digital-upload-edit')?.click()}
+                    >
+                      {uploadingDigital ? 'Uploading...' : digitalFileName ? 'Replace File' : 'Upload File'}
+                    </Button>
+                    {digitalFileName && <p className="text-sm text-zinc-400 mt-2">Current: {digitalFileName}</p>}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium mb-2 text-zinc-300">Display order (lower = first in shop)</label>
@@ -460,7 +530,7 @@ export default function EditProductPage() {
             </CardContent>
           </Card>
 
-          {formData.category === 'wood' && (
+          {formData.category === 'wood' && !formData.is_digital && (
             <Card className="bg-brand-dark-card border border-brand-dark-border">
               <CardHeader>
                 <CardTitle className="text-white">Wood Details</CardTitle>
@@ -503,6 +573,7 @@ export default function EditProductPage() {
             </Card>
           )}
 
+          {!formData.is_digital && (
           <Card className="bg-brand-dark-card border border-brand-dark-border">
             <CardHeader>
               <CardTitle className="text-white">Specifications</CardTitle>
@@ -564,7 +635,9 @@ export default function EditProductPage() {
               )}
             </CardContent>
           </Card>
+          )}
 
+          {!formData.is_digital && (
           <Card className="bg-brand-dark-card border border-brand-dark-border">
             <CardHeader>
               <CardTitle className="text-white">Shipping Costs</CardTitle>
@@ -608,6 +681,7 @@ export default function EditProductPage() {
               <p className="text-xs text-zinc-500">Set to 0 for free shipping. These costs will be shown to the customer at checkout.</p>
             </CardContent>
           </Card>
+          )}
 
           <div className="flex gap-4">
             <Button type="submit" size="lg" className="flex-1" disabled={loading || uploadingFiles}>

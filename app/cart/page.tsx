@@ -15,7 +15,7 @@ import { supabase } from '@/lib/supabase'
 
 function CartContent() {
   const searchParams = useSearchParams()
-  const { items, removeItem, updateQuantity, getTotalPrice, clearCart } = useCart()
+  const { items, removeItem, updateQuantity, getTotalPrice, clearCart, appliedReferralCode, appliedReferralDiscount, setReferral } = useCart()
   const [showCheckout, setShowCheckout] = useState(false)
   const [orderComplete, setOrderComplete] = useState(false)
   const [orderNumber, setOrderNumber] = useState('')
@@ -32,6 +32,9 @@ function CartContent() {
   const [appliedVoucher, setAppliedVoucher] = useState<{ code: string; discount: number } | null>(null)
   const [voucherStatus, setVoucherStatus] = useState<'idle' | 'loading' | 'applied' | 'error'>('idle')
   const [voucherError, setVoucherError] = useState('')
+  const [referralInput, setReferralInput] = useState('')
+  const [referralStatus, setReferralStatus] = useState<'idle' | 'loading' | 'applied' | 'error'>('idle')
+  const [referralError, setReferralError] = useState('')
 
   useEffect(() => {
     const success = searchParams.get('success')
@@ -43,10 +46,15 @@ function CartContent() {
     }
   }, [searchParams, clearCart])
 
+  const hasOnlyDigital = items.length > 0 && items.every((i) => i.is_digital)
+  const hasAnyDigital = items.some((i) => i.is_digital)
+
   const getShippingTotal = () => {
+    if (hasOnlyDigital) return 0
     const defaults = { uk: 5.99, europe: 15.99, world: 25.99 }
     let maxShipping = 0
     items.forEach((item) => {
+      if (item.is_digital) return
       const rate = item.shipping?.[shippingRegion] ?? defaults[shippingRegion]
       if (rate > maxShipping) maxShipping = rate
     })
@@ -104,7 +112,9 @@ function CartContent() {
   const shippingTotal = getShippingTotal()
   const totalWithShipping = totalPrice + (items.length > 0 ? shippingTotal : 0)
   const voucherDiscount = appliedVoucher ? Math.min(appliedVoucher.discount, totalWithShipping) : 0
-  const finalTotal = Math.max(0, totalWithShipping - voucherDiscount)
+  const afterVoucher = Math.max(0, totalWithShipping - voucherDiscount)
+  const referralDiscount = appliedReferralCode ? Math.min(appliedReferralDiscount, afterVoucher) : 0
+  const finalTotal = Math.max(0, afterVoucher - referralDiscount)
 
   const applyVoucher = async () => {
     const code = voucherInput.trim().toUpperCase()
@@ -139,6 +149,43 @@ function CartContent() {
     setVoucherError('')
   }
 
+  const applyReferral = async () => {
+    const code = referralInput.trim().toUpperCase()
+    if (!code || !customerInfo.email?.trim()) {
+      setReferralError('Enter your email first, then apply referral code')
+      setReferralStatus('error')
+      return
+    }
+    setReferralStatus('loading')
+    setReferralError('')
+    try {
+      const res = await fetch('/api/referrals/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, customerEmail: customerInfo.email }),
+      })
+      const data = await res.json()
+      if (data.valid) {
+        const discount = Math.min(data.discount, afterVoucher)
+        setReferral(code, discount)
+        setReferralStatus('applied')
+      } else {
+        setReferralError(data.reason || 'Invalid referral code')
+        setReferralStatus('error')
+      }
+    } catch {
+      setReferralError('Failed to validate. Please try again.')
+      setReferralStatus('error')
+    }
+  }
+
+  const removeReferral = () => {
+    setReferral(null, 0)
+    setReferralInput('')
+    setReferralStatus('idle')
+    setReferralError('')
+  }
+
   return (
     <div className="container mx-auto px-4 py-12">
       <h1 className="font-heading text-4xl font-bold mb-8 text-brand-orange">Your Cart</h1>
@@ -159,7 +206,12 @@ function CartContent() {
                   </div>
 
                   <div className="flex-1">
-                    <h3 className="font-semibold mb-1 text-white">{item.name}</h3>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-semibold text-white">{item.name}</h3>
+                      {item.is_digital && (
+                        <span className="text-xs text-zinc-500">📧 Digital delivery</span>
+                      )}
+                    </div>
                     <p className="text-sm text-zinc-400 mb-2">{formatPrice(item.price)}</p>
 
                     {item.customConfig && (
@@ -207,6 +259,7 @@ function CartContent() {
               <h2 className="text-xl font-bold mb-4 text-white">Order Summary</h2>
 
               <div className="space-y-3 mb-6">
+                {!hasOnlyDigital && (
                 <div className="mb-4">
                   <label className="block text-sm font-medium mb-2 text-zinc-300">
                     Shipping Region
@@ -220,22 +273,34 @@ function CartContent() {
                     <option value="europe">Europe</option>
                     <option value="world">Rest of World</option>
                   </select>
+                  {hasAnyDigital && (
+                    <p className="text-xs text-zinc-500 mt-1.5">Digital products will be delivered by email after purchase.</p>
+                  )}
                 </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-zinc-400">Subtotal</span>
                   <span>{formatPrice(totalPrice)}</span>
                 </div>
+                {!hasOnlyDigital && (
                 <div className="flex justify-between text-sm">
                   <span className="text-zinc-400">Shipping ({shippingRegion === 'uk' ? 'UK' : shippingRegion === 'europe' ? 'Europe' : 'Rest of World'}):</span>
                   <span className="text-white">
                     {items.length > 0 ? `£${shippingTotal.toFixed(2)}` : '£0.00'}
                   </span>
                 </div>
+                )}
                 <div className="border-t border-brand-dark-border pt-3">
                   {appliedVoucher && (
                     <div className="flex justify-between text-sm text-green-400 mb-2">
                       <span>Voucher ({appliedVoucher.code})</span>
                       <span>−{formatPrice(voucherDiscount)}</span>
+                    </div>
+                  )}
+                  {appliedReferralCode && (
+                    <div className="flex justify-between text-sm text-green-400 mb-2">
+                      <span>Referral ({appliedReferralCode})</span>
+                      <span>−{formatPrice(referralDiscount)}</span>
                     </div>
                   )}
                   <div className="flex justify-between font-bold text-lg">
@@ -244,7 +309,7 @@ function CartContent() {
                   </div>
                 </div>
 
-                <div className="pt-2">
+                <div className="pt-2 space-y-3">
                   {voucherStatus === 'applied' && appliedVoucher ? (
                     <div className="flex items-center justify-between bg-green-900/20 border border-green-800 rounded-md px-3 py-2">
                       <div>
@@ -275,6 +340,40 @@ function CartContent() {
                         </Button>
                       </div>
                       {voucherError && <p className="text-red-400 text-xs mt-1">{voucherError}</p>}
+                    </div>
+                  )}
+
+                  {referralStatus === 'applied' && appliedReferralCode ? (
+                    <div className="flex items-center justify-between bg-green-900/20 border border-green-800 rounded-md px-3 py-2">
+                      <div>
+                        <p className="text-green-400 text-sm font-medium">Referral: {appliedReferralCode}</p>
+                        <p className="text-green-600 text-xs">£10 discount applied!</p>
+                      </div>
+                      <button onClick={removeReferral} className="text-zinc-500 hover:text-red-400 text-xs transition-colors">Remove</button>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs text-zinc-500 mb-1.5">Referral code</label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={referralInput}
+                          onChange={(e) => { setReferralInput(e.target.value.toUpperCase()); setReferralStatus('idle'); setReferralError('') }}
+                          onKeyDown={(e) => e.key === 'Enter' && applyReferral()}
+                          placeholder="TOOLING-XXXX"
+                          className="bg-brand-dark border-brand-dark-border text-white font-mono text-sm"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={applyReferral}
+                          disabled={referralStatus === 'loading' || !referralInput.trim() || !customerInfo.email?.trim()}
+                          className="shrink-0"
+                        >
+                          {referralStatus === 'loading' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Apply'}
+                        </Button>
+                      </div>
+                      {referralError && <p className="text-red-400 text-xs mt-1">{referralError}</p>}
+                      {!customerInfo.email?.trim() && showCheckout && <p className="text-zinc-500 text-xs mt-1">Enter your email first to apply referral</p>}
                     </div>
                   )}
                 </div>
@@ -309,6 +408,7 @@ function CartContent() {
                       placeholder="your@email.com"
                     />
                   </div>
+                  {!hasOnlyDigital && (
                   <div>
                     <label className="block text-sm font-medium mb-2 text-zinc-300">Shipping Address</label>
                     <Input
@@ -318,6 +418,7 @@ function CartContent() {
                       placeholder="Full address"
                     />
                   </div>
+                  )}
 
                   <div className="space-y-3">
                     <label className="block text-sm font-medium text-zinc-300">Payment method</label>
@@ -350,7 +451,7 @@ function CartContent() {
                     </div>
                   </div>
 
-                  {customerInfo.name && customerInfo.email && customerInfo.shippingAddress && paymentMethod === 'stripe' && (
+                  {customerInfo.name && customerInfo.email && (hasOnlyDigital || customerInfo.shippingAddress) && paymentMethod === 'stripe' && (
                     <Button
                       type="button"
                       size="lg"
@@ -363,12 +464,14 @@ function CartContent() {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                              items: items.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity, image_url: i.image_url })),
+                              items: items.map((i) => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, image_url: i.image_url, is_digital: i.is_digital })),
                               customerEmail: customerInfo.email,
-                              shippingAddress: customerInfo.shippingAddress,
+                              shippingAddress: hasOnlyDigital ? '' : customerInfo.shippingAddress,
                               shippingCost: getShippingTotal(),
                               voucherCode: appliedVoucher?.code || null,
                               voucherDiscount: voucherDiscount > 0 ? voucherDiscount : null,
+                              referralCode: appliedReferralCode || null,
+                              referralDiscount: referralDiscount > 0 ? referralDiscount : null,
                             }),
                           })
                           const data = await res.json()
@@ -386,7 +489,7 @@ function CartContent() {
                     </Button>
                   )}
 
-                  {customerInfo.name && customerInfo.email && customerInfo.shippingAddress && paymentMethod === 'paypal' && (
+                  {customerInfo.name && customerInfo.email && (hasOnlyDigital || customerInfo.shippingAddress) && paymentMethod === 'paypal' && (
                     <PayPalScriptProvider
                       options={{
                         clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || 'test',
@@ -449,6 +552,17 @@ function CartContent() {
                                     }),
                                   }).catch((err) => console.error('Voucher redeem failed:', err))
                                 }
+                                if (appliedReferralCode && referralDiscount > 0) {
+                                  fetch('/api/referrals/apply', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      code: appliedReferralCode,
+                                      usedByEmail: customerInfo.email,
+                                      orderId: order.id,
+                                    }),
+                                  }).catch((err) => console.error('Referral apply failed:', err))
+                                }
                                 setOrderNumber(order.id)
                                 setOrderComplete(true)
                                 clearCart()
@@ -465,9 +579,21 @@ function CartContent() {
                                       quantity: item.quantity,
                                     })),
                                     totalAmount: finalTotal,
-                                    shippingAddress: customerInfo.shippingAddress,
+                                    shippingAddress: hasOnlyDigital ? '' : customerInfo.shippingAddress,
                                   }),
                                 }).catch((err) => console.error('Email send failed:', err))
+                                if (hasAnyDigital) {
+                                  fetch('/api/send-digital-download', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      customerName: customerInfo.name,
+                                      customerEmail: customerInfo.email,
+                                      orderNumber: order.id,
+                                      items: items.filter((i) => i.is_digital).map((i) => ({ product_id: i.id, name: i.name, is_digital: true })),
+                                    }),
+                                  }).catch((err) => console.error('Digital download email failed:', err))
+                                }
                                 fetch('/api/send-admin-notification', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },

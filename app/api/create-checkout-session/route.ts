@@ -10,9 +10,9 @@ function getStripe() {
 export async function POST(req: NextRequest) {
   try {
     const stripe = getStripe()
-    const { items, customerEmail, shippingAddress, shippingCost, voucherCode, voucherDiscount } = await req.json()
+    const { items, customerEmail, shippingAddress, shippingCost, voucherCode, voucherDiscount, referralCode, referralDiscount } = await req.json()
 
-    const lineItems = items.map((item: { name: string; price: number; quantity: number; image_url?: string }) => ({
+    const lineItems = items.map((item: { name: string; price: number; quantity: number; image_url?: string; id?: string; is_digital?: boolean }) => ({
       price_data: {
         currency: 'gbp',
         product_data: {
@@ -47,6 +47,24 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    // Apply referral discount as a negative line item
+    if (referralCode && Number(referralDiscount) > 0) {
+      lineItems.push({
+        price_data: {
+          currency: 'gbp',
+          product_data: { name: `Referral (${referralCode})`, images: [] },
+          unit_amount: -Math.round(Number(referralDiscount) * 100),
+        },
+        quantity: 1,
+      })
+    }
+
+    const productIds = (items as { id?: string }[]).map((i) => i.id || '').filter(Boolean).join(',')
+    const digitalIds = (items as { id?: string; is_digital?: boolean }[])
+      .filter((i) => i.is_digital && i.id)
+      .map((i) => i.id)
+      .join(',')
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: lineItems,
@@ -59,6 +77,10 @@ export async function POST(req: NextRequest) {
         customerEmail: customerEmail || '',
         voucher_code: voucherCode || '',
         voucher_discount: voucherDiscount ? String(voucherDiscount) : '',
+        referral_code: referralCode || '',
+        referral_discount: referralDiscount ? String(referralDiscount) : '',
+        product_ids: productIds,
+        digital_ids: digitalIds,
       },
     })
 

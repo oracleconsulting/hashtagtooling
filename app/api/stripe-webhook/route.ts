@@ -63,6 +63,37 @@ export async function POST(req: NextRequest) {
     // -----------------------------------------------------------------------
     // REGULAR ORDER — save to orders table
     // -----------------------------------------------------------------------
+    const stripe = getStripe()
+    const fullSession = await stripe.checkout.sessions.retrieve(session.id, { expand: ['line_items'] })
+    const lineItems = (fullSession.line_items?.data ?? []).filter(
+      (li) => li.description && !li.description?.includes('Shipping') && !li.description?.includes('Gift Voucher')
+    )
+    const productIds = (meta.product_ids || '').split(',').filter(Boolean)
+    const digitalIds = new Set((meta.digital_ids || '').split(',').filter(Boolean))
+
+    const orderItems = lineItems.map((li, i) => {
+      const productId = productIds[i] || null
+      const name = (li as { description?: string }).description || (li as { price?: { product_data?: { name?: string } } }).price?.product_data?.name || 'Item'
+      const qty = li.quantity || 1
+      const price = (li.amount_total || 0) / 100 / qty
+      return {
+        id: productId,
+        name,
+        price,
+        quantity: qty,
+        is_digital: productId ? digitalIds.has(productId) : false,
+      }
+    })
+
+    const orderDetails = {
+      payment_method: 'stripe',
+      shipping_address: meta.shippingAddress,
+      stripe_session_id: session.id,
+      voucher_code: meta.voucher_code || null,
+      voucher_discount: meta.voucher_discount ? Number(meta.voucher_discount) : null,
+      items: orderItems,
+    }
+
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
@@ -71,13 +102,7 @@ export async function POST(req: NextRequest) {
         total_amount: (session.amount_total || 0) / 100,
         paypal_order_id: session.id,
         status: 'paid',
-        order_details: {
-          payment_method: 'stripe',
-          shipping_address: meta.shippingAddress,
-          stripe_session_id: session.id,
-          voucher_code: meta.voucher_code || null,
-          voucher_discount: meta.voucher_discount ? Number(meta.voucher_discount) : null,
-        },
+        order_details: orderDetails,
       })
       .select('id')
       .single()
@@ -97,6 +122,50 @@ export async function POST(req: NextRequest) {
           order_id: order.id,
         }),
       }).catch((err) => console.error('Voucher redeem webhook error:', err))
+    }
+
+    // Apply referral if one was used
+    if (meta.referral_code && meta.referral_discount && order?.id) {
+      await fetch(`${siteUrl}/api/referrals/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: meta.referral_code,
+          usedByEmail: session.customer_details?.email || meta.customerEmail || '',
+          orderId: order.id,
+        }),
+      }).catch((err) => console.error('Referral apply webhook error:', err))
+    }
+
+    // Send order confirmation email
+    if (order?.id) {
+      await fetch(`${siteUrl}/api/send-order-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: session.customer_details?.name || 'Unknown',
+          customerEmail: session.customer_details?.email || meta.customerEmail || '',
+          orderNumber: order.id,
+          items: orderItems.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity })),
+          totalAmount: (session.amount_total || 0) / 100,
+          shippingAddress: meta.shippingAddress || '',
+        }),
+      }).catch((err) => console.error('Order email webhook error:', err))
+
+      // Send digital download email if any digital items
+      const digitalItems = orderItems.filter((i) => i.is_digital && i.id)
+      if (digitalItems.length > 0) {
+        await fetch(`${siteUrl}/api/send-digital-download`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerName: session.customer_details?.name || 'Unknown',
+            customerEmail: session.customer_details?.email || meta.customerEmail || '',
+            orderNumber: order.id,
+            items: digitalItems.map((i) => ({ product_id: i.id, name: i.name, is_digital: true })),
+          }),
+        }).catch((err) => console.error('Digital download email webhook error:', err))
+      }
     }
   }
 
