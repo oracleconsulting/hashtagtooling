@@ -6,6 +6,7 @@ import ContactForm from './ContactForm'
 export const metadata: Metadata = {
   title: 'Contact',
   description: 'Get in touch with #TOOLING for questions about custom woodworking tools, commissions, or orders.',
+  alternates: { canonical: 'https://hashtag.guru/contact' },
 }
 
 export default function ContactPage() {
@@ -19,7 +20,7 @@ export default function ContactPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="bg-brand-dark-card border border-brand-dark-border p-6 rounded-lg">
               <h3 className="font-semibold mb-2 text-white">Email</h3>
-              <p className="text-zinc-400">hello@hashtagtooling.com</p>
+              <p className="text-zinc-400">hashtagwoodworking@gmail.com</p>
             </div>
 
             <div className="bg-brand-dark-card border border-brand-dark-border p-6 rounded-lg">

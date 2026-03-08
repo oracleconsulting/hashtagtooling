@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
 
     await resend.emails.send({
       from: from.includes('@') && !from.includes('resend.dev') ? `#TOOLING Notifications <${from}>` : 'onboarding@resend.dev',
-      to: ['hello@hashtagtooling.com'],
+      to: ['hashtagwoodworking@gmail.com'],
       subject,
       html,
     })

@@ -119,6 +119,9 @@ export default function AdminDashboardPage() {
           <Link href="/admin/site-images">
             <Button variant="outline" size="sm">Site Images</Button>
           </Link>
+          <Link href="/admin/blog">
+            <Button variant="outline" size="sm">Blog</Button>
+          </Link>
           <Button variant="outline" size="sm" onClick={logout}>Logout</Button>
         </div>
       </div>

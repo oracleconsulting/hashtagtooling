@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await resend.emails.send({
       from: process.env.RESEND_FROM ?? 'onboarding@resend.dev',
       to: [customerEmail],
-      bcc: ['hello@hashtagtooling.com'],
+      bcc: ['hashtagwoodworking@gmail.com'],
       subject: `Order Confirmation — #${String(orderNumber).slice(0, 8).toUpperCase()}`,
       html: `
         <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #1A1A1A; color: #ffffff; padding: 40px;">
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
             <p style="color: #ccc; margin-bottom: 0;">${shippingAddress || '—'}</p>
           </div>
 
-          <p style="color: #ccc;">I'll be in touch when your order ships. If you have any questions, reply to this email or contact me at hello@hashtagtooling.com.</p>
+          <p style="color: #ccc;">I'll be in touch when your order ships. If you have any questions, reply to this email or contact me at hashtagwoodworking@gmail.com.</p>
 
           <p style="color: #999; font-size: 14px; margin-top: 30px; text-align: center;">
             #TOOLING — Handcrafted tools from exotic timbers<br/>

@@ -128,28 +128,25 @@ function CartContent() {
                       <p className="text-xs text-zinc-500">Custom configuration</p>
                     )}
 
-                    <div className="flex items-center gap-3 mt-3">
-                      <div className="flex items-center border border-brand-dark-border rounded-lg">
-                        <button
-                          onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
-                          className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-white/10"
-                          aria-label="Decrease quantity"
-                        >
-                          <Minus className="h-4 w-4" />
-                        </button>
-                        <span className="px-4 py-2 font-medium min-w-[44px] text-center">{item.quantity}</span>
-                        <button
-                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                          className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-white/10"
-                          aria-label="Increase quantity"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
-                      </div>
-
+                    <div className="flex items-center gap-1 mt-3">
+                      <button
+                        onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
+                        className="min-w-[44px] min-h-[44px] p-3 flex items-center justify-center rounded-md border border-brand-dark-border text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors"
+                        aria-label="Decrease quantity"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <span className="min-w-[40px] text-center text-white font-medium">{item.quantity}</span>
+                      <button
+                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                        className="min-w-[44px] min-h-[44px] p-3 flex items-center justify-center rounded-md border border-brand-dark-border text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors"
+                        aria-label="Increase quantity"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={() => removeItem(item.id)}
-                        className="text-red-600 hover:text-red-700 p-3 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                        className="min-w-[44px] min-h-[44px] p-3 flex items-center justify-center text-red-500 hover:text-red-400 rounded-md border border-brand-dark-border hover:border-red-500/50 transition-colors"
                         aria-label="Remove item"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -218,7 +215,7 @@ function CartContent() {
                   <div>
                     <label className="block text-sm font-medium mb-2 text-zinc-300">Name</label>
                     <Input
-                      className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                      className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500 text-base"
                       value={customerInfo.name}
                       onChange={(e) => setCustomerInfo({ ...customerInfo, name: e.target.value })}
                       placeholder="Your name"
@@ -228,7 +225,7 @@ function CartContent() {
                     <label className="block text-sm font-medium mb-2 text-zinc-300">Email</label>
                     <Input
                       type="email"
-                      className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                      className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500 text-base"
                       value={customerInfo.email}
                       onChange={(e) => setCustomerInfo({ ...customerInfo, email: e.target.value })}
                       placeholder="your@email.com"
@@ -237,7 +234,7 @@ function CartContent() {
                   <div>
                     <label className="block text-sm font-medium mb-2 text-zinc-300">Shipping Address</label>
                     <Input
-                      className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                      className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500 text-base"
                       value={customerInfo.shippingAddress}
                       onChange={(e) => setCustomerInfo({ ...customerInfo, shippingAddress: e.target.value })}
                       placeholder="Full address"

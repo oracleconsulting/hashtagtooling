@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 export const metadata: Metadata = {
   title: 'My Story',
   description: "The story behind #TOOLING — how a house renovation led to crafting the world's finest woodworking mallets from exotic timbers.",
+  alternates: { canonical: 'https://hashtag.guru/about' },
 }
 
 export default function AboutPage() {

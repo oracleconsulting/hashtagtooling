@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { formatPrice } from '@/lib/utils'
 import { useCart } from '@/lib/store'
@@ -22,6 +22,7 @@ interface Material {
   color_hex: string | null
   awl_handle_premium: number
   awl_ferrule_premium: number
+  grain_image_url?: string | null
 }
 
 export default function CustomAwlPage() {
@@ -138,7 +139,7 @@ export default function CustomAwlPage() {
   const currentPrice = calculatePrice()
 
   return (
-    <div className="container mx-auto px-4 py-12">
+    <div className="container mx-auto px-4 py-12 pb-32 md:pb-12">
       <div className="max-w-6xl mx-auto">
         <h1 className="font-heading text-4xl font-bold mb-4 text-brand-orange">Custom Awl Builder</h1>
         <p className="text-zinc-400 mb-8">
@@ -152,8 +153,10 @@ export default function CustomAwlPage() {
             
             {/* Awl Style Selection */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
+              <CardHeader className="sticky top-16 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
+                <h2 className="text-2xl font-semibold text-white">1. Choose Awl Style</h2>
+              </CardHeader>
               <CardContent className="p-6">
-                <h2 className="text-2xl font-semibold mb-4 text-white">1. Choose Awl Style</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {awlStyles.map(style => (
                     <button
@@ -176,8 +179,10 @@ export default function CustomAwlPage() {
 
             {/* Handle Wood Selection */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
+              <CardHeader className="sticky top-16 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
+                <h2 className="text-2xl font-semibold text-white">2. Choose Handle Wood</h2>
+              </CardHeader>
               <CardContent className="p-6">
-                <h2 className="text-2xl font-semibold mb-4 text-white">2. Choose Handle Wood</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {handleWoods.map(wood => (
                     <button
@@ -190,12 +195,11 @@ export default function CustomAwlPage() {
                       }`}
                     >
                       <div className="flex items-center gap-2 mb-1">
-                        {wood.color_hex && (
-                          <div 
-                            className="w-4 h-4 rounded-full border border-zinc-600"
-                            style={{ backgroundColor: wood.color_hex }}
-                          />
-                        )}
+                        {wood.grain_image_url ? (
+                          <img src={wood.grain_image_url} alt={wood.name} className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0 object-cover" />
+                        ) : wood.color_hex ? (
+                          <div className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0" style={{ backgroundColor: wood.color_hex }} />
+                        ) : null}
                         <span className="text-xs font-medium truncate text-white">{wood.name}</span>
                       </div>
                       <p className="text-xs text-zinc-400">
@@ -209,8 +213,10 @@ export default function CustomAwlPage() {
 
             {/* Ferrule Material Selection */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
+              <CardHeader className="sticky top-16 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
+                <h2 className="text-2xl font-semibold text-white">3. Choose Ferrule Material</h2>
+              </CardHeader>
               <CardContent className="p-6">
-                <h2 className="text-2xl font-semibold mb-4 text-white">3. Choose Ferrule Material</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {ferruleMaterials.map(ferrule => (
                     <button
@@ -243,8 +249,8 @@ export default function CustomAwlPage() {
           </div>
 
           {/* Summary & Add to Cart */}
-          <div>
-            <Card className="bg-brand-dark-card border border-brand-dark-border sticky top-24">
+          <div className="lg:sticky lg:top-24">
+            <Card className="bg-brand-dark-card border border-brand-dark-border">
               <CardContent className="p-6">
                 <h2 className="text-xl font-bold mb-4 text-white">Your Custom Awl</h2>
                 
@@ -257,13 +263,18 @@ export default function CustomAwlPage() {
                         : 'Not selected'}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-zinc-400">Handle Wood</p>
-                    <p className="font-medium text-white">
-                      {selectedHandleWood 
-                        ? handleWoods.find(w => w.id === selectedHandleWood)?.name 
-                        : 'Not selected'}
-                    </p>
+                  <div className="flex items-center gap-2">
+                    <div>
+                      <p className="text-zinc-400">Handle Wood</p>
+                      <p className="font-medium text-white">
+                        {selectedHandleWood 
+                          ? handleWoods.find(w => w.id === selectedHandleWood)?.name 
+                          : 'Not selected'}
+                      </p>
+                    </div>
+                    {selectedHandleWood && handleWoods.find(w => w.id === selectedHandleWood)?.grain_image_url && (
+                      <img src={handleWoods.find(w => w.id === selectedHandleWood)!.grain_image_url!} alt="" className="w-12 h-12 rounded-full border border-zinc-600 object-cover flex-shrink-0" />
+                    )}
                   </div>
                   <div>
                     <p className="text-zinc-400">Ferrule</p>
@@ -312,6 +323,21 @@ export default function CustomAwlPage() {
             </Card>
           </div>
 
+          {/* Fixed mobile CTA */}
+          <div className="fixed bottom-0 left-0 right-0 bg-brand-dark-card border-t border-brand-dark-border p-4 md:hidden z-40">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-zinc-400 text-sm">Total</span>
+              <span className="text-xl font-bold text-brand-orange">{isConfigComplete ? formatPrice(currentPrice) : '—'}</span>
+            </div>
+            <Button
+              onClick={handleAddToCart}
+              size="lg"
+              className="w-full"
+              disabled={!isConfigComplete || addedToCart}
+            >
+              {addedToCart ? 'Added to Cart!' : 'Add Custom Awl to Cart'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

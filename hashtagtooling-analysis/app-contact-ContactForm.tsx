@@ -88,7 +88,7 @@ export default function ContactForm() {
               <Input
                 id="contact-name"
                 required
-                className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500 text-base"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Your name"
@@ -102,7 +102,7 @@ export default function ContactForm() {
                 id="contact-email"
                 type="email"
                 required
-                className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+                className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500 text-base"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="your@email.com"
@@ -116,7 +116,7 @@ export default function ContactForm() {
             <Input
               id="contact-subject"
               required
-              className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+              className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500 text-base"
               value={formData.subject}
               onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
               placeholder="e.g. Question about an order"
@@ -129,7 +129,7 @@ export default function ContactForm() {
             <Textarea
               id="contact-message"
               required
-              className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500"
+              className="bg-brand-dark border border-brand-dark-border text-white placeholder:text-zinc-500 text-base"
               value={formData.message}
               onChange={(e) => setFormData({ ...formData, message: e.target.value })}
               placeholder="Your message..."

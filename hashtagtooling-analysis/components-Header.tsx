@@ -48,6 +48,9 @@ export function Header() {
             <Link href="/about" className="text-sm font-medium text-zinc-300 hover:text-brand-orange transition-colors">
               My Story
             </Link>
+            <Link href="/blog" className="text-sm font-medium text-zinc-300 hover:text-brand-orange transition-colors">
+              Journal
+            </Link>
             <Link href="/wishlist" className="relative">
               <Button variant="outline" size="sm">
                 <Heart className="h-4 w-4" />
@@ -105,6 +108,9 @@ export function Header() {
             </Link>
             <Link href="/about" onClick={closeMenu} className="text-sm font-medium text-zinc-300 hover:text-brand-orange transition-colors">
               My Story
+            </Link>
+            <Link href="/blog" onClick={closeMenu} className="text-sm font-medium text-zinc-300 hover:text-brand-orange transition-colors">
+              Journal
             </Link>
             <Link href="/wishlist" onClick={closeMenu} className="text-sm font-medium text-zinc-300 hover:text-brand-orange transition-colors">
               Wishlist ({wishlistCount})

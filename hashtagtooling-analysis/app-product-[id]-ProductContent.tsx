@@ -161,7 +161,7 @@ export default function ProductContent() {
           >
             <Image
               src={allImages[selectedImage]}
-              alt={product.name}
+              alt={`${product.name} — handcrafted by #TOOLING`}
               fill
               className="object-cover"
               priority
@@ -173,17 +173,17 @@ export default function ProductContent() {
             )}
           </button>
           {allImages.length > 1 && (
-            <div className="grid grid-cols-4 gap-2">
+            <div className="flex gap-3 mt-3 overflow-x-auto pb-2 snap-x snap-mandatory">
               {allImages.map((url, index) => (
                 <button
                   key={index}
                   type="button"
                   onClick={() => { setSelectedImage(index); setLightboxIndex(index); setLightboxOpen(true) }}
-                  className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-colors ${
+                  className={`relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 snap-start transition-colors ${
                     selectedImage === index ? 'border-brand-orange' : 'border-brand-dark-border hover:border-zinc-500'
                   }`}
                 >
-                  <Image src={url} alt={`${product.name} ${index + 1}`} fill className="object-cover" />
+                  <Image src={url} alt={`${product.name} — image ${index + 1}`} fill className="object-cover" />
                 </button>
               ))}
             </div>
