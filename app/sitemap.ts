@@ -76,6 +76,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     },
     {
+      url: "https://hashtag.guru/gift-guide",
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
       url: "https://hashtag.guru/shipping",
       lastModified: new Date(),
       changeFrequency: "monthly",
