@@ -120,6 +120,9 @@ export default function AdminDashboardPage() {
           <Link href="/admin/products">
             <Button variant="outline" size="sm">Products</Button>
           </Link>
+          <Link href="/admin/adoptions">
+            <Button variant="outline" size="sm">Adoptions</Button>
+          </Link>
           <Link href="/admin/orders">
             <Button variant="outline" size="sm">Orders</Button>
           </Link>

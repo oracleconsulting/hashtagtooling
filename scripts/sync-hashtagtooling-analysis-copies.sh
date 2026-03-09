@@ -14,7 +14,7 @@ echo "Syncing live Hashtag Tooling files -> hashtagtooling-analysis (flat)..."
 flatten_dir() {
   local dir="$1"
   [ ! -d "$ROOT/$dir" ] && return
-  find "$ROOT/$dir" -type f ! -path '*node_modules*' ! -path '*.next*' ! -path '*.git*' 2>/dev/null | while read -r f; do
+  find "$ROOT/$dir" -type f ! -path '*node_modules*' ! -path '*.next*' ! -path '*.git*' ! -path '*/.temp/*' 2>/dev/null | while read -r f; do
     rel="${f#$ROOT/$dir/}"
     base=$(echo "$rel" | tr '/' '-')
     cp "$f" "$DEST/$dir-$base" && echo "  $dir-$base"
@@ -25,6 +25,7 @@ flatten_dir app
 flatten_dir components
 flatten_dir lib
 flatten_dir public
+flatten_dir supabase
 
 # Root config and docs (flat in DEST)
 for f in *.sql *.md package.json package-lock.json next.config.js next.config.ts tsconfig.json next-env.d.ts tailwind.config.ts postcss.config.js postcss.config.mjs eslint.config.mjs .gitignore setup.sh railway-deploy.sh PROJECT_STRUCTURE.txt; do

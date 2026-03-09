@@ -6,6 +6,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { CookieConsent } from "@/components/CookieConsent";
 import { AnalyticsLoader } from "@/components/AnalyticsLoader";
+import { FloatingBuildCTA } from "@/components/FloatingBuildCTA";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -69,6 +70,9 @@ export default function RootLayout({
         </Suspense>
         <main className="min-h-screen">{children}</main>
         <Footer />
+        <Suspense fallback={null}>
+          <FloatingBuildCTA />
+        </Suspense>
         <CookieConsent />
         <AnalyticsLoader />
       </body>

@@ -19,6 +19,8 @@ interface Material {
   awl_handle_premium: number
   available: boolean
   grain_image_url?: string | null
+  tap_audio_url?: string | null
+  tap_audio_description?: string | null
   janka_hardness?: number | null
   specific_gravity?: number | null
   origin?: string | null
@@ -47,6 +49,7 @@ export default function MaterialsAdminPage() {
   const [showAddMaterial, setShowAddMaterial] = useState(false)
   const [showAddBasePrice, setShowAddBasePrice] = useState(false)
   const [uploadingGrainId, setUploadingGrainId] = useState<string | null>(null)
+  const [uploadingTapAudioId, setUploadingTapAudioId] = useState<string | null>(null)
 
   const [newMaterial, setNewMaterial] = useState({
     name: '',
@@ -147,6 +150,31 @@ export default function MaterialsAdminPage() {
     }
   }
 
+  const uploadTapAudio = async (materialId: string, file: File) => {
+    setUploadingTapAudioId(materialId)
+    try {
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'mp3'
+      const allowed = ['mp3', 'wav', 'm4a', 'ogg']
+      if (!allowed.includes(fileExt)) {
+        alert('Please upload MP3, WAV, M4A, or OGG audio.')
+        setUploadingTapAudioId(null)
+        return
+      }
+      const filePath = `audio/${materialId}-${Date.now()}.${fileExt}`
+      const { error: uploadError } = await supabase.storage.from('tap-audio').upload(filePath, file, { upsert: true })
+      if (uploadError) throw uploadError
+      const { data: urlData } = supabase.storage.from('tap-audio').getPublicUrl(filePath)
+      const { error: updateError } = await supabase.from('materials').update({ tap_audio_url: urlData.publicUrl }).eq('id', materialId)
+      if (updateError) throw updateError
+      loadData()
+    } catch (error) {
+      console.error('Tap audio upload error:', error)
+      alert('Failed to upload tap audio')
+    } finally {
+      setUploadingTapAudioId(null)
+    }
+  }
+
   const updateMaterial = async (material: Material) => {
     try {
       const { error } = await supabase
@@ -156,6 +184,7 @@ export default function MaterialsAdminPage() {
           mallet_handle_premium: material.mallet_handle_premium,
           awl_handle_premium: material.awl_handle_premium,
           available: material.available,
+          tap_audio_description: material.tap_audio_description ?? null,
           janka_hardness: material.janka_hardness ?? null,
           specific_gravity: material.specific_gravity ?? null,
           origin: material.origin ?? null,
@@ -611,6 +640,44 @@ export default function MaterialsAdminPage() {
                           <div className="md:col-span-2">
                             <label className="block font-medium mb-1">Colour Description</label>
                             <Input value={editingMaterial.color_description ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, color_description: e.target.value || null })} className="w-full" placeholder="e.g. Dark chocolate brown" />
+                          </div>
+                          <div className="md:col-span-2 border-t border-zinc-200 dark:border-zinc-700 pt-4 mt-4">
+                            <label className="block font-medium mb-2">Tap Test Audio</label>
+                            <input
+                              type="file"
+                              accept="audio/mp3,audio/wav,audio/m4a,audio/ogg"
+                              className="hidden"
+                              id={`tap-audio-${editingMaterial.id}`}
+                              onChange={(e) => { if (e.target.files?.[0]) uploadTapAudio(editingMaterial.id, e.target.files[0]) }}
+                              disabled={uploadingTapAudioId === editingMaterial.id}
+                            />
+                            {uploadingTapAudioId === editingMaterial.id ? (
+                              <div className="flex items-center gap-2 text-sm text-zinc-500">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Uploading...
+                              </div>
+                            ) : editingMaterial.tap_audio_url ? (
+                              <div className="space-y-2">
+                                <audio controls className="w-full max-w-xs h-8" src={editingMaterial.tap_audio_url} />
+                                <div className="flex gap-2">
+                                  <label htmlFor={`tap-audio-${editingMaterial.id}`} className="text-sm text-brand-orange hover:underline cursor-pointer">
+                                    Replace audio
+                                  </label>
+                                </div>
+                              </div>
+                            ) : (
+                              <label htmlFor={`tap-audio-${editingMaterial.id}`} className="inline-flex items-center gap-2 px-3 py-2 rounded border border-dashed border-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer text-sm">
+                                <Upload className="h-4 w-4" />
+                                Upload audio (MP3, WAV, M4A, OGG)
+                              </label>
+                            )}
+                            <Input
+                              className="mt-2"
+                              placeholder="e.g. Deep, resonant ring with a warm sustain"
+                              value={editingMaterial.tap_audio_description ?? ''}
+                              onChange={(e) => setEditingMaterial({ ...editingMaterial, tap_audio_description: e.target.value || null })}
+                            />
+                            <p className="text-xs text-zinc-500 mt-1">Description shown below the player on Wood Library</p>
                           </div>
                         </div>
                       </td>

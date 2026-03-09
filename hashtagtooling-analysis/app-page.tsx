@@ -83,10 +83,13 @@ export default async function Home() {
   ])
 
   const images: SiteImages = { ...defaultImages }
+  let heroVideoUrl: string | undefined
   const data = siteImagesRes.data
   if (data) {
     data.forEach((row: { section_key: string; image_url: string }) => {
-      if (row.image_url && row.section_key in defaultImages) {
+      if (row.image_url && row.section_key === 'hero_video') {
+        heroVideoUrl = row.image_url
+      } else if (row.image_url && row.section_key in defaultImages) {
         images[row.section_key as keyof SiteImages] = row.image_url
       }
     })
@@ -105,6 +108,7 @@ export default async function Home() {
       <FAQJsonLd faqs={HOMEPAGE_FAQS} />
       <HomeContent
         images={images}
+        heroVideoUrl={heroVideoUrl}
         latestProducts={latestProducts}
         categoryImages={categoryImages}
       />

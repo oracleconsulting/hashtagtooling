@@ -45,6 +45,15 @@ body {
   }
 }
 
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.5); }
+  50% { transform: scaleY(1); }
+}
+
+.waveform-bar {
+  animation: wave 0.5s ease-in-out infinite;
+}
+
 /* ============================================================
    Blog post content typography
    Applied to .blog-content wrapper on public post pages

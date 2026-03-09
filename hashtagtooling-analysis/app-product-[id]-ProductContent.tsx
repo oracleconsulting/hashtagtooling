@@ -26,6 +26,7 @@ interface Product {
   is_digital?: boolean
   metadata?: {
     images?: string[]
+    video?: string
     weight_kg?: string
     dimensions?: string
     wood_types?: string[]
@@ -135,9 +136,16 @@ export default function ProductContent() {
     )
   }
 
-  const allImages = product.metadata?.images?.length
+  const imageUrls = product.metadata?.images?.length
     ? product.metadata.images
     : [product.image_url]
+  const hasVideo = Boolean(product.metadata?.video)
+  const allMedia = hasVideo
+    ? [{ type: 'video' as const, url: product.metadata!.video! }, ...imageUrls.map((url) => ({ type: 'image' as const, url }))]
+    : imageUrls.map((url) => ({ type: 'image' as const, url }))
+  const selectedIsVideo = hasVideo && selectedImage === 0
+  const lightboxImages = imageUrls
+  const lightboxInitialIndex = hasVideo ? Math.max(0, selectedImage - 1) : selectedImage
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -148,7 +156,7 @@ export default function ProductContent() {
 
       {lightboxOpen && (
         <ImageLightbox
-          images={allImages}
+          images={lightboxImages}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxOpen(false)}
         />
@@ -156,39 +164,70 @@ export default function ProductContent() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-6">
         <div>
-          <button
-            type="button"
-            className="relative aspect-square bg-brand-dark-card rounded-lg overflow-hidden mb-4 w-full block cursor-zoom-in"
-            onClick={() => { setLightboxIndex(selectedImage); setLightboxOpen(true) }}
-          >
-            <Image
-              src={allImages[selectedImage]}
-              alt={`${product.name} — handcrafted by #TOOLING`}
-              fill
-              className="object-cover"
-              priority
-            />
+          <div className="relative aspect-square bg-brand-dark-card rounded-lg overflow-hidden mb-4 w-full">
+            {selectedIsVideo ? (
+              <video
+                src={product.metadata!.video}
+                poster={product.image_url}
+                controls
+                muted
+                loop
+                playsInline
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <button
+                type="button"
+                className="relative w-full h-full block cursor-zoom-in"
+                onClick={() => { setLightboxIndex(lightboxInitialIndex); setLightboxOpen(true) }}
+              >
+                <Image
+                  src={allMedia[selectedImage].url}
+                  alt={`${product.name} — handcrafted by #TOOLING`}
+                  fill
+                  className="object-cover"
+                  priority
+                />
+              </button>
+            )}
             {product.stock_status === 'sold' && (
               <div className="absolute inset-0 bg-black/60 flex items-center justify-center pointer-events-none">
                 <span className="text-3xl font-heading font-bold text-white tracking-wider">SOLD</span>
               </div>
             )}
-          </button>
-          {allImages.length > 1 && (
+          </div>
+          {allMedia.length > 1 && (
             <div className="flex gap-3 mt-3 overflow-x-auto pb-2 snap-x snap-mandatory">
-              {allImages.map((url, index) => (
+              {allMedia.map((item, index) => (
                 <button
                   key={index}
                   type="button"
-                  onClick={() => { setSelectedImage(index); setLightboxIndex(index); setLightboxOpen(true) }}
+                  onClick={() => setSelectedImage(index)}
                   className={`relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 snap-start transition-colors ${
                     selectedImage === index ? 'border-brand-orange' : 'border-brand-dark-border hover:border-zinc-500'
                   }`}
                 >
-                  <Image src={url} alt={`${product.name} — image ${index + 1}`} fill className="object-cover" />
+                  {item.type === 'video' ? (
+                    <>
+                      <Image
+                        src={product.image_url}
+                        alt={`${product.name} — video`}
+                        fill
+                        className="object-cover"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                        <span className="text-2xl text-white drop-shadow">▶</span>
+                      </div>
+                    </>
+                  ) : (
+                    <Image src={item.url} alt={`${product.name} — image ${index}`} fill className="object-cover" />
+                  )}
                 </button>
               ))}
             </div>
+          )}
+          {hasVideo && (
+            <p className="text-zinc-400 text-sm mt-2">📹 This piece includes a making-of video</p>
           )}
         </div>
 
