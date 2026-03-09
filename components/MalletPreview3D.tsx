@@ -13,6 +13,60 @@ interface MalletPreview3DProps {
 
 const NEUTRAL = '#555555'
 
+// Proportions: head 40%, transition 3%, handle 57% of total height
+const TOTAL_HEIGHT = 1.2
+const HEAD_HEIGHT = TOTAL_HEIGHT * 0.4
+const TRANSITION_HEIGHT = TOTAL_HEIGHT * 0.03
+const HANDLE_HEIGHT = TOTAL_HEIGHT * 0.57
+
+function createTurnedHeadGeometry(): THREE.LatheGeometry {
+  // Profile: mushroom cap — concave curve at bottom, dome at top. (radius, y) bottom-to-top.
+  const points: THREE.Vector2[] = [
+    new THREE.Vector2(0.4, 0), // bottom at transition
+    new THREE.Vector2(0.44, 0.05), // gentle curve out
+    new THREE.Vector2(0.48, 0.14), // max radius ~35% up
+    new THREE.Vector2(0.48, 0.26), // maintain through middle
+    new THREE.Vector2(0.46, 0.34), // dome inward
+    new THREE.Vector2(0.44, HEAD_HEIGHT), // subtle chamfer at top
+  ]
+  return new THREE.LatheGeometry(points, 24)
+}
+
+function createSquareHeadGeometry(): THREE.ExtrudeGeometry {
+  // Slightly taller than wide (striking face), chamfered corners via rounded rect
+  const halfW = 0.24
+  const halfD = 0.24
+  const r = 0.03
+  const shape = new THREE.Shape()
+  shape.moveTo(-halfW + r, -halfD)
+  shape.lineTo(halfW - r, -halfD)
+  shape.absarc(halfW - r, -halfD + r, r, -Math.PI / 2, 0)
+  shape.lineTo(halfW, halfD - r)
+  shape.absarc(halfW - r, halfD - r, r, 0, Math.PI / 2)
+  shape.lineTo(-halfW + r, halfD)
+  shape.absarc(-halfW + r, halfD - r, r, Math.PI / 2, Math.PI)
+  shape.lineTo(-halfW, -halfD + r)
+  shape.absarc(-halfW + r, -halfD + r, r, Math.PI, (Math.PI * 3) / 2)
+  const extrudeSettings = { depth: HEAD_HEIGHT, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.015, bevelSegments: 2 }
+  const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings)
+  geo.rotateX(-Math.PI / 2)
+  geo.translate(0, HEAD_HEIGHT / 2, 0)
+  return geo
+}
+
+function createHandleGeometry(): THREE.LatheGeometry {
+  // Taper with subtle belly at 2/3 down (from top), rounded bottom. Profile bottom-to-top.
+  const points: THREE.Vector2[] = [
+    new THREE.Vector2(0.08, 0), // rounded bottom end
+    new THREE.Vector2(0.22, HANDLE_HEIGHT * 0.06),
+    new THREE.Vector2(0.26, HANDLE_HEIGHT * 0.15),
+    new THREE.Vector2(0.28, HANDLE_HEIGHT * 0.25), // swell at ~75% from top
+    new THREE.Vector2(0.32, HANDLE_HEIGHT * 0.55),
+    new THREE.Vector2(0.35, HANDLE_HEIGHT), // top at transition
+  ]
+  return new THREE.LatheGeometry(points, 24)
+}
+
 export function MalletPreview3D({ headColor, handleColor, transitionColor, style }: MalletPreview3DProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -36,36 +90,45 @@ export function MalletPreview3D({ headColor, handleColor, transitionColor, style
     const handleColorHex = handleColor || NEUTRAL
     const transitionColorHex = transitionColor || NEUTRAL
 
+    const woodMat = (color: string) =>
+      new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0 })
+    const metalMat = (color: string) =>
+      new THREE.MeshStandardMaterial({ color, roughness: 0.2, metalness: 0.8 })
+
     let head: THREE.Mesh
     if (style === 'square') {
-      const geo = new THREE.BoxGeometry(0.8, 0.5, 0.8)
-      const mat = new THREE.MeshStandardMaterial({ color: headColorHex })
-      head = new THREE.Mesh(geo, mat)
+      const geo = createSquareHeadGeometry()
+      head = new THREE.Mesh(geo, woodMat(headColorHex))
+      head.position.y = TRANSITION_HEIGHT + HANDLE_HEIGHT + HEAD_HEIGHT / 2
     } else {
-      const geo = new THREE.CylinderGeometry(0.4, 0.45, 0.5, 24)
-      const mat = new THREE.MeshStandardMaterial({ color: headColorHex })
-      head = new THREE.Mesh(geo, mat)
+      const geo = createTurnedHeadGeometry()
+      head = new THREE.Mesh(geo, woodMat(headColorHex))
+      head.position.y = TRANSITION_HEIGHT + HANDLE_HEIGHT + HEAD_HEIGHT / 2
     }
-    head.position.y = 0.9
     scene.add(head)
 
-    const transitionGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.08, 24)
-    const transitionMat = new THREE.MeshStandardMaterial({ color: transitionColorHex })
-    const transition = new THREE.Mesh(transitionGeo, transitionMat)
-    transition.position.y = 0.55
+    const ringShape = new THREE.Shape().absarc(0, 0, 0.4, 0, Math.PI * 2)
+    ringShape.holes.push(new THREE.Path().absarc(0, 0, 0.34, 0, Math.PI * 2))
+    const transitionGeo = new THREE.ExtrudeGeometry(ringShape, { depth: TRANSITION_HEIGHT, bevelEnabled: false })
+    transitionGeo.rotateX(-Math.PI / 2)
+    transitionGeo.translate(0, TRANSITION_HEIGHT / 2, 0)
+    const transition = new THREE.Mesh(transitionGeo, metalMat(transitionColorHex))
+    transition.position.y = HANDLE_HEIGHT + TRANSITION_HEIGHT / 2
     scene.add(transition)
 
-    const handleGeo = new THREE.CylinderGeometry(0.12, 0.18, 0.7, 16)
-    const handleMat = new THREE.MeshStandardMaterial({ color: handleColorHex })
-    const handle = new THREE.Mesh(handleGeo, handleMat)
-    handle.position.y = 0.15
+    const handleGeo = createHandleGeometry()
+    const handle = new THREE.Mesh(handleGeo, woodMat(handleColorHex))
+    handle.position.y = HANDLE_HEIGHT / 2
     scene.add(handle)
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.6)
+    const ambient = new THREE.AmbientLight(0xffffff, 0.5)
     scene.add(ambient)
     const dir = new THREE.DirectionalLight(0xffffff, 0.8)
     dir.position.set(2, 3, 2)
     scene.add(dir)
+    const rim = new THREE.DirectionalLight(0xffeedd, 0.25)
+    rim.position.set(-1.5, -1, 1)
+    scene.add(rim)
 
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
