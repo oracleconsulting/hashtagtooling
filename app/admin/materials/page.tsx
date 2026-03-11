@@ -125,14 +125,35 @@ export default function MaterialsAdminPage() {
       if (fileExt === 'heic' || fileExt === 'heif' || file.type === 'image/heic' || file.type === 'image/heif') {
         try {
           const heic2any = (await import('heic2any')).default
-          const convertedBlob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 })
+          const convertedBlob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 })
           const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
           processedFile = new File([blob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' })
           fileExt = 'jpg'
-        } catch {
-          alert('Could not convert HEIC. Try uploading a JPG.')
-          setUploadingGrainId(null)
-          return
+        } catch (conversionError) {
+          console.error('HEIC conversion failed:', conversionError)
+          try {
+            const bitmap = await createImageBitmap(file)
+            const canvas = document.createElement('canvas')
+            canvas.width = bitmap.width
+            canvas.height = bitmap.height
+            const ctx = canvas.getContext('2d')!
+            ctx.drawImage(bitmap, 0, 0)
+            const jpegBlob = await new Promise<Blob>((resolve, reject) => {
+              canvas.toBlob(
+                (b) => (b ? resolve(b) : reject(new Error('Canvas conversion failed'))),
+                'image/jpeg',
+                0.85
+              )
+            })
+            processedFile = new File([jpegBlob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' })
+            fileExt = 'jpg'
+            bitmap.close()
+          } catch (fallbackError) {
+            console.error('HEIC fallback also failed:', fallbackError)
+            alert(`Could not convert ${file.name}. Try converting to JPG on your phone before uploading (e.g. take a screenshot of the photo, or use Files app to convert).`)
+            setUploadingGrainId(null)
+            return
+          }
         }
       }
       const filePath = `grains/${materialId}-${Date.now()}.${fileExt}`
@@ -464,7 +485,7 @@ export default function MaterialsAdminPage() {
                           <input
                             type="file"
                             id={`grain-${mat.id}`}
-                            accept="image/*"
+                            accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.HEIC,.heif,.HEIF"
                             className="hidden"
                             onChange={(e) => { if (e.target.files?.[0]) uploadGrainImage(mat.id, e.target.files[0]) }}
                             disabled={uploadingGrainId === mat.id}
@@ -552,7 +573,7 @@ export default function MaterialsAdminPage() {
                           </div>
                         </td>
                         <td className="p-2">
-                          <input type="file" id={`grain-${mat.id}`} accept="image/*" className="hidden" onChange={(e) => { if (e.target.files?.[0]) uploadGrainImage(mat.id, e.target.files[0]) }} disabled={uploadingGrainId === mat.id} />
+                          <input type="file" id={`grain-${mat.id}`} accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.HEIC,.heif,.HEIF" className="hidden" onChange={(e) => { if (e.target.files?.[0]) uploadGrainImage(mat.id, e.target.files[0]) }} disabled={uploadingGrainId === mat.id} />
                           {uploadingGrainId === mat.id ? (
                             <div className="w-12 h-12 rounded border border-dashed flex items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-zinc-500" /></div>
                           ) : mat.grain_image_url ? (

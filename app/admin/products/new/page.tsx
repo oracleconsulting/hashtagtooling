@@ -90,14 +90,13 @@ export default function NewProductPage() {
         let file = files[i]
         let fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
 
-        // Convert HEIC/HEIF to JPEG (dynamic import: heic2any uses window, so load only in browser)
         if (fileExt === 'heic' || fileExt === 'heif' || file.type === 'image/heic' || file.type === 'image/heif') {
           try {
             const heic2any = (await import('heic2any')).default
             const convertedBlob = await heic2any({
               blob: file,
               toType: 'image/jpeg',
-              quality: 0.9,
+              quality: 0.85,
             })
             const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
             file = new File(
@@ -108,8 +107,32 @@ export default function NewProductPage() {
             fileExt = 'jpg'
           } catch (conversionError) {
             console.error('HEIC conversion failed:', conversionError)
-            alert(`Could not convert ${file.name}. Try converting to JPG on your phone before uploading.`)
-            continue
+            try {
+              const bitmap = await createImageBitmap(file)
+              const canvas = document.createElement('canvas')
+              canvas.width = bitmap.width
+              canvas.height = bitmap.height
+              const ctx = canvas.getContext('2d')!
+              ctx.drawImage(bitmap, 0, 0)
+              const jpegBlob = await new Promise<Blob>((resolve, reject) => {
+                canvas.toBlob(
+                  (b) => (b ? resolve(b) : reject(new Error('Canvas conversion failed'))),
+                  'image/jpeg',
+                  0.85
+                )
+              })
+              file = new File(
+                [jpegBlob],
+                file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
+                { type: 'image/jpeg' }
+              )
+              fileExt = 'jpg'
+              bitmap.close()
+            } catch (fallbackError) {
+              console.error('HEIC fallback also failed:', fallbackError)
+              alert(`Could not convert ${file.name}. Try converting to JPG on your phone before uploading (e.g. take a screenshot of the photo, or use Files app to convert).`)
+              continue
+            }
           }
         }
 
@@ -415,7 +438,7 @@ export default function NewProductPage() {
                   <Upload className="mx-auto h-12 w-12 text-zinc-500 mb-4" />
                   <input
                     type="file"
-                    accept="image/*,.heic,.HEIC"
+                    accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.HEIC,.heif,.HEIF"
                     multiple
                     onChange={(e) => handleFileUpload(e.target.files, 'image')}
                     className="hidden"

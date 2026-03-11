@@ -22,6 +22,7 @@ export default function AdminProductsPage() {
   const router = useRouter()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<'live' | 'gallery'>('live')
 
   useEffect(() => {
     // Check auth
@@ -124,10 +125,47 @@ export default function AdminProductsPage() {
         </div>
       </div>
 
-      {products.length === 0 ? (
+      {(() => {
+        const liveProducts = products.filter(p => p.stock_status !== 'sold')
+        const galleryProducts = products.filter(p => p.stock_status === 'sold')
+        const displayProducts = activeTab === 'live' ? liveProducts : galleryProducts
+        return (<>
+          <div className="flex gap-2 mb-6">
+            <button
+              onClick={() => setActiveTab('live')}
+              className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                activeTab === 'live'
+                  ? 'bg-brand-orange text-brand-dark'
+                  : 'border border-brand-dark-border text-zinc-300 hover:border-zinc-500'
+              }`}
+            >
+              Live Products ({liveProducts.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('gallery')}
+              className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                activeTab === 'gallery'
+                  ? 'bg-brand-orange text-brand-dark'
+                  : 'border border-brand-dark-border text-zinc-300 hover:border-zinc-500'
+              }`}
+            >
+              Gallery / Sold ({galleryProducts.length})
+            </button>
+          </div>
+
+          {activeTab === 'gallery' && (
+            <div className="mb-6 p-4 rounded-lg border border-brand-dark-border bg-brand-dark-card">
+              <p className="text-zinc-400 text-sm">
+                These are historic sold pieces shown in the <a href="/gallery" className="text-brand-orange underline">/gallery</a> page.
+                Upload images to each piece to populate the gallery timeline.
+              </p>
+            </div>
+          )}
+
+      {displayProducts.length === 0 ? (
         <Card className="bg-brand-dark-card border border-brand-dark-border">
           <CardContent className="p-12 text-center">
-            <p className="text-zinc-400 mb-4">No products yet</p>
+            <p className="text-zinc-400 mb-4">{activeTab === 'live' ? 'No live products yet' : 'No sold/gallery items yet'}</p>
             <Link href="/admin/products/new">
               <Button>Add Your First Product</Button>
             </Link>
@@ -135,7 +173,7 @@ export default function AdminProductsPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {products.map((product) => (
+          {displayProducts.map((product) => (
             <Card key={product.id} className="bg-brand-dark-card border border-brand-dark-border">
               <CardContent className="p-4">
                 <div className="aspect-square bg-brand-dark rounded-lg mb-4 overflow-hidden">
@@ -170,6 +208,8 @@ export default function AdminProductsPage() {
           ))}
         </div>
       )}
+        </>)
+      })()}
     </div>
   )
 }
