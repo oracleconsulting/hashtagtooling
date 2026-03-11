@@ -3,6 +3,8 @@ import HomeContent, { type SiteImages } from './HomeContent'
 import { LocalBusinessJsonLd } from '@/components/LocalBusinessJsonLd'
 import { FAQJsonLd } from '@/components/FAQJsonLd'
 
+export const dynamic = 'force-dynamic'
+
 const HOMEPAGE_FAQS = [
   {
     question: 'Why use an exotic wood mallet instead of a standard beech mallet?',
