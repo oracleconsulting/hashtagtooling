@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import sharp from 'sharp'
+// @ts-expect-error no type declarations for heic-convert
+import convert from 'heic-convert'
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,22 +10,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer())
+    const inputBuffer = new Uint8Array(await file.arrayBuffer())
 
-    const jpegBuffer = await sharp(buffer)
-      .jpeg({ quality: 85 })
-      .toBuffer()
+    const outputBuffer = await convert({
+      buffer: inputBuffer,
+      format: 'JPEG',
+      quality: 0.85,
+    })
 
-    return new NextResponse(new Uint8Array(jpegBuffer), {
+    return new NextResponse(outputBuffer, {
       headers: {
         'Content-Type': 'image/jpeg',
-        'Content-Length': String(jpegBuffer.length),
+        'Content-Length': String(outputBuffer.byteLength),
       },
     })
   } catch (err) {
-    console.error('Server HEIC conversion failed:', err)
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('Server HEIC conversion failed:', message)
     return NextResponse.json(
-      { error: 'Conversion failed' },
+      { error: 'Conversion failed', detail: message },
       { status: 500 }
     )
   }
