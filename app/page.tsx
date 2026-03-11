@@ -51,35 +51,35 @@ export default async function Home() {
     supabase
       .from('products')
       .select('*')
-      .neq('stock_status', 'out_of_stock')
+      .in('stock_status', ['in_stock', 'made_to_order'])
       .order('created_at', { ascending: false })
       .limit(4),
     supabase
       .from('products')
       .select('image_url')
       .eq('category', 'mallet')
-      .neq('stock_status', 'out_of_stock')
+      .in('stock_status', ['in_stock', 'made_to_order'])
       .limit(1)
       .maybeSingle(),
     supabase
       .from('products')
       .select('image_url')
       .eq('category', 'awl')
-      .neq('stock_status', 'out_of_stock')
+      .in('stock_status', ['in_stock', 'made_to_order'])
       .limit(1)
       .maybeSingle(),
     supabase
       .from('products')
       .select('image_url')
       .eq('category', 'wood')
-      .neq('stock_status', 'out_of_stock')
+      .in('stock_status', ['in_stock', 'made_to_order'])
       .limit(1)
       .maybeSingle(),
     supabase
       .from('products')
       .select('image_url')
       .eq('category', 'coin')
-      .neq('stock_status', 'out_of_stock')
+      .in('stock_status', ['in_stock', 'made_to_order'])
       .limit(1)
       .maybeSingle(),
   ])
