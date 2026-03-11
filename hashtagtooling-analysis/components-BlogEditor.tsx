@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { supabase } from '@/lib/supabase'
 import { Loader2, Eye, EyeOff, Upload, Bold, Italic, Heading2, Heading3, Link2, List } from 'lucide-react'
+import { compressImage } from '@/lib/image-utils'
 
 // ---------------------------------------------------------------------------
 // Minimal markdown → HTML renderer (no external dependency)
@@ -168,16 +169,70 @@ export default function BlogEditor({ initialData, mode }: BlogEditorProps) {
       let processedFile = file
       let fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
       if (fileExt === 'heic' || fileExt === 'heif' || file.type === 'image/heic' || file.type === 'image/heif') {
+        let converted = false
+
         try {
           const heic2any = (await import('heic2any')).default
-          const convertedBlob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 })
+          const convertedBlob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 })
           const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
-          processedFile = new File([blob], file.name.replace(/\.heic$/i, '.jpg'), { type: 'image/jpeg' })
+          processedFile = new File([blob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' })
           fileExt = 'jpg'
-        } catch {
-          alert('Could not convert HEIC. Try uploading a JPG.')
+          converted = true
+        } catch (heicError) {
+          console.warn('heic2any failed, trying canvas fallback:', heicError)
+        }
+
+        if (!converted) {
+          try {
+            const bitmap = await createImageBitmap(file)
+            const canvas = document.createElement('canvas')
+            canvas.width = bitmap.width
+            canvas.height = bitmap.height
+            const ctx = canvas.getContext('2d')!
+            ctx.drawImage(bitmap, 0, 0)
+            const jpegBlob = await new Promise<Blob>((resolve, reject) => {
+              canvas.toBlob(
+                (b) => (b ? resolve(b) : reject(new Error('Canvas toBlob failed'))),
+                'image/jpeg',
+                0.85
+              )
+            })
+            processedFile = new File([jpegBlob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' })
+            fileExt = 'jpg'
+            converted = true
+            bitmap.close()
+          } catch (canvasError) {
+            console.warn('Canvas fallback failed, trying server conversion:', canvasError)
+          }
+        }
+
+        if (!converted) {
+          try {
+            const fd = new FormData()
+            fd.append('file', file)
+            const res = await fetch('/api/convert-heic', { method: 'POST', body: fd })
+            if (!res.ok) throw new Error(`Server returned ${res.status}`)
+            const jpegBlob = await res.blob()
+            processedFile = new File([jpegBlob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' })
+            fileExt = 'jpg'
+            converted = true
+          } catch (serverError) {
+            console.error('Server HEIC conversion also failed:', serverError)
+          }
+        }
+
+        if (!converted) {
+          alert(`Could not convert ${file.name}. Try using the Files app on your iPhone to convert to JPG first, or take a screenshot of the photo.`)
           setUploadingImage(false)
           return
+        }
+      }
+      if (processedFile.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp'].includes(fileExt)) {
+        try {
+          processedFile = await compressImage(processedFile)
+          fileExt = 'jpg'
+        } catch (compressError) {
+          console.warn('Image compression failed, uploading original:', compressError)
         }
       }
       const filePath = `featured/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`
@@ -406,7 +461,7 @@ export default function BlogEditor({ initialData, mode }: BlogEditorProps) {
                 <input
                   type="file"
                   id="blog-image-upload"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.HEIC,.heif,.HEIF"
                   className="hidden"
                   onChange={(e) => { if (e.target.files?.[0]) uploadFeaturedImage(e.target.files[0]) }}
                 />

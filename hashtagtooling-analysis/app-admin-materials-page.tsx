@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
 import { Plus, Pencil, Trash2, ArrowLeft, Upload, Loader2 } from 'lucide-react'
+import { compressImage } from '@/lib/image-utils'
 
 interface Material {
   id: string
@@ -123,16 +124,70 @@ export default function MaterialsAdminPage() {
       let processedFile: File = file
       let fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
       if (fileExt === 'heic' || fileExt === 'heif' || file.type === 'image/heic' || file.type === 'image/heif') {
+        let converted = false
+
         try {
           const heic2any = (await import('heic2any')).default
-          const convertedBlob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 })
+          const convertedBlob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 })
           const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
           processedFile = new File([blob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' })
           fileExt = 'jpg'
-        } catch {
-          alert('Could not convert HEIC. Try uploading a JPG.')
+          converted = true
+        } catch (heicError) {
+          console.warn('heic2any failed, trying canvas fallback:', heicError)
+        }
+
+        if (!converted) {
+          try {
+            const bitmap = await createImageBitmap(file)
+            const canvas = document.createElement('canvas')
+            canvas.width = bitmap.width
+            canvas.height = bitmap.height
+            const ctx = canvas.getContext('2d')!
+            ctx.drawImage(bitmap, 0, 0)
+            const jpegBlob = await new Promise<Blob>((resolve, reject) => {
+              canvas.toBlob(
+                (b) => (b ? resolve(b) : reject(new Error('Canvas toBlob failed'))),
+                'image/jpeg',
+                0.85
+              )
+            })
+            processedFile = new File([jpegBlob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' })
+            fileExt = 'jpg'
+            converted = true
+            bitmap.close()
+          } catch (canvasError) {
+            console.warn('Canvas fallback failed, trying server conversion:', canvasError)
+          }
+        }
+
+        if (!converted) {
+          try {
+            const fd = new FormData()
+            fd.append('file', file)
+            const res = await fetch('/api/convert-heic', { method: 'POST', body: fd })
+            if (!res.ok) throw new Error(`Server returned ${res.status}`)
+            const jpegBlob = await res.blob()
+            processedFile = new File([jpegBlob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' })
+            fileExt = 'jpg'
+            converted = true
+          } catch (serverError) {
+            console.error('Server HEIC conversion also failed:', serverError)
+          }
+        }
+
+        if (!converted) {
+          alert(`Could not convert ${file.name}. Try using the Files app on your iPhone to convert to JPG first, or take a screenshot of the photo.`)
           setUploadingGrainId(null)
           return
+        }
+      }
+      if (processedFile.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp'].includes(fileExt)) {
+        try {
+          processedFile = await compressImage(processedFile)
+          fileExt = 'jpg'
+        } catch (compressError) {
+          console.warn('Image compression failed, uploading original:', compressError)
         }
       }
       const filePath = `grains/${materialId}-${Date.now()}.${fileExt}`
@@ -464,7 +519,7 @@ export default function MaterialsAdminPage() {
                           <input
                             type="file"
                             id={`grain-${mat.id}`}
-                            accept="image/*"
+                            accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.HEIC,.heif,.HEIF"
                             className="hidden"
                             onChange={(e) => { if (e.target.files?.[0]) uploadGrainImage(mat.id, e.target.files[0]) }}
                             disabled={uploadingGrainId === mat.id}
@@ -552,7 +607,7 @@ export default function MaterialsAdminPage() {
                           </div>
                         </td>
                         <td className="p-2">
-                          <input type="file" id={`grain-${mat.id}`} accept="image/*" className="hidden" onChange={(e) => { if (e.target.files?.[0]) uploadGrainImage(mat.id, e.target.files[0]) }} disabled={uploadingGrainId === mat.id} />
+                          <input type="file" id={`grain-${mat.id}`} accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.HEIC,.heif,.HEIF" className="hidden" onChange={(e) => { if (e.target.files?.[0]) uploadGrainImage(mat.id, e.target.files[0]) }} disabled={uploadingGrainId === mat.id} />
                           {uploadingGrainId === mat.id ? (
                             <div className="w-12 h-12 rounded border border-dashed flex items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-zinc-500" /></div>
                           ) : mat.grain_image_url ? (

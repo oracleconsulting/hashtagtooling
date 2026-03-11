@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
 import { Upload, Check, ArrowLeft, Loader2, Trash2 } from 'lucide-react'
+import { compressImage } from '@/lib/image-utils'
 
 interface SiteImage {
   id: string
@@ -23,7 +24,7 @@ const SECTION_CONFIG = [
     title: 'Hero Background',
     description: 'Full-width background image behind "THE HASHTAG MALLET" heading. Recommended: 1920x1080px or larger, landscape orientation. A dramatic workshop shot or close-up of wood grain works well here.',
     aspect: 'aspect-[16/9]',
-    accept: 'image/jpeg,image/png,image/webp,.heic,.HEIC',
+    accept: 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.HEIC,.heif,.HEIF',
   },
   {
     key: 'hero_video',
@@ -35,21 +36,21 @@ const SECTION_CONFIG = [
   {
     key: 'wood_collection',
     title: 'Wood Collection',
-    accept: 'image/jpeg,image/png,image/webp,.heic,.HEIC',
+    accept: 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.HEIC,.heif,.HEIF',
     description: 'Displayed next to the "WOOD CHOICE" text section. Should show your exotic wood collection — timber blanks, turning blanks, end grain patterns. Recommended: 800x600px or larger.',
     aspect: 'aspect-[4/3]',
   },
   {
     key: 'brass_transitions',
     title: 'Brass & Copper Transitions',
-    accept: 'image/jpeg,image/png,image/webp,.heic,.HEIC',
+    accept: 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.HEIC,.heif,.HEIF',
     description: 'Displayed next to "THE TRANSITION" text section. Should show your transition materials — brass rings, copper dowels, mokume gane pieces on the workbench. Recommended: 800x600px or larger.',
     aspect: 'aspect-[4/3]',
   },
   {
     key: 'mallet_lineup',
     title: 'Mallet Lineup',
-    accept: 'image/jpeg,image/png,image/webp,.heic,.HEIC',
+    accept: 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.HEIC,.heif,.HEIF',
     description: 'Displayed next to "TOTALLY UNIQUE AND PERSONAL" text. Should show a row/group of different completed mallets showcasing variety. Recommended: 800x600px or larger.',
     aspect: 'aspect-[4/3]',
   },
@@ -96,14 +97,15 @@ export default function AdminSiteImagesPage() {
       let fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
       const isVideo = sectionKey === 'hero_video' || file.type.startsWith('video/')
 
-      // Convert HEIC/HEIF to JPEG only for images
       if (!isVideo && (fileExt === 'heic' || fileExt === 'heif' || file.type === 'image/heic' || file.type === 'image/heif')) {
+        let converted = false
+
         try {
           const heic2any = (await import('heic2any')).default
           const convertedBlob = await heic2any({
             blob: file,
             toType: 'image/jpeg',
-            quality: 0.9,
+            quality: 0.85,
           })
           const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
           processedFile = new File(
@@ -112,9 +114,60 @@ export default function AdminSiteImagesPage() {
             { type: 'image/jpeg' }
           )
           fileExt = 'jpg'
-        } catch (conversionError) {
-          console.error('HEIC conversion failed:', conversionError)
-          alert(`Could not convert ${file.name}. Try converting to JPG before uploading.`)
+          converted = true
+        } catch (heicError) {
+          console.warn('heic2any failed, trying canvas fallback:', heicError)
+        }
+
+        if (!converted) {
+          try {
+            const bitmap = await createImageBitmap(file)
+            const canvas = document.createElement('canvas')
+            canvas.width = bitmap.width
+            canvas.height = bitmap.height
+            const ctx = canvas.getContext('2d')!
+            ctx.drawImage(bitmap, 0, 0)
+            const jpegBlob = await new Promise<Blob>((resolve, reject) => {
+              canvas.toBlob(
+                (b) => (b ? resolve(b) : reject(new Error('Canvas toBlob failed'))),
+                'image/jpeg',
+                0.85
+              )
+            })
+            processedFile = new File(
+              [jpegBlob],
+              file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
+              { type: 'image/jpeg' }
+            )
+            fileExt = 'jpg'
+            converted = true
+            bitmap.close()
+          } catch (canvasError) {
+            console.warn('Canvas fallback failed, trying server conversion:', canvasError)
+          }
+        }
+
+        if (!converted) {
+          try {
+            const fd = new FormData()
+            fd.append('file', file)
+            const res = await fetch('/api/convert-heic', { method: 'POST', body: fd })
+            if (!res.ok) throw new Error(`Server returned ${res.status}`)
+            const jpegBlob = await res.blob()
+            processedFile = new File(
+              [jpegBlob],
+              file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
+              { type: 'image/jpeg' }
+            )
+            fileExt = 'jpg'
+            converted = true
+          } catch (serverError) {
+            console.error('Server HEIC conversion also failed:', serverError)
+          }
+        }
+
+        if (!converted) {
+          alert(`Could not convert ${file.name}. Try using the Files app on your iPhone to convert to JPG first, or take a screenshot of the photo.`)
           setUploadingSection(null)
           return
         }
@@ -122,7 +175,15 @@ export default function AdminSiteImagesPage() {
 
       if (isVideo) fileExt = 'mp4'
 
-      // Generate unique filename
+      if (!isVideo && (processedFile.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp'].includes(fileExt))) {
+        try {
+          processedFile = await compressImage(processedFile)
+          fileExt = 'jpg'
+        } catch (compressError) {
+          console.warn('Image compression failed, uploading original:', compressError)
+        }
+      }
+
       const fileName = `${sectionKey}-${Date.now()}.${fileExt}`
       const filePath = `homepage/${fileName}`
 
@@ -296,7 +357,7 @@ export default function AdminSiteImagesPage() {
                       <Upload className="mx-auto h-10 w-10 text-zinc-500 mb-4" />
                       <input
                         type="file"
-                        accept={section.accept || 'image/jpeg,image/png,image/webp,.heic,.HEIC'}
+                        accept={section.accept || 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.HEIC,.heif,.HEIF'}
                         onChange={(e) => {
                           const file = e.target.files?.[0]
                           if (file) handleUpload(section.key, file)

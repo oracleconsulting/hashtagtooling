@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 import { Upload, X, Loader2 } from 'lucide-react'
+import { compressImage } from '@/lib/image-utils'
 
 export default function EditProductPage() {
   const router = useRouter()
@@ -74,10 +75,12 @@ export default function EditProductPage() {
         .from('products')
         .select('*')
         .eq('id', id)
-        .single()
+        .maybeSingle()
 
       if (error) throw error
+
       if (!data) {
+        alert('Product not found — it may have been deleted.')
         router.push('/admin/products')
         return
       }
@@ -154,12 +157,14 @@ export default function EditProductPage() {
         let fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
 
         if (fileExt === 'heic' || fileExt === 'heif' || file.type === 'image/heic' || file.type === 'image/heif') {
+          let converted = false
+
           try {
             const heic2any = (await import('heic2any')).default
             const convertedBlob = await heic2any({
               blob: file,
               toType: 'image/jpeg',
-              quality: 0.9,
+              quality: 0.85,
             })
             const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
             file = new File(
@@ -168,10 +173,70 @@ export default function EditProductPage() {
               { type: 'image/jpeg' }
             )
             fileExt = 'jpg'
-          } catch (conversionError) {
-            console.error('HEIC conversion failed:', conversionError)
-            alert(`Could not convert ${file.name}. Try converting to JPG on your phone before uploading.`)
+            converted = true
+          } catch (heicError) {
+            console.warn('heic2any failed, trying canvas fallback:', heicError)
+          }
+
+          if (!converted) {
+            try {
+              const bitmap = await createImageBitmap(file)
+              const canvas = document.createElement('canvas')
+              canvas.width = bitmap.width
+              canvas.height = bitmap.height
+              const ctx = canvas.getContext('2d')!
+              ctx.drawImage(bitmap, 0, 0)
+              const jpegBlob = await new Promise<Blob>((resolve, reject) => {
+                canvas.toBlob(
+                  (b) => (b ? resolve(b) : reject(new Error('Canvas toBlob failed'))),
+                  'image/jpeg',
+                  0.85
+                )
+              })
+              file = new File(
+                [jpegBlob],
+                file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
+                { type: 'image/jpeg' }
+              )
+              fileExt = 'jpg'
+              converted = true
+              bitmap.close()
+            } catch (canvasError) {
+              console.warn('Canvas fallback failed, trying server conversion:', canvasError)
+            }
+          }
+
+          if (!converted) {
+            try {
+              const fd = new FormData()
+              fd.append('file', file)
+              const res = await fetch('/api/convert-heic', { method: 'POST', body: fd })
+              if (!res.ok) throw new Error(`Server returned ${res.status}`)
+              const jpegBlob = await res.blob()
+              file = new File(
+                [jpegBlob],
+                file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
+                { type: 'image/jpeg' }
+              )
+              fileExt = 'jpg'
+              converted = true
+            } catch (serverError) {
+              console.error('Server HEIC conversion also failed:', serverError)
+            }
+          }
+
+          if (!converted) {
+            alert(`Could not convert ${file.name}. Try using the Files app on your iPhone to convert to JPG first, or take a screenshot of the photo.`)
             continue
+          }
+        }
+
+        if (file.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp'].includes(fileExt)) {
+          try {
+            file = await compressImage(file)
+            fileExt = 'jpg'
+          } catch (compressError) {
+            console.warn('Image compression failed, uploading original:', compressError)
           }
         }
 
@@ -487,7 +552,7 @@ export default function EditProductPage() {
                   <Upload className="mx-auto h-12 w-12 text-zinc-500 mb-4" />
                   <input
                     type="file"
-                    accept="image/*,.heic,.HEIC"
+                    accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.HEIC,.heif,.HEIF"
                     multiple
                     onChange={(e) => handleFileUpload(e.target.files, 'image')}
                     className="hidden"
