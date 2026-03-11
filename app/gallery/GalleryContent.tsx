@@ -13,7 +13,14 @@ interface Product {
   image_url: string
   category: string
   created_at: string
-  metadata?: { head_wood?: string; handle_wood?: string }
+  metadata?: {
+    head_wood?: string
+    handle_wood?: string
+    images?: string[]
+    style?: string
+    transition?: string
+    woods?: string[]
+  }
 }
 
 interface GalleryContentProps {
@@ -39,6 +46,53 @@ function uniqueSpecies(products: Product[]): Set<string> {
     if (p.metadata?.handle_wood) set.add(p.metadata.handle_wood)
   })
   return set
+}
+
+function GalleryImageCarousel({ images, name }: { images: string[]; name: string }) {
+  const [currentIndex, setCurrentIndex] = useState(0)
+
+  if (images.length === 0) return null
+
+  return (
+    <div className="relative">
+      <div className="relative aspect-square md:aspect-[4/3]">
+        <Image
+          src={images[currentIndex]}
+          alt={`${name} - image ${currentIndex + 1}`}
+          fill
+          className="object-contain bg-black rounded-t-xl"
+          sizes="(max-width: 768px) 100vw, 672px"
+        />
+      </div>
+
+      {images.length > 1 && (
+        <div className="flex gap-1 p-2 bg-brand-dark overflow-x-auto">
+          {images.map((url, i) => (
+            <button
+              key={i}
+              onClick={(e) => {
+                e.stopPropagation()
+                setCurrentIndex(i)
+              }}
+              className={`relative w-16 h-16 flex-shrink-0 rounded overflow-hidden border-2 transition-colors ${
+                i === currentIndex
+                  ? 'border-brand-orange'
+                  : 'border-transparent hover:border-zinc-500'
+              }`}
+            >
+              <Image
+                src={url}
+                alt={`${name} thumbnail ${i + 1}`}
+                fill
+                className="object-cover"
+                sizes="64px"
+              />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function GalleryContent({ soldProducts, currentProducts }: GalleryContentProps) {
@@ -348,50 +402,66 @@ export default function GalleryContent({ soldProducts, currentProducts }: Galler
           )}
 
           {/* Detail modal */}
-          {selectedProduct && (
-            <div
-              className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-              onClick={() => setSelectedProduct(null)}
-            >
+          {selectedProduct && (() => {
+            const allImages = selectedProduct.metadata?.images?.length
+              ? selectedProduct.metadata.images
+              : selectedProduct.image_url
+                ? [selectedProduct.image_url]
+                : []
+
+            return (
               <div
-                className="bg-brand-dark-card border border-brand-dark-border rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-                onClick={(e) => e.stopPropagation()}
+                className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+                onClick={() => setSelectedProduct(null)}
               >
-                <div className="relative aspect-square md:aspect-video">
-                  <Image
-                    src={selectedProduct.image_url || 'https://placehold.co/600x400/333/666?text=No+Image'}
-                    alt={selectedProduct.name}
-                    fill
-                    className="object-cover rounded-t-xl"
-                    sizes="100vw"
-                  />
+                <div
+                  className="relative bg-brand-dark-card border border-brand-dark-border rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {allImages.length > 0 && (
+                    <GalleryImageCarousel images={allImages} name={selectedProduct.name} />
+                  )}
+
                   <button
                     onClick={() => setSelectedProduct(null)}
-                    className="absolute top-4 right-4 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white"
+                    className="absolute top-4 right-4 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white z-10"
                   >
                     <X className="h-5 w-5" />
                   </button>
-                </div>
-                <div className="p-6">
-                  <h3 className="font-heading text-2xl font-bold text-white mb-2">{selectedProduct.name}</h3>
-                  {(selectedProduct.metadata?.head_wood || selectedProduct.metadata?.handle_wood) && (
-                    <p className="text-zinc-400 mb-2">
-                      {[selectedProduct.metadata?.head_wood, selectedProduct.metadata?.handle_wood].filter(Boolean).join(' / ')}
-                    </p>
-                  )}
-                  {selectedProduct.description && (
-                    <p className="text-zinc-300 mb-4">{selectedProduct.description}</p>
-                  )}
-                  <Link href={builderHref(selectedProduct)} onClick={() => setSelectedProduct(null)}>
-                    <Button>
-                      Build one like this
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </Link>
+
+                  <div className="p-6">
+                    <h3 className="font-heading text-2xl font-bold text-white mb-2">
+                      {selectedProduct.name}
+                    </h3>
+
+                    {(selectedProduct.metadata?.head_wood || selectedProduct.metadata?.handle_wood) && (
+                      <p className="text-zinc-400 mb-2">
+                        {[selectedProduct.metadata?.head_wood, selectedProduct.metadata?.handle_wood]
+                          .filter(Boolean)
+                          .join(' / ')}
+                      </p>
+                    )}
+
+                    {selectedProduct.metadata?.style && (
+                      <p className="text-zinc-500 text-sm mb-1">{selectedProduct.metadata.style}</p>
+                    )}
+                    {selectedProduct.metadata?.transition && (
+                      <p className="text-zinc-500 text-sm mb-4">{selectedProduct.metadata.transition} accents</p>
+                    )}
+
+                    <p className="text-zinc-500 text-sm mb-4">{formatDate(selectedProduct.created_at)}</p>
+
+                    <Link href={builderHref(selectedProduct)} onClick={() => setSelectedProduct(null)}>
+                      <Button>
+                        Build one like this
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
         </>
       )}
     </div>
