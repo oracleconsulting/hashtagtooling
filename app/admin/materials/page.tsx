@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
 import { Plus, Pencil, Trash2, ArrowLeft, Upload, Loader2 } from 'lucide-react'
+import { compressImage } from '@/lib/image-utils'
 
 interface Material {
   id: string
@@ -179,6 +180,14 @@ export default function MaterialsAdminPage() {
           alert(`Could not convert ${file.name}. Try using the Files app on your iPhone to convert to JPG first, or take a screenshot of the photo.`)
           setUploadingGrainId(null)
           return
+        }
+      }
+      if (processedFile.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp'].includes(fileExt)) {
+        try {
+          processedFile = await compressImage(processedFile)
+          fileExt = 'jpg'
+        } catch (compressError) {
+          console.warn('Image compression failed, uploading original:', compressError)
         }
       }
       const filePath = `grains/${materialId}-${Date.now()}.${fileExt}`

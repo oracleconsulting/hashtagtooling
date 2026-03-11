@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 import { Upload, X, Loader2 } from 'lucide-react'
+import { compressImage } from '@/lib/image-utils'
 
 export default function EditProductPage() {
   const router = useRouter()
@@ -227,6 +228,15 @@ export default function EditProductPage() {
           if (!converted) {
             alert(`Could not convert ${file.name}. Try using the Files app on your iPhone to convert to JPG first, or take a screenshot of the photo.`)
             continue
+          }
+        }
+
+        if (file.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp'].includes(fileExt)) {
+          try {
+            file = await compressImage(file)
+            fileExt = 'jpg'
+          } catch (compressError) {
+            console.warn('Image compression failed, uploading original:', compressError)
           }
         }
 

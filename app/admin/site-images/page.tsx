@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
 import { Upload, Check, ArrowLeft, Loader2, Trash2 } from 'lucide-react'
+import { compressImage } from '@/lib/image-utils'
 
 interface SiteImage {
   id: string
@@ -174,7 +175,15 @@ export default function AdminSiteImagesPage() {
 
       if (isVideo) fileExt = 'mp4'
 
-      // Generate unique filename
+      if (!isVideo && (processedFile.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp'].includes(fileExt))) {
+        try {
+          processedFile = await compressImage(processedFile)
+          fileExt = 'jpg'
+        } catch (compressError) {
+          console.warn('Image compression failed, uploading original:', compressError)
+        }
+      }
+
       const fileName = `${sectionKey}-${Date.now()}.${fileExt}`
       const filePath = `homepage/${fileName}`
 

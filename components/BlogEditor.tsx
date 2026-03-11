@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { supabase } from '@/lib/supabase'
 import { Loader2, Eye, EyeOff, Upload, Bold, Italic, Heading2, Heading3, Link2, List } from 'lucide-react'
+import { compressImage } from '@/lib/image-utils'
 
 // ---------------------------------------------------------------------------
 // Minimal markdown → HTML renderer (no external dependency)
@@ -224,6 +225,14 @@ export default function BlogEditor({ initialData, mode }: BlogEditorProps) {
           alert(`Could not convert ${file.name}. Try using the Files app on your iPhone to convert to JPG first, or take a screenshot of the photo.`)
           setUploadingImage(false)
           return
+        }
+      }
+      if (processedFile.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp'].includes(fileExt)) {
+        try {
+          processedFile = await compressImage(processedFile)
+          fileExt = 'jpg'
+        } catch (compressError) {
+          console.warn('Image compression failed, uploading original:', compressError)
         }
       }
       const filePath = `featured/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`
