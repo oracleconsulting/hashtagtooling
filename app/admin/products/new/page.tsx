@@ -136,7 +136,26 @@ export default function NewProductPage() {
               converted = true
               bitmap.close()
             } catch (canvasError) {
-              console.error('Canvas HEIC fallback also failed:', canvasError)
+              console.warn('Canvas fallback failed, trying server conversion:', canvasError)
+            }
+          }
+
+          if (!converted) {
+            try {
+              const fd = new FormData()
+              fd.append('file', file)
+              const res = await fetch('/api/convert-heic', { method: 'POST', body: fd })
+              if (!res.ok) throw new Error(`Server returned ${res.status}`)
+              const jpegBlob = await res.blob()
+              file = new File(
+                [jpegBlob],
+                file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'),
+                { type: 'image/jpeg' }
+              )
+              fileExt = 'jpg'
+              converted = true
+            } catch (serverError) {
+              console.error('Server HEIC conversion also failed:', serverError)
             }
           }
 
