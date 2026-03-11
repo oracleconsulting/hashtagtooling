@@ -123,14 +123,20 @@ export default function MaterialsAdminPage() {
       let processedFile: File = file
       let fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
       if (fileExt === 'heic' || fileExt === 'heif' || file.type === 'image/heic' || file.type === 'image/heif') {
+        let converted = false
+
         try {
           const heic2any = (await import('heic2any')).default
           const convertedBlob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 })
           const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
           processedFile = new File([blob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' })
           fileExt = 'jpg'
-        } catch (conversionError) {
-          console.error('HEIC conversion failed:', conversionError)
+          converted = true
+        } catch (heicError) {
+          console.warn('heic2any failed, trying canvas fallback:', heicError)
+        }
+
+        if (!converted) {
           try {
             const bitmap = await createImageBitmap(file)
             const canvas = document.createElement('canvas')
@@ -140,20 +146,24 @@ export default function MaterialsAdminPage() {
             ctx.drawImage(bitmap, 0, 0)
             const jpegBlob = await new Promise<Blob>((resolve, reject) => {
               canvas.toBlob(
-                (b) => (b ? resolve(b) : reject(new Error('Canvas conversion failed'))),
+                (b) => (b ? resolve(b) : reject(new Error('Canvas toBlob failed'))),
                 'image/jpeg',
                 0.85
               )
             })
             processedFile = new File([jpegBlob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' })
             fileExt = 'jpg'
+            converted = true
             bitmap.close()
-          } catch (fallbackError) {
-            console.error('HEIC fallback also failed:', fallbackError)
-            alert(`Could not convert ${file.name}. Try converting to JPG on your phone before uploading (e.g. take a screenshot of the photo, or use Files app to convert).`)
-            setUploadingGrainId(null)
-            return
+          } catch (canvasError) {
+            console.error('Canvas HEIC fallback also failed:', canvasError)
           }
+        }
+
+        if (!converted) {
+          alert(`Could not convert ${file.name}. Try using the Files app on your iPhone to convert to JPG first, or take a screenshot of the photo.`)
+          setUploadingGrainId(null)
+          return
         }
       }
       const filePath = `grains/${materialId}-${Date.now()}.${fileExt}`

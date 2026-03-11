@@ -61,7 +61,7 @@ function ShopContentInner() {
       const { data, error: dbError } = await supabase
         .from('products')
         .select('*')
-        .not('stock_status', 'in', '("out_of_stock","sold")')
+        .in('stock_status', ['in_stock', 'made_to_order'])
         .order('created_at', { ascending: false })
 
       if (dbError) throw dbError

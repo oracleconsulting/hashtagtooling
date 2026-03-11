@@ -156,8 +156,7 @@ export default function AdminProductsPage() {
           {activeTab === 'gallery' && (
             <div className="mb-6 p-4 rounded-lg border border-brand-dark-border bg-brand-dark-card">
               <p className="text-zinc-400 text-sm">
-                These are historic sold pieces shown in the <a href="/gallery" className="text-brand-orange underline">/gallery</a> page.
-                Upload images to each piece to populate the gallery timeline.
+                Historic sold pieces shown on the <a href="/gallery" className="text-brand-orange underline">/gallery</a> page. Upload images to populate the gallery timeline.
               </p>
             </div>
           )}
