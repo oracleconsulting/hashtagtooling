@@ -61,7 +61,9 @@ function GalleryImageCarousel({ images, name }: { images: string[]; name: string
           alt={`${name} - image ${currentIndex + 1}`}
           fill
           className="object-contain bg-black rounded-t-xl"
-          sizes="(max-width: 768px) 100vw, 672px"
+          sizes="(max-width: 768px) 100vw, 80vw"
+          quality={90}
+          priority
         />
       </div>
 
@@ -85,7 +87,8 @@ function GalleryImageCarousel({ images, name }: { images: string[]; name: string
                 alt={`${name} thumbnail ${i + 1}`}
                 fill
                 className="object-cover"
-                sizes="64px"
+                sizes="80px"
+                quality={50}
               />
             </button>
           ))}
@@ -258,7 +261,8 @@ export default function GalleryContent({ soldProducts, currentProducts }: Galler
                       alt={product.name}
                       fill
                       className="object-cover group-hover:scale-105 transition-transform duration-300"
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                      quality={60}
                     />
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                       <span className="text-2xl font-heading font-bold text-white tracking-wider">SOLD</span>
@@ -320,7 +324,8 @@ export default function GalleryContent({ soldProducts, currentProducts }: Galler
                                   alt={product.name}
                                   fill
                                   className="object-cover"
-                                  sizes="(max-width: 768px) 100vw, 40vw"
+                                  sizes="(max-width: 768px) 80vw, 35vw"
+                                  quality={60}
                                 />
                                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                                   <span className="text-xl font-heading font-bold text-white tracking-wider">SOLD</span>
@@ -378,7 +383,8 @@ export default function GalleryContent({ soldProducts, currentProducts }: Galler
                                 alt={product.name}
                                 fill
                                 className="object-cover"
-                                sizes="(max-width: 640px) 100vw, 33vw"
+                                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                                quality={60}
                               />
                             </div>
                             <div className="p-4">
