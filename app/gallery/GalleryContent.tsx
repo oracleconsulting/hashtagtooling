@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
-import { ArrowRight, X, LayoutGrid, List } from 'lucide-react'
+import { ArrowRight, X, LayoutGrid, List, Maximize } from 'lucide-react'
 
 interface Product {
   id: string
@@ -48,14 +48,17 @@ function uniqueSpecies(products: Product[]): Set<string> {
   return set
 }
 
-function GalleryImageCarousel({ images, name }: { images: string[]; name: string }) {
+function GalleryImageCarousel({ images, name, onZoom }: { images: string[]; name: string; onZoom?: (url: string) => void }) {
   const [currentIndex, setCurrentIndex] = useState(0)
 
   if (images.length === 0) return null
 
   return (
     <div className="relative">
-      <div className="relative aspect-square md:aspect-[4/3]">
+      <div
+        className="relative aspect-square md:aspect-[4/3] group cursor-zoom-in"
+        onClick={() => onZoom?.(images[currentIndex])}
+      >
         <Image
           src={images[currentIndex]}
           alt={`${name} - image ${currentIndex + 1}`}
@@ -65,6 +68,9 @@ function GalleryImageCarousel({ images, name }: { images: string[]; name: string
           quality={90}
           priority
         />
+        <div className="absolute bottom-3 right-3 bg-black/60 rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Maximize className="h-5 w-5 text-white" />
+        </div>
       </div>
 
       {images.length > 1 && (
@@ -103,6 +109,7 @@ export default function GalleryContent({ soldProducts, currentProducts }: Galler
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null)
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set())
 
@@ -160,6 +167,15 @@ export default function GalleryContent({ soldProducts, currentProducts }: Galler
     els.forEach((el) => observer.observe(el))
     return () => observer.disconnect()
   }, [groupedByYear, viewMode])
+
+  useEffect(() => {
+    if (selectedProduct || zoomedImage) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [selectedProduct, zoomedImage])
 
   const builderHref = (p: Product) =>
     p.category === 'mallet' ? '/custom-mallet' : p.category === 'awl' ? '/custom-awl' : '/shop'
@@ -425,7 +441,7 @@ export default function GalleryContent({ soldProducts, currentProducts }: Galler
                   onClick={(e) => e.stopPropagation()}
                 >
                   {allImages.length > 0 && (
-                    <GalleryImageCarousel images={allImages} name={selectedProduct.name} />
+                    <GalleryImageCarousel images={allImages} name={selectedProduct.name} onZoom={setZoomedImage} />
                   )}
 
                   <button
@@ -468,6 +484,36 @@ export default function GalleryContent({ soldProducts, currentProducts }: Galler
               </div>
             )
           })()}
+
+          {zoomedImage && (
+            <div
+              className="fixed inset-0 z-[60] bg-black flex items-center justify-center"
+              onClick={() => setZoomedImage(null)}
+            >
+              <button
+                className="absolute top-4 right-4 z-[61] bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
+                onClick={() => setZoomedImage(null)}
+              >
+                <X className="h-6 w-6 text-white" />
+              </button>
+              <div
+                className="w-full h-full overflow-auto flex items-center justify-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={zoomedImage}
+                  alt="Full size view"
+                  className="max-w-none cursor-zoom-out"
+                  style={{ maxHeight: 'none', maxWidth: 'none', width: 'auto', height: '100vh' }}
+                  onClick={() => setZoomedImage(null)}
+                />
+              </div>
+              <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/50 text-sm">
+                Click anywhere to close · Scroll to pan
+              </p>
+            </div>
+          )}
         </>
       )}
     </div>
