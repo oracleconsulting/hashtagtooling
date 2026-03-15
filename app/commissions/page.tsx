@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { BreadcrumbJsonLd } from '@/components/BreadcrumbJsonLd'
 import CommissionsContent from './CommissionsContent'
 
 export const metadata: Metadata = {
@@ -8,5 +9,13 @@ export const metadata: Metadata = {
 }
 
 export default function CommissionsPage() {
-  return <CommissionsContent />
+  return (
+    <>
+      <BreadcrumbJsonLd items={[
+        { name: 'Home', url: 'https://hashtag.guru' },
+        { name: 'Commissions', url: 'https://hashtag.guru/commissions' },
+      ]} />
+      <CommissionsContent />
+    </>
+  )
 }

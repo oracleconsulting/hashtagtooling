@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { BreadcrumbJsonLd } from '@/components/BreadcrumbJsonLd'
 import ShopContent from './ShopContent'
 
 export const metadata: Metadata = {
@@ -8,5 +9,13 @@ export const metadata: Metadata = {
 }
 
 export default function ShopPage() {
-  return <ShopContent />
+  return (
+    <>
+      <BreadcrumbJsonLd items={[
+        { name: 'Home', url: 'https://hashtag.guru' },
+        { name: 'Shop', url: 'https://hashtag.guru/shop' },
+      ]} />
+      <ShopContent />
+    </>
+  )
 }

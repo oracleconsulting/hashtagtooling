@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { createClient } from '@supabase/supabase-js'
+import { BreadcrumbJsonLd } from '@/components/BreadcrumbJsonLd'
 import GalleryContent from './GalleryContent'
 
 const supabase = createClient(
@@ -44,5 +45,13 @@ export default async function GalleryPage() {
   const soldProducts = (soldRes.data || []) as Product[]
   const currentProducts = (currentRes.data || []) as Product[]
 
-  return <GalleryContent soldProducts={soldProducts} currentProducts={currentProducts} />
+  return (
+    <>
+      <BreadcrumbJsonLd items={[
+        { name: 'Home', url: 'https://hashtag.guru' },
+        { name: 'Gallery', url: 'https://hashtag.guru/gallery' },
+      ]} />
+      <GalleryContent soldProducts={soldProducts} currentProducts={currentProducts} />
+    </>
+  )
 }

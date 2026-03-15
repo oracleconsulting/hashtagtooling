@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { BreadcrumbJsonLd } from '@/components/BreadcrumbJsonLd'
 
 export const metadata: Metadata = {
   title: 'My Story',
@@ -10,6 +11,11 @@ export const metadata: Metadata = {
 
 export default function AboutPage() {
   return (
+    <>
+    <BreadcrumbJsonLd items={[
+      { name: 'Home', url: 'https://hashtag.guru' },
+      { name: 'My Story', url: 'https://hashtag.guru/about' },
+    ]} />
     <div>
       {/* Hero */}
       <section className="bg-brand-dark py-20">
@@ -105,5 +111,6 @@ export default function AboutPage() {
         </div>
       </section>
     </div>
+    </>
   )
 }

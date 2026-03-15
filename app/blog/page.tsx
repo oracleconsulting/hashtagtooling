@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
+import { BreadcrumbJsonLd } from '@/components/BreadcrumbJsonLd'
 
 export const revalidate = 60
 
@@ -39,6 +40,11 @@ export default async function BlogPage() {
   const allPosts: BlogPost[] = posts || []
 
   return (
+    <>
+    <BreadcrumbJsonLd items={[
+      { name: 'Home', url: 'https://hashtag.guru' },
+      { name: 'Journal', url: 'https://hashtag.guru/blog' },
+    ]} />
     <div className="container mx-auto px-4 py-16 max-w-4xl">
       {/* Page header */}
       <div className="mb-12">
@@ -93,5 +99,6 @@ export default async function BlogPage() {
         </div>
       )}
     </div>
+    </>
   )
 }
