@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { createClient } from '@supabase/supabase-js'
+import { BreadcrumbJsonLd } from '@/components/BreadcrumbJsonLd'
 import WoodLibraryContent from './WoodLibraryContent'
 
 const supabase = createClient(
@@ -22,5 +23,13 @@ export default async function WoodLibraryPage() {
     .eq('available', true)
     .order('name')
 
-  return <WoodLibraryContent woods={woods || []} />
+  return (
+    <>
+      <BreadcrumbJsonLd items={[
+        { name: 'Home', url: 'https://hashtag.guru' },
+        { name: 'Wood Species Library', url: 'https://hashtag.guru/wood-library' },
+      ]} />
+      <WoodLibraryContent woods={woods || []} />
+    </>
+  )
 }

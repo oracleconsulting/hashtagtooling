@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import ContactForm from './ContactForm'
+import { BreadcrumbJsonLd } from '@/components/BreadcrumbJsonLd'
 
 export const metadata: Metadata = {
   title: 'Contact',
@@ -11,6 +12,11 @@ export const metadata: Metadata = {
 
 export default function ContactPage() {
   return (
+    <>
+    <BreadcrumbJsonLd items={[
+      { name: 'Home', url: 'https://hashtag.guru' },
+      { name: 'Contact', url: 'https://hashtag.guru/contact' },
+    ]} />
     <div className="container mx-auto px-4 py-12">
       <div className="max-w-3xl mx-auto">
         <h1 className="font-heading text-4xl font-bold mb-2 text-brand-orange">Contact</h1>
@@ -53,5 +59,6 @@ export default function ContactPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }

@@ -1,11 +1,14 @@
 import type { Metadata } from 'next'
 import { createClient } from '@supabase/supabase-js'
+import { BreadcrumbJsonLd } from '@/components/BreadcrumbJsonLd'
 import GalleryContent from './GalleryContent'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
+
+export const revalidate = 60
 
 export const metadata: Metadata = {
   title: 'Gallery — Past Work',
@@ -42,5 +45,13 @@ export default async function GalleryPage() {
   const soldProducts = (soldRes.data || []) as Product[]
   const currentProducts = (currentRes.data || []) as Product[]
 
-  return <GalleryContent soldProducts={soldProducts} currentProducts={currentProducts} />
+  return (
+    <>
+      <BreadcrumbJsonLd items={[
+        { name: 'Home', url: 'https://hashtag.guru' },
+        { name: 'Gallery', url: 'https://hashtag.guru/gallery' },
+      ]} />
+      <GalleryContent soldProducts={soldProducts} currentProducts={currentProducts} />
+    </>
+  )
 }

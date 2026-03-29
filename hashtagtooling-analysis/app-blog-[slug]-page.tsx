@@ -2,6 +2,9 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
+import { BreadcrumbJsonLd } from '@/components/BreadcrumbJsonLd'
+
+export const revalidate = 60
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -60,6 +63,18 @@ function renderMarkdown(md: string): string {
     result.push(`<p>${t}</p>`)
   }
   return result.join('\n')
+}
+
+export async function generateStaticParams() {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+  const { data: posts } = await supabase
+    .from('blog_posts')
+    .select('slug')
+    .eq('published', true)
+  return (posts || []).map((p) => ({ slug: p.slug }))
 }
 
 interface Props {
@@ -141,6 +156,11 @@ export default async function BlogPostPage({ params }: Props) {
 
   return (
     <>
+      <BreadcrumbJsonLd items={[
+        { name: 'Home', url: 'https://hashtag.guru' },
+        { name: 'Journal', url: 'https://hashtag.guru/blog' },
+        { name: post.title, url: `https://hashtag.guru/blog/${post.slug}` },
+      ]} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

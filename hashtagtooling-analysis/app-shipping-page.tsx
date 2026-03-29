@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { BreadcrumbJsonLd } from '@/components/BreadcrumbJsonLd'
 
 export const metadata: Metadata = {
   title: 'Shipping & Delivery',
@@ -8,6 +9,11 @@ export const metadata: Metadata = {
 
 export default function ShippingPage() {
   return (
+    <>
+    <BreadcrumbJsonLd items={[
+      { name: 'Home', url: 'https://hashtag.guru' },
+      { name: 'Shipping & Delivery', url: 'https://hashtag.guru/shipping' },
+    ]} />
     <div className="container mx-auto px-4 py-12">
       <div className="max-w-4xl mx-auto">
         <h1 className="font-heading text-4xl font-bold mb-8 text-brand-orange">Shipping & Delivery</h1>
@@ -109,8 +115,6 @@ export default function ShippingPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }
-
-
-

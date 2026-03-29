@@ -124,6 +124,19 @@ export async function POST(req: NextRequest) {
       }).catch((err) => console.error('Voucher redeem webhook error:', err))
     }
 
+    // Redeem launch voucher if one was applied
+    if (meta.launch_voucher_code && order?.id) {
+      await fetch(`${siteUrl}/api/launch-voucher/redeem`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: meta.launch_voucher_code,
+          order_id: order.id,
+          discount_amount: Number(meta.launch_voucher_discount),
+        }),
+      }).catch((err) => console.error('Launch voucher redeem error:', err))
+    }
+
     // Apply referral if one was used
     if (meta.referral_code && meta.referral_discount && order?.id) {
       await fetch(`${siteUrl}/api/referrals/apply`, {

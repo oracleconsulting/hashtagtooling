@@ -2,11 +2,11 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
 
 export function Footer() {
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'already' | 'error'>('idle')
+  const [voucherCode, setVoucherCode] = useState<string | null>(null)
 
   const handleSubscribe = async () => {
     const trimmed = email.trim().toLowerCase()
@@ -15,18 +15,24 @@ export function Footer() {
       return
     }
     setStatus('loading')
-    const { error } = await supabase
-      .from('newsletter_subscribers')
-      .insert({ email: trimmed, source: 'footer' })
-
-    if (!error) {
-      setStatus('success')
-      setEmail('')
-    } else if (error.code === '23505') {
-      // Unique violation — already subscribed
-      setStatus('already')
-    } else {
-      console.error('Newsletter subscribe error:', error)
+    try {
+      const res = await fetch('/api/newsletter-signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmed, source: 'footer' }),
+      })
+      const data = await res.json()
+      if (data.status === 'already') {
+        setStatus('already')
+        if (data.voucher_code) setVoucherCode(data.voucher_code)
+      } else if (data.status === 'success') {
+        setStatus('success')
+        setEmail('')
+        if (data.voucher_code) setVoucherCode(data.voucher_code)
+      } else {
+        setStatus('error')
+      }
+    } catch {
       setStatus('error')
     }
   }
@@ -46,13 +52,30 @@ export function Footer() {
             </p>
 
             {status === 'success' ? (
-              <p className="text-green-400 text-sm font-medium">
-                ✓ You&apos;re in. Welcome to the workshop.
-              </p>
+              <div>
+                <p className="text-green-400 text-sm font-medium">
+                  ✓ You&apos;re in. Welcome to the workshop.
+                </p>
+                {voucherCode && (
+                  <div className="mt-3 p-3 bg-brand-dark-card border border-brand-orange/30 rounded">
+                    <p className="text-xs text-zinc-400 mb-1">Your launch voucher — 10% off any tool:</p>
+                    <p className="text-brand-orange font-mono text-lg font-bold tracking-wider">{voucherCode}</p>
+                    <p className="text-xs text-zinc-500 mt-1">Check your email for details</p>
+                  </div>
+                )}
+              </div>
             ) : status === 'already' ? (
-              <p className="text-zinc-400 text-sm">
-                You&apos;re already subscribed — good taste.
-              </p>
+              <div>
+                <p className="text-zinc-400 text-sm">
+                  You&apos;re already subscribed — good taste.
+                </p>
+                {voucherCode && (
+                  <div className="mt-3 p-3 bg-brand-dark-card border border-brand-orange/30 rounded">
+                    <p className="text-xs text-zinc-400 mb-1">Your launch voucher:</p>
+                    <p className="text-brand-orange font-mono text-lg font-bold tracking-wider">{voucherCode}</p>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="flex gap-2 max-w-sm">
                 <input

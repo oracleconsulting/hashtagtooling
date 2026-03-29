@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
 import { ProductCard } from '@/components/ProductCard'
+import { BreadcrumbJsonLd } from '@/components/BreadcrumbJsonLd'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -124,6 +125,10 @@ export default async function GiftGuidePage() {
 
   return (
     <>
+      <BreadcrumbJsonLd items={[
+        { name: 'Home', url: 'https://hashtag.guru' },
+        { name: 'Gift Guide', url: 'https://hashtag.guru/gift-guide' },
+      ]} />
       {/* FAQ / Article JSON-LD for SEO */}
       <script
         type="application/ld+json"

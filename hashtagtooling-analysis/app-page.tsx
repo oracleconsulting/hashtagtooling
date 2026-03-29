@@ -3,7 +3,7 @@ import HomeContent, { type SiteImages } from './HomeContent'
 import { LocalBusinessJsonLd } from '@/components/LocalBusinessJsonLd'
 import { FAQJsonLd } from '@/components/FAQJsonLd'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
 
 const HOMEPAGE_FAQS = [
   {

@@ -130,6 +130,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.4,
     },
     {
+      url: "https://hashtag.guru/mailing-list",
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
+    {
       url: "https://hashtag.guru/wishlist",
       lastModified: new Date(),
       changeFrequency: "monthly",

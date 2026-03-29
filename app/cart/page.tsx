@@ -35,6 +35,10 @@ function CartContent() {
   const [referralInput, setReferralInput] = useState('')
   const [referralStatus, setReferralStatus] = useState<'idle' | 'loading' | 'applied' | 'error'>('idle')
   const [referralError, setReferralError] = useState('')
+  const [launchInput, setLaunchInput] = useState('')
+  const [appliedLaunch, setAppliedLaunch] = useState<{ code: string; discount_percent: number } | null>(null)
+  const [launchStatus, setLaunchStatus] = useState<'idle' | 'loading' | 'applied' | 'error'>('idle')
+  const [launchError, setLaunchError] = useState('')
 
   useEffect(() => {
     const success = searchParams.get('success')
@@ -114,7 +118,15 @@ function CartContent() {
   const voucherDiscount = appliedVoucher ? Math.min(appliedVoucher.discount, totalWithShipping) : 0
   const afterVoucher = Math.max(0, totalWithShipping - voucherDiscount)
   const referralDiscount = appliedReferralCode ? Math.min(appliedReferralDiscount, afterVoucher) : 0
-  const finalTotal = Math.max(0, afterVoucher - referralDiscount)
+  const afterReferral = Math.max(0, afterVoucher - referralDiscount)
+
+  const launchDiscount = appliedLaunch
+    ? (() => {
+        const maxItemPrice = items.reduce((max, i) => Math.max(max, i.price), 0)
+        return Math.round(maxItemPrice * (appliedLaunch.discount_percent / 100) * 100) / 100
+      })()
+    : 0
+  const finalTotal = Math.max(0, afterReferral - launchDiscount)
 
   const applyVoucher = async () => {
     const code = voucherInput.trim().toUpperCase()
@@ -184,6 +196,42 @@ function CartContent() {
     setReferralInput('')
     setReferralStatus('idle')
     setReferralError('')
+  }
+
+  const applyLaunch = async () => {
+    const code = launchInput.trim().toUpperCase()
+    if (!code || !customerInfo.email?.trim()) {
+      setLaunchError('Enter your email first, then apply launch code')
+      setLaunchStatus('error')
+      return
+    }
+    setLaunchStatus('loading')
+    setLaunchError('')
+    try {
+      const res = await fetch('/api/launch-voucher/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, email: customerInfo.email }),
+      })
+      const data = await res.json()
+      if (data.valid) {
+        setAppliedLaunch({ code: data.code, discount_percent: data.discount_percent })
+        setLaunchStatus('applied')
+      } else {
+        setLaunchError(data.error || 'Invalid launch code')
+        setLaunchStatus('error')
+      }
+    } catch {
+      setLaunchError('Failed to validate. Please try again.')
+      setLaunchStatus('error')
+    }
+  }
+
+  const removeLaunch = () => {
+    setAppliedLaunch(null)
+    setLaunchInput('')
+    setLaunchStatus('idle')
+    setLaunchError('')
   }
 
   return (
@@ -303,6 +351,12 @@ function CartContent() {
                       <span>−{formatPrice(referralDiscount)}</span>
                     </div>
                   )}
+                  {appliedLaunch && launchDiscount > 0 && (
+                    <div className="flex justify-between text-sm text-green-400 mb-2">
+                      <span>Launch ({appliedLaunch.code})</span>
+                      <span>−{formatPrice(launchDiscount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between font-bold text-lg">
                     <span>Total</span>
                     <span className="text-brand-orange">{formatPrice(finalTotal)}</span>
@@ -374,6 +428,40 @@ function CartContent() {
                       </div>
                       {referralError && <p className="text-red-400 text-xs mt-1">{referralError}</p>}
                       {!customerInfo.email?.trim() && showCheckout && <p className="text-zinc-500 text-xs mt-1">Enter your email first to apply referral</p>}
+                    </div>
+                  )}
+
+                  {launchStatus === 'applied' && appliedLaunch ? (
+                    <div className="flex items-center justify-between bg-green-900/20 border border-green-800 rounded-md px-3 py-2">
+                      <div>
+                        <p className="text-green-400 text-sm font-medium">Launch: {appliedLaunch.code}</p>
+                        <p className="text-green-600 text-xs">{appliedLaunch.discount_percent}% off most expensive item</p>
+                      </div>
+                      <button onClick={removeLaunch} className="text-zinc-500 hover:text-red-400 text-xs transition-colors">Remove</button>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs text-zinc-500 mb-1.5">Launch voucher code</label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={launchInput}
+                          onChange={(e) => { setLaunchInput(e.target.value.toUpperCase()); setLaunchStatus('idle'); setLaunchError('') }}
+                          onKeyDown={(e) => e.key === 'Enter' && applyLaunch()}
+                          placeholder="LAUNCH-XXXX-XXXX"
+                          className="bg-brand-dark border-brand-dark-border text-white font-mono text-sm"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={applyLaunch}
+                          disabled={launchStatus === 'loading' || !launchInput.trim() || !customerInfo.email?.trim()}
+                          className="shrink-0"
+                        >
+                          {launchStatus === 'loading' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Apply'}
+                        </Button>
+                      </div>
+                      {launchError && <p className="text-red-400 text-xs mt-1">{launchError}</p>}
+                      {!customerInfo.email?.trim() && showCheckout && <p className="text-zinc-500 text-xs mt-1">Enter your email first to apply launch code</p>}
                     </div>
                   )}
                 </div>
@@ -472,6 +560,8 @@ function CartContent() {
                               voucherDiscount: voucherDiscount > 0 ? voucherDiscount : null,
                               referralCode: appliedReferralCode || null,
                               referralDiscount: referralDiscount > 0 ? referralDiscount : null,
+                              launchVoucherCode: appliedLaunch?.code || null,
+                              launchVoucherDiscount: launchDiscount > 0 ? launchDiscount : null,
                             }),
                           })
                           const data = await res.json()
@@ -562,6 +652,17 @@ function CartContent() {
                                       orderId: order.id,
                                     }),
                                   }).catch((err) => console.error('Referral apply failed:', err))
+                                }
+                                if (appliedLaunch && launchDiscount > 0) {
+                                  fetch('/api/launch-voucher/redeem', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      code: appliedLaunch.code,
+                                      order_id: order.id,
+                                      discount_amount: launchDiscount,
+                                    }),
+                                  }).catch((err) => console.error('Launch voucher redeem failed:', err))
                                 }
                                 setOrderNumber(order.id)
                                 setOrderComplete(true)
