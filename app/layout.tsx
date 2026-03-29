@@ -7,6 +7,7 @@ import { Footer } from "@/components/Footer";
 import { CookieConsent } from "@/components/CookieConsent";
 import { AnalyticsLoader } from "@/components/AnalyticsLoader";
 import { FloatingBuildCTA } from "@/components/FloatingBuildCTA";
+import { AnnouncementBar } from "@/components/AnnouncementBar";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -65,6 +66,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${playfair.variable} ${dmSans.variable}`}>
       <body className="font-body bg-brand-dark text-white">
+        <Suspense fallback={null}>
+          <AnnouncementBar />
+        </Suspense>
         <Suspense fallback={<header className="border-b border-brand-dark-border bg-brand-dark sticky top-0 z-50 h-16" />}>
           <Header />
         </Suspense>

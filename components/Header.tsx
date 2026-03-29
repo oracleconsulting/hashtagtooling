@@ -144,6 +144,17 @@ export function Header() {
             <DropdownGroup id="build" title="Build" links={BUILD_LINKS} />
             <DropdownGroup id="shop" title="Shop" links={SHOP_LINKS} />
             <DropdownGroup id="explore" title="Explore" links={EXPLORE_LINKS} />
+            <Link
+              href="/mailing-list"
+              className={`text-sm font-medium py-4 transition-colors flex items-center gap-1.5 ${
+                pathname === '/mailing-list' ? 'text-brand-orange' : 'text-brand-orange hover:text-brand-orange/80'
+              }`}
+            >
+              Join
+              <span className="text-[10px] font-bold bg-brand-orange text-brand-dark px-1.5 py-0.5 rounded-full leading-none">
+                10% off
+              </span>
+            </Link>
             <div className="flex items-center gap-2 ml-4 pl-4 border-l border-brand-dark-border">
               <Link href="/wishlist" className="relative" aria-label="Wishlist">
                 <Button variant="outline" size="sm">
@@ -194,6 +205,17 @@ export function Header() {
                 Wishlist ({wishlistCount})
               </Link>
             </div>
+
+            <Link
+              href="/mailing-list"
+              onClick={closeMenu}
+              className="flex items-center gap-2 py-2.5 mb-2 px-3 rounded-lg bg-brand-orange/10 border border-brand-orange/30"
+            >
+              <span className="text-brand-orange font-semibold text-sm">Join the Workshop</span>
+              <span className="text-[10px] font-bold bg-brand-orange text-brand-dark px-1.5 py-0.5 rounded-full leading-none">
+                10% off
+              </span>
+            </Link>
 
             <div className="space-y-1">
               <button

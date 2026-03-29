@@ -98,6 +98,12 @@ export function Footer() {
             {status === 'error' && (
               <p className="text-red-400 text-xs mt-1.5">Please enter a valid email address.</p>
             )}
+            <p className="text-zinc-500 text-xs mt-3">
+              Want to know more?{' '}
+              <Link href="/mailing-list" className="text-brand-orange hover:underline">
+                See what you&apos;ll get →
+              </Link>
+            </p>
           </div>
         </div>
 

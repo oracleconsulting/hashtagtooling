@@ -301,6 +301,27 @@ export default function HomeContent({ images, heroVideoUrl, latestProducts = [],
         </div>
       </section>
 
+      <section className="py-16 bg-brand-dark">
+        <div className="container mx-auto px-4">
+          <div className="max-w-3xl mx-auto rounded-xl bg-gradient-to-r from-brand-orange/10 to-transparent border border-brand-orange/20 p-10 text-center">
+            <p className="text-brand-orange text-sm font-medium uppercase tracking-widest mb-3">Pre-Launch Offer</p>
+            <h2 className="font-heading text-3xl md:text-4xl font-bold text-white mb-4">
+              10% Off Your First Tool
+            </h2>
+            <p className="text-zinc-400 text-lg mb-6 max-w-xl mx-auto">
+              Join the mailing list before 30 April and get an exclusive 10% off voucher.
+              New tools, wood discoveries, and behind-the-scenes builds — no spam.
+            </p>
+            <Link href="/mailing-list">
+              <Button size="lg">
+                Join the Workshop
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       <section className="py-20 bg-brand-orange">
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto text-center">
