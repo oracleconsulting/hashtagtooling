@@ -13,7 +13,7 @@ const SIZE_KEYS: SquareSize[] = ['chode', '95mm', '125mm', '175mm', '250mm']
 const FAQS = [
   {
     question: "What's the difference between Full Scale and T45?",
-    answer: 'The Full Scale variant has a standard graduated reference edge for direct measurement. The T45 has a 45° reference edge — purpose-built for checking and referencing hand-planed chamfers on workbench edges, table tops, and cabinet components. Same body and liner, different scale geometry.',
+    answer: 'The Full Scale variant has a standard graduated reference edge for direct measurement. The T45 scale connects the internal and external 90° references at 45°, giving you a third reference angle from a single tool. Same body and liner, different scale geometry.',
   },
   {
     question: 'Why exotic wood scales on an engineering square?',
@@ -25,7 +25,7 @@ const FAQS = [
   },
   {
     question: "What's the chamfer for?",
-    answer: "Every corner chamfer is cut at 45° and scales with the square — 2mm on the Chode, up to 6mm on the 250mm. They're not decorative. They're designed to sit flush against a hand-planed chamfer on a workbench edge, giving you a reference point you can feel as well as see. On the T45 variant, the chamfer works with the 45° scale to give you a complete chamfer-checking system.",
+    answer: "Every corner chamfer is cut at 45° and scales with the square — 2mm on the Chode, up to 6mm on the 250mm. They're not decorative. They're designed to sit flush against a hand-planed chamfer on a workbench edge, giving you a reference point you can feel as well as see.",
   },
   {
     question: 'Can I get a matching set?',
@@ -194,10 +194,10 @@ export default function EngineeringSquaresPage() {
             <div className="p-6 rounded-lg border border-brand-dark-border bg-brand-dark-card">
               <h3 className="text-white font-semibold text-xl mb-3">Carbon Fibre Scales</h3>
               <p className="text-zinc-400 text-sm leading-relaxed">
-                Woven carbon fibre at 1mm thickness offers a modern, industrial aesthetic with exceptional
-                dimensional stability. Because the scale is thinner, the liner thickness is increased from 1mm
-                to 2.5mm to maintain structural integrity. The result is a square that feels slightly heavier
-                in the hand with more metal showing at the edges.
+                Carbon fibre scales are available in two thicknesses: 1mm and 2.5mm. The 1mm option
+                pairs with either a standard 1mm liner or a thick 2.5mm liner (the only scale compatible
+                with thick liners). The 2.5mm option pairs with a standard 1mm liner and offers a heftier
+                feel. Both deliver a modern, industrial aesthetic with exceptional dimensional stability.
               </p>
             </div>
           </div>
@@ -264,11 +264,11 @@ export default function EngineeringSquaresPage() {
               </div>
               <div className="p-3 bg-brand-dark-card rounded border border-brand-dark-border">
                 <p className="text-zinc-500 text-xs">CF scale</p>
-                <p className="text-white font-medium">1mm carbon fibre</p>
+                <p className="text-white font-medium">1mm or 2.5mm</p>
               </div>
               <div className="p-3 bg-brand-dark-card rounded border border-brand-dark-border">
                 <p className="text-zinc-500 text-xs">Liner thickness</p>
-                <p className="text-white font-medium">1mm / 2.5mm (CF)</p>
+                <p className="text-white font-medium">1mm or 2.5mm</p>
               </div>
             </div>
           </div>
@@ -281,12 +281,13 @@ export default function EngineeringSquaresPage() {
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="font-heading text-3xl md:text-4xl font-bold text-brand-orange mb-6">THE T45</h2>
             <p className="text-zinc-300 text-lg leading-relaxed mb-4">
-              The T45 scale features a 45° reference edge — purpose-built for checking and referencing
-              hand-planed chamfers on workbench edges, table tops, and cabinet components.
+              The T45 scale connects the two 90° reference edges at 45°, giving you three
+              reference angles from a single tool. The body geometry stays the same — the
+              45° corner chamfers still give you a tactile chamfer reference from the body itself.
             </p>
             <p className="text-zinc-400 leading-relaxed">
               Same body, same liner, different scale geometry. Choose T45 in the configurator when you
-              need a dedicated chamfer reference tool alongside your standard square.
+              need 90° and 45° references in one tool.
             </p>
           </div>
         </div>

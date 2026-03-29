@@ -201,7 +201,7 @@ export const BODY_MATERIALS = [
 
 export const SCALE_TYPES = [
   { id: 'full_scale', label: 'Full Scale', description: 'Standard graduated scale for direct measurement reference.' },
-  { id: 't45', label: 'T45', description: '45\u00b0 reference scale \u2014 designed to check and reference hand-planed chamfers on workbench edges.' },
+  { id: 't45', label: 'T45', description: 'The T45 scale connects the internal and external 90\u00b0 references at 45\u00b0, giving you a third reference angle from a single tool.' },
 ] as const
 
 export const LASER_TOLERANCE = 0.15
