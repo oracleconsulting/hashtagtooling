@@ -20,7 +20,7 @@ function generateLaunchCode(): string {
 }
 
 const LAUNCH_CUTOFF = new Date('2026-04-30T23:59:59Z')
-const VOUCHER_EXPIRY = '2026-07-31T23:59:59Z'
+const VOUCHER_EXPIRY = '2026-12-31T23:59:59Z'
 
 export async function POST(req: NextRequest) {
   try {
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
               <div style="background: #222; border: 2px solid #E8A000; border-radius: 8px; padding: 24px; margin: 24px 0; text-align: center;">
                 <p style="color: #999; font-size: 13px; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 1px;">Your Launch Code</p>
                 <p style="color: #E8A000; font-size: 28px; font-weight: bold; font-family: monospace; margin: 0; letter-spacing: 3px;">${voucherCode}</p>
-                <p style="color: #999; font-size: 13px; margin: 8px 0 0 0;">Valid until 31 July 2026</p>
+                <p style="color: #999; font-size: 13px; margin: 8px 0 0 0;">Valid until 31 December 2026</p>
               </div>
 
               <div style="color: #999; font-size: 14px; margin-top: 20px;">
