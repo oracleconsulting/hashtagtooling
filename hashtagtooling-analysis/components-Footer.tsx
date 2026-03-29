@@ -123,6 +123,7 @@ export function Footer() {
               <li><Link href="/shop?category=awls" className="hover:text-brand-orange transition-colors">Awls</Link></li>
               <li><Link href="/shop?category=wood" className="hover:text-brand-orange transition-colors">Wood for Sale</Link></li>
               <li><Link href="/adopt" className="hover:text-brand-orange transition-colors">Adopt a Blank</Link></li>
+              <li><Link href="/engineering-squares" className="hover:text-brand-orange transition-colors">Engineering Squares</Link></li>
               <li><Link href="/shop?category=coins" className="hover:text-brand-orange transition-colors">EDC Coins</Link></li>
               <li><Link href="/gift-vouchers" className="hover:text-brand-orange transition-colors">Gift Vouchers</Link></li>
               <li><Link href="/mystery-box" className="hover:text-brand-orange transition-colors">Mystery Box</Link></li>
@@ -135,6 +136,7 @@ export function Footer() {
             <ul className="space-y-2 text-sm text-zinc-400">
               <li><Link href="/custom-mallet" className="hover:text-brand-orange transition-colors">Build Your Mallet</Link></li>
               <li><Link href="/custom-awl" className="hover:text-brand-orange transition-colors">Build Your Awl</Link></li>
+              <li><Link href="/custom-square" className="hover:text-brand-orange transition-colors">Build Your Square</Link></li>
               <li><Link href="/wood-library" className="hover:text-brand-orange transition-colors">Wood Library</Link></li>
               <li><Link href="/commissions" className="hover:text-brand-orange transition-colors">Commission Work</Link></li>
             </ul>

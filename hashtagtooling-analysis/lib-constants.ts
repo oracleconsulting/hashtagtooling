@@ -43,6 +43,15 @@ export interface CustomMalletConfig {
   handleWoodName?: string
   transitionId?: string
   transitionName?: string
+  // Square builder fields
+  custom_build?: boolean
+  square_size?: string
+  scale_type?: string
+  body_material?: string
+  scale_material?: string
+  liner_material?: string
+  liner_thickness?: string
+  scale_thickness?: string
 }
 
 

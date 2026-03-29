@@ -8,6 +8,7 @@ import { Hammer } from 'lucide-react'
 const HIDE_PATHS = [
   '/custom-mallet',
   '/custom-awl',
+  '/custom-square',
   '/cart',
   '/shop',
   '/commissions',
@@ -106,6 +107,13 @@ export function FloatingBuildCTA() {
               className="block px-4 py-2.5 text-sm text-zinc-300 hover:bg-brand-dark hover:text-brand-orange transition-colors"
             >
               Custom Awl →
+            </Link>
+            <Link
+              href="/custom-square"
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2.5 text-sm text-zinc-300 hover:bg-brand-dark hover:text-brand-orange transition-colors"
+            >
+              Engineering Square →
             </Link>
           </div>
         )}

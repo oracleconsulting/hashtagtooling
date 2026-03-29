@@ -24,6 +24,7 @@ const CATEGORIES = [
   { id: 'all', name: 'All Products' },
   { id: 'mallet', name: 'Mallets' },
   { id: 'awl', name: 'Awls' },
+  { id: 'square', name: 'Engineering Squares' },
   { id: 'wood', name: 'Wood for Sale' },
   { id: 'coin', name: 'EDC Coins' },
   { id: 'mystery', name: 'Mystery Box' },

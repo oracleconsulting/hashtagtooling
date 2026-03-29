@@ -1,23 +1,24 @@
 # #TOOLING — Handcrafted Woodworking Tools & EDC Coins
 
-> Premium woodworking mallets, awls, and EDC coins handcrafted from the world's finest exotic timbers. Signature brass dowel construction. Every piece unique. Made to order in the UK.
+> Premium woodworking mallets, awls, engineering squares, and EDC coins handcrafted from the world's finest exotic timbers. Signature brass dowel construction. Every piece unique. Made to order in the UK.
 
 ## About
-#TOOLING makes premium handcrafted woodworking mallets, marking awls, and EDC pocket coins from over 75 species of exotic timber. Each tool features brass dowel construction for superior strength and balance. Each EDC coin combines exotic hardwood with brass in a collaboration with @dutch.forge. Based in the UK, shipping worldwide.
+#TOOLING makes premium handcrafted woodworking mallets, marking awls, precision engineering squares, and EDC pocket coins from over 75 species of exotic timber. Each tool features brass dowel construction for superior strength and balance. Each EDC coin combines exotic hardwood with brass in a collaboration with @dutch.forge. Based in the UK, shipping worldwide.
 
 ## Products
 - Custom woodworking mallets (carving, detailing, framing — turned and square styles)
 - Marking awls with exotic wood handles and metal ferrules
+- Precision engineering squares (5 sizes from 67.5mm to 250mm) with laser-cut tool steel or titanium bodies, exotic wood or carbon fibre scales, and brass/bronze/copper liners
 - EDC coins — exotic hardwood and brass pocket coins, handcrafted one at a time
 - Raw exotic timber blanks for woodworkers
 - All products available in 75+ wood species including Ebony, Cocobolo, Lignum Vitae, Bocote, Ziricote, Snakewood, Desert Ironwood, Masur Birch, Maple Burl, and many more
 
 ## Custom Builder
-Customers can design their own mallet or awl by choosing:
+Customers can design their own mallet, awl, or engineering square by choosing:
 - Tool style/size
-- Head wood species
-- Handle wood species
-- Transition metal (brass, copper, bronze, aluminium, steel, mokume gane)
+- Head wood species (mallets), handle wood species (mallets/awls), scale wood species (squares)
+- Transition metal (brass, copper, bronze, aluminium, steel, mokume gane) for mallets
+- Body material (tool steel or titanium), liner metal (brass, bronze, copper), and scale type (Full Scale or T45) for engineering squares
 Pricing is calculated dynamically based on material selections.
 
 ## Key Differentiators
@@ -27,11 +28,13 @@ Pricing is calculated dynamically based on material selections.
 - Interactive online builder for custom configurations
 - Wood species library with Janka hardness data, origin, and grain characteristics
 - EDC coins are the only wood-metal hybrid coins on the market — a completely uncontested niche
+- Engineering squares with exotic timber scales — a unique combination of precision tooling and craft materials
 
 ## Pricing
 - Mallets: £190–500+ depending on wood species and style
 - Awls: £80–200+ depending on wood species and style
-- EDC Coins: priced individually based on metal type and design and finish
+- Engineering Squares: £80–285+ depending on size, body material, and scale species
+- EDC Coins: priced individually based on metal type, design, and finish
 - Custom commissions: priced individually based on complexity
 
 ## Contact

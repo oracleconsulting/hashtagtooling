@@ -34,6 +34,7 @@ interface HomeContentProps {
 const CATEGORIES = [
   { id: 'mallet', name: 'Mallets', href: '/shop?category=mallets', desc: 'Turned and square mallets from exotic timbers' },
   { id: 'awl', name: 'Awls', href: '/shop?category=awls', desc: 'Precision marking awls with hand-turned ferrules' },
+  { id: 'square', name: 'Engineering Squares', href: '/engineering-squares', desc: 'Laser-cut precision with exotic wood scales' },
   { id: 'wood', name: 'Wood for Sale', href: '/shop?category=wood', desc: 'Premium exotic timber blanks and offcuts' },
   { id: 'coin', name: 'EDC Coins', href: '/shop?category=coins', desc: 'Laser-cut carry coins from exotic materials' },
 ]
@@ -266,7 +267,7 @@ export default function HomeContent({ images, heroVideoUrl, latestProducts = [],
       <section className="py-20 bg-brand-dark">
         <div className="container mx-auto px-4">
           <h2 className="font-heading text-3xl md:text-4xl font-bold text-center text-brand-orange mb-12">SHOP BY CATEGORY</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
             {CATEGORIES.map((cat) => {
               const bgImage = categoryImages[cat.id]
               return (
@@ -329,7 +330,7 @@ export default function HomeContent({ images, heroVideoUrl, latestProducts = [],
             <p className="text-brand-dark/80 text-lg mb-10 max-w-2xl mx-auto">
               Use our interactive builders to choose your mallet style, select from over 75 wood species for head and handle, and pick your transition material. Every combination is unique.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center flex-wrap">
               <Link href="/custom-mallet">
                 <Button size="lg" className="bg-brand-dark text-white hover:bg-brand-dark/90">
                   Build Custom Mallet
@@ -339,6 +340,12 @@ export default function HomeContent({ images, heroVideoUrl, latestProducts = [],
               <Link href="/custom-awl">
                 <Button size="lg" className="bg-brand-dark text-white hover:bg-brand-dark/90">
                   Build Custom Awl
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              </Link>
+              <Link href="/custom-square">
+                <Button size="lg" className="bg-brand-dark text-white hover:bg-brand-dark/90">
+                  Build Engineering Square
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
