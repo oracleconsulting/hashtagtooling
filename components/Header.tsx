@@ -11,6 +11,7 @@ import { useState, useRef } from 'react'
 const BUILD_LINKS = [
   { href: '/custom-mallet', label: 'Custom Mallet', desc: 'Design your perfect mallet' },
   { href: '/custom-awl', label: 'Custom Awl', desc: 'Choose your handle wood & ferrule' },
+  { href: '/custom-square', label: 'Custom Square', desc: '5 sizes, exotic wood scales' },
   { href: '/commissions', label: 'Commissions', desc: 'Request a bespoke piece' },
 ]
 
@@ -18,6 +19,7 @@ const SHOP_LINKS = [
   { href: '/shop', label: 'All Products', desc: 'Browse everything in stock' },
   { href: '/shop?category=mallet', label: 'Mallets', desc: 'Ready-made mallets' },
   { href: '/shop?category=awl', label: 'Awls', desc: 'Marking awls & scribers' },
+  { href: '/engineering-squares', label: 'Engineering Squares', desc: 'Precision reference tools' },
   { href: '/shop?category=wood', label: 'Wood for Sale', desc: 'Offcuts, blanks & timber' },
   { href: '/adopt', label: 'Adopt a Blank', desc: 'Pick a blank, follow its journey' },
   { href: '/mystery-box', label: 'Mystery Box', desc: 'A surprise tool, mystery woods' },

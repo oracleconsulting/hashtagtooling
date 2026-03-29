@@ -31,6 +31,11 @@ export function LocalBusinessJsonLd() {
           name: "Marking Awls",
           description: "Handcrafted marking awls with exotic wood handles",
         },
+        {
+          "@type": "OfferCatalog",
+          name: "Engineering Squares",
+          description: "Precision laser-cut engineering squares with exotic wood scales",
+        },
       ],
     },
   };

@@ -46,7 +46,7 @@ const defaultImages: SiteImages = {
 }
 
 export default async function Home() {
-  const [siteImagesRes, latestRes, malletRes, awlRes, woodRes, coinRes] = await Promise.all([
+  const [siteImagesRes, latestRes, malletRes, awlRes, squareRes, woodRes, coinRes] = await Promise.all([
     supabase.from('site_images').select('section_key, image_url'),
     supabase
       .from('products')
@@ -65,6 +65,13 @@ export default async function Home() {
       .from('products')
       .select('image_url')
       .eq('category', 'awl')
+      .in('stock_status', ['in_stock', 'made_to_order'])
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('products')
+      .select('image_url')
+      .eq('category', 'square')
       .in('stock_status', ['in_stock', 'made_to_order'])
       .limit(1)
       .maybeSingle(),
@@ -101,6 +108,7 @@ export default async function Home() {
   const categoryImages: Record<string, string> = {}
   if (malletRes.data?.image_url) categoryImages.mallet = malletRes.data.image_url
   if (awlRes.data?.image_url) categoryImages.awl = awlRes.data.image_url
+  if (squareRes.data?.image_url) categoryImages.square = squareRes.data.image_url
   if (woodRes.data?.image_url) categoryImages.wood = woodRes.data.image_url
   if (coinRes.data?.image_url) categoryImages.coin = coinRes.data.image_url
 
