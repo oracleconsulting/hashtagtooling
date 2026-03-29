@@ -8,6 +8,8 @@ interface CartItem {
   price: number
   quantity: number
   image_url: string
+  category?: string
+  stock_status?: string
   customConfig?: CustomMalletConfig
   shipping?: { uk: number; europe: number; world: number }
   is_digital?: boolean

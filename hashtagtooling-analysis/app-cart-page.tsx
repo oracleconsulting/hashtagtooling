@@ -120,12 +120,22 @@ function CartContent() {
   const referralDiscount = appliedReferralCode ? Math.min(appliedReferralDiscount, afterVoucher) : 0
   const afterReferral = Math.max(0, afterVoucher - referralDiscount)
 
-  const launchDiscount = appliedLaunch
+  const LAUNCH_ELIGIBLE_CATEGORIES = new Set(['mallet', 'awl', 'square', 'coin'])
+  const launchEligibleItems = items.filter(
+    (i) =>
+      !i.customConfig &&
+      !i.is_digital &&
+      i.category &&
+      LAUNCH_ELIGIBLE_CATEGORIES.has(i.category) &&
+      i.stock_status === 'in_stock'
+  )
+  const launchDiscount = appliedLaunch && launchEligibleItems.length > 0
     ? (() => {
-        const maxItemPrice = items.reduce((max, i) => Math.max(max, i.price), 0)
+        const maxItemPrice = launchEligibleItems.reduce((max, i) => Math.max(max, i.price), 0)
         return Math.round(maxItemPrice * (appliedLaunch.discount_percent / 100) * 100) / 100
       })()
     : 0
+  const launchNoEligible = appliedLaunch && launchEligibleItems.length === 0
   const finalTotal = Math.max(0, afterReferral - launchDiscount)
 
   const applyVoucher = async () => {
@@ -432,10 +442,14 @@ function CartContent() {
                   )}
 
                   {launchStatus === 'applied' && appliedLaunch ? (
-                    <div className="flex items-center justify-between bg-green-900/20 border border-green-800 rounded-md px-3 py-2">
+                    <div className={`flex items-center justify-between rounded-md px-3 py-2 ${launchNoEligible ? 'bg-yellow-900/20 border border-yellow-800' : 'bg-green-900/20 border border-green-800'}`}>
                       <div>
-                        <p className="text-green-400 text-sm font-medium">Launch: {appliedLaunch.code}</p>
-                        <p className="text-green-600 text-xs">{appliedLaunch.discount_percent}% off most expensive item</p>
+                        <p className={`text-sm font-medium ${launchNoEligible ? 'text-yellow-400' : 'text-green-400'}`}>Launch: {appliedLaunch.code}</p>
+                        {launchNoEligible ? (
+                          <p className="text-yellow-600 text-xs">No eligible items in cart. Works on in-stock mallets, awls, squares, and EDC coins only.</p>
+                        ) : (
+                          <p className="text-green-600 text-xs">{appliedLaunch.discount_percent}% off most expensive eligible item</p>
+                        )}
                       </div>
                       <button onClick={removeLaunch} className="text-zinc-500 hover:text-red-400 text-xs transition-colors">Remove</button>
                     </div>

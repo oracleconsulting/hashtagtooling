@@ -1,3 +1,11 @@
+// NOTE: Launch vouchers are only valid for in-stock products in categories:
+// mallet, awl, square, coin
+// NOT valid for: custom mallet builder, custom awl builder, commissions,
+// wood category, digital products, or made_to_order items
+// The cart/checkout page enforces this by checking that the item
+// the discount applies to has stock_status === 'in_stock' and
+// category IN ('mallet', 'awl', 'square', 'coin')
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 

@@ -52,6 +52,8 @@ export function ProductCard({ id, name, description, price, image_url, category,
       price,
       quantity: 1,
       image_url,
+      category,
+      stock_status,
       shipping: metadata?.shipping,
       is_digital: is_digital,
     })

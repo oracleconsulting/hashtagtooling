@@ -137,6 +137,8 @@ export default function MysteryBoxPage() {
                             price: product!.price,
                             quantity: 1,
                             image_url: product!.image_url || 'https://placehold.co/600x400/333/666?text=?',
+                            category: 'mystery',
+                            stock_status: 'in_stock',
                             shipping: { uk: 5.99, europe: 15.99, world: 25.99 },
                           })
                         }

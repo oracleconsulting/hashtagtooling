@@ -91,6 +91,8 @@ export default function ProductContent() {
       price: product.price,
       quantity: 1,
       image_url: product.image_url,
+      category: product.category,
+      stock_status: product.stock_status,
       shipping: product.metadata?.shipping,
       is_digital: product.is_digital,
     })
