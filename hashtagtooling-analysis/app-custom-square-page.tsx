@@ -42,15 +42,15 @@ export default function CustomSquarePage() {
   const [loading, setLoading] = useState(true)
   const [basePrices, setBasePrices] = useState<BasePrice[]>([])
   const [woodScales, setWoodScales] = useState<Material[]>([])
-  const [cfScale, setCfScale] = useState<Material | null>(null)
+  const [cfScales, setCfScales] = useState<Material[]>([])
   const [liners, setLiners] = useState<Material[]>([])
 
   const [selectedSize, setSelectedSize] = useState<SquareSize>('95mm')
   const [selectedBody, setSelectedBody] = useState<string>('tool_steel')
   const [selectedScaleType, setSelectedScaleType] = useState<string>('full_scale')
-  const [selectedScaleMaterial, setSelectedScaleMaterial] = useState<string | null>(null)
-  const [isCarbonFibre, setIsCarbonFibre] = useState(false)
   const [selectedLiner, setSelectedLiner] = useState<string | null>(null)
+  const [selectedScaleMaterial, setSelectedScaleMaterial] = useState<string | null>(null)
+  const [scaleMaterialType, setScaleMaterialType] = useState<'wood' | 'cf'>('wood')
   const [addedToCart, setAddedToCart] = useState(false)
 
   useEffect(() => {
@@ -63,18 +63,18 @@ export default function CustomSquarePage() {
       const [pricesRes, woodRes, cfRes, linerRes] = await Promise.all([
         supabase.from('base_prices').select('*').eq('product_type', 'square').eq('available', true),
         supabase.from('materials').select('*').eq('category', 'wood').eq('available', true).order('name'),
-        supabase.from('materials').select('*').eq('category', 'square_scale').eq('available', true),
+        supabase.from('materials').select('*').eq('category', 'square_scale').eq('available', true).order('sort_order'),
         supabase.from('materials').select('*').eq('category', 'liner').eq('available', true).order('sort_order'),
       ])
 
       setBasePrices(pricesRes.data || [])
       setWoodScales(woodRes.data || [])
-      setCfScale(cfRes.data?.[0] || null)
+      setCfScales(cfRes.data || [])
       setLiners(linerRes.data || [])
 
-      if (woodRes.data?.length) setSelectedScaleMaterial(woodRes.data[0].id)
       const standardLiners = (linerRes.data || []).filter((l) => l.name.includes('1mm') && !l.name.includes('2.5mm'))
       if (standardLiners.length) setSelectedLiner(standardLiners[0].id)
+      if (woodRes.data?.length) setSelectedScaleMaterial(woodRes.data[0].id)
     } catch (error) {
       console.error('Error loading materials:', error)
     } finally {
@@ -82,22 +82,33 @@ export default function CustomSquarePage() {
     }
   }
 
-  const filteredLiners = liners.filter((l) => {
-    if (isCarbonFibre) return l.name.includes('2.5mm')
-    return l.name.includes('1mm') && !l.name.includes('2.5mm')
-  })
+  const selectedLinerObj = liners.find((l) => l.id === selectedLiner)
+  const isThickLiner = selectedLinerObj?.name.includes('2.5mm') || false
 
-  const handleScaleMaterialChange = (materialId: string, carbonFibre: boolean) => {
-    setSelectedScaleMaterial(materialId)
-    const wasCF = isCarbonFibre
-    setIsCarbonFibre(carbonFibre)
+  const availableScaleOptions = (): { woods: Material[]; cfs: Material[] } => {
+    if (isThickLiner) {
+      const thinCf = cfScales.filter((c) => c.name.includes('1mm'))
+      return { woods: [], cfs: thinCf }
+    }
+    return { woods: woodScales, cfs: cfScales }
+  }
 
-    if (carbonFibre !== wasCF) {
-      const newLiners = liners.filter((l) => {
-        if (carbonFibre) return l.name.includes('2.5mm')
-        return l.name.includes('1mm') && !l.name.includes('2.5mm')
-      })
-      if (newLiners.length) setSelectedLiner(newLiners[0].id)
+  const handleLinerChange = (linerId: string) => {
+    setSelectedLiner(linerId)
+    const liner = liners.find((l) => l.id === linerId)
+    const nowThick = liner?.name.includes('2.5mm') || false
+
+    if (nowThick) {
+      const thinCf = cfScales.find((c) => c.name.includes('1mm'))
+      if (thinCf) {
+        setSelectedScaleMaterial(thinCf.id)
+        setScaleMaterialType('cf')
+      }
+    } else if (isThickLiner && !nowThick) {
+      if (woodScales.length) {
+        setSelectedScaleMaterial(woodScales[0].id)
+        setScaleMaterialType('wood')
+      }
     }
   }
 
@@ -108,47 +119,60 @@ export default function CustomSquarePage() {
   }
 
   const getScalePremium = (): number => {
-    if (isCarbonFibre && cfScale) return cfScale.square_scale_premium || 0
+    if (scaleMaterialType === 'cf') {
+      const cf = cfScales.find((c) => c.id === selectedScaleMaterial)
+      return cf?.square_scale_premium || 0
+    }
     const wood = woodScales.find((w) => w.id === selectedScaleMaterial)
     return wood?.square_scale_premium || 0
   }
 
   const getLinerPremium = (): number => {
-    const liner = liners.find((l) => l.id === selectedLiner)
-    return liner?.square_liner_premium || 0
+    return selectedLinerObj?.square_liner_premium || 0
   }
 
   const calculatePrice = () => getBasePrice() + getScalePremium() + getLinerPremium()
 
   const getScaleColor = (): string => {
-    if (isCarbonFibre) return '#2A2A2A'
+    if (scaleMaterialType === 'cf') return '#2A2A2A'
     const wood = woodScales.find((w) => w.id === selectedScaleMaterial)
     return wood?.color_hex || '#8B6914'
   }
 
-  const getLinerColor = (): string => {
-    const liner = liners.find((l) => l.id === selectedLiner)
-    return liner?.color_hex || '#C8963E'
+  const getLinerColor = (): string => selectedLinerObj?.color_hex || '#C8963E'
+  const getBodyColor = (): string => BODY_MATERIALS.find((b) => b.id === selectedBody)?.color || '#555555'
+
+  const getScaleName = (): string => {
+    if (scaleMaterialType === 'cf') {
+      return cfScales.find((c) => c.id === selectedScaleMaterial)?.name || 'Carbon Fibre'
+    }
+    return woodScales.find((w) => w.id === selectedScaleMaterial)?.name || '—'
   }
 
-  const getBodyColor = (): string => {
-    return BODY_MATERIALS.find((b) => b.id === selectedBody)?.color || '#555555'
+  const getLinerThickness = (): string => {
+    return selectedLinerObj?.name.includes('2.5mm') ? '2.5mm' : '1mm'
+  }
+
+  const getScaleThickness = (): string => {
+    if (scaleMaterialType === 'cf') {
+      const cf = cfScales.find((c) => c.id === selectedScaleMaterial)
+      if (cf?.name.includes('2.5mm')) return '2.5mm'
+      return '1mm'
+    }
+    return '2-3mm'
   }
 
   const handleAddToCart = () => {
-    const scaleMat = isCarbonFibre
-      ? cfScale
-      : woodScales.find((w) => w.id === selectedScaleMaterial)
-    const liner = liners.find((l) => l.id === selectedLiner)
-    if (!scaleMat || !liner) return
+    if (!selectedScaleMaterial || !selectedLiner) return
 
     const specs = SQUARE_SPECS[selectedSize]
     const bodyLabel = BODY_MATERIALS.find((b) => b.id === selectedBody)?.label || selectedBody
     const scaleTypeLabel = SCALE_TYPES.find((s) => s.id === selectedScaleType)?.label || selectedScaleType
+    const linerMetal = selectedLinerObj?.name.split(' (')[0] || 'Brass'
 
     addItem({
       id: `custom-square-${Date.now()}`,
-      name: `Custom ${specs.label} ${scaleTypeLabel} Square — ${bodyLabel} / ${scaleMat.name} / ${liner.name.split(' (')[0]}`,
+      name: `Custom ${specs.label} ${scaleTypeLabel} Square — ${bodyLabel} / ${getScaleName()} / ${linerMetal}`,
       price: calculatePrice(),
       quantity: 1,
       image_url: 'https://placehold.co/600x400/666/white?text=Custom+Square',
@@ -159,10 +183,10 @@ export default function CustomSquarePage() {
         square_size: selectedSize,
         scale_type: selectedScaleType,
         body_material: selectedBody,
-        scale_material: scaleMat.name,
-        liner_material: liner.name.split(' (')[0],
-        liner_thickness: isCarbonFibre ? '2.5mm' : '1mm',
-        scale_thickness: isCarbonFibre ? '1mm' : '2-3mm',
+        scale_material: getScaleName(),
+        liner_material: linerMetal,
+        liner_thickness: getLinerThickness(),
+        scale_thickness: getScaleThickness(),
       },
     })
 
@@ -179,6 +203,8 @@ export default function CustomSquarePage() {
       </div>
     )
   }
+
+  const { woods: filteredWoods, cfs: filteredCfs } = availableScaleOptions()
 
   return (
     <div className="container mx-auto px-4 py-12 pb-32 md:pb-12">
@@ -316,105 +342,130 @@ export default function CustomSquarePage() {
               </CardContent>
             </Card>
 
-            {/* Step 4: Scale Material */}
+            {/* Step 4: Liner Material + Thickness (BEFORE scale) */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
               <CardHeader className="sticky top-16 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
-                <CardTitle className="text-white">4. Scale Material</CardTitle>
+                <CardTitle className="text-white">4. Liner Material &amp; Thickness</CardTitle>
               </CardHeader>
-              <CardContent>
-                {cfScale && (
-                  <div className="mb-4">
+              <CardContent className="space-y-2">
+                {liners.map((liner) => {
+                  const metal = liner.name.split(' (')[0]
+                  const thickness = liner.name.includes('2.5mm') ? '2.5mm' : '1mm'
+                  return (
                     <button
-                      onClick={() => handleScaleMaterialChange(cfScale.id, true)}
+                      key={liner.id}
+                      onClick={() => handleLinerChange(liner.id)}
                       className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                        isCarbonFibre
+                        selectedLiner === liner.id
                           ? 'border-brand-orange bg-brand-orange/10'
                           : 'border-brand-dark-border hover:border-zinc-500'
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-6 h-6 rounded-full border border-zinc-600" style={{ backgroundColor: '#2A2A2A' }} />
+                          <div className="w-8 h-8 rounded-full border border-zinc-600" style={{ backgroundColor: liner.color_hex }} />
                           <div>
-                            <span className="text-sm font-medium text-white">Carbon Fibre</span>
-                            {(cfScale.square_scale_premium || 0) > 0 && (
-                              <span className="text-xs text-zinc-400 ml-2">+{formatPrice(cfScale.square_scale_premium || 0)}</span>
+                            <span className="font-medium text-white">{metal}</span>
+                            <span className="text-xs text-zinc-400 ml-2">({thickness})</span>
+                            {thickness === '2.5mm' && (
+                              <span className="text-xs text-zinc-500 ml-1">— thick liner</span>
+                            )}
+                            {(liner.square_liner_premium || 0) > 0 && (
+                              <span className="text-xs text-zinc-400 ml-2">+{formatPrice(liner.square_liner_premium || 0)}</span>
                             )}
                           </div>
                         </div>
-                        {isCarbonFibre && <Check className="h-5 w-5 text-brand-orange" />}
+                        {selectedLiner === liner.id && <Check className="h-5 w-5 text-brand-orange flex-shrink-0" />}
                       </div>
                     </button>
-                    {isCarbonFibre && (
-                      <div className="flex items-start gap-2 mt-2 p-3 bg-zinc-800/50 rounded-lg text-xs text-zinc-400">
-                        <Info className="h-4 w-4 text-brand-orange flex-shrink-0 mt-0.5" />
-                        <span>Carbon fibre scales are 1mm — liner thickness increased to 2.5mm for structural integrity.</span>
-                      </div>
-                    )}
+                  )
+                })}
+                {isThickLiner && (
+                  <div className="flex items-start gap-2 mt-2 p-3 bg-zinc-800/50 rounded-lg text-xs text-zinc-400">
+                    <Info className="h-4 w-4 text-brand-orange flex-shrink-0 mt-0.5" />
+                    <span>Thick liners (2.5mm) require a 1mm carbon fibre scale for the sandwich to work.</span>
                   </div>
                 )}
-                <p className="text-xs text-zinc-500 mb-3">Or choose a wood species:</p>
-                <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
-                  {woodScales.map((wood) => (
-                    <button
-                      key={wood.id}
-                      onClick={() => handleScaleMaterialChange(wood.id, false)}
-                      className={`p-3 rounded-lg border-2 transition-all ${
-                        !isCarbonFibre && selectedScaleMaterial === wood.id
-                          ? 'border-brand-orange bg-brand-orange/10'
-                          : 'border-brand-dark-border hover:border-zinc-500'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 text-left">
-                        {wood.grain_image_url ? (
-                          <img src={wood.grain_image_url} alt={wood.name} className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0 object-cover" />
-                        ) : (
-                          <div className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0" style={{ backgroundColor: wood.color_hex }} />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium block text-white">{wood.name}</span>
-                          {(wood.square_scale_premium || 0) > 0 && (
-                            <span className="text-xs text-zinc-400">+{formatPrice(wood.square_scale_premium || 0)}</span>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
               </CardContent>
             </Card>
 
-            {/* Step 5: Liner Material */}
+            {/* Step 5: Scale Material (filtered by liner choice) */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
               <CardHeader className="sticky top-16 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
-                <CardTitle className="text-white">5. Liner Material</CardTitle>
+                <CardTitle className="text-white">5. Scale Material</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                {filteredLiners.map((liner) => (
-                  <button
-                    key={liner.id}
-                    onClick={() => setSelectedLiner(liner.id)}
-                    className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                      selectedLiner === liner.id
-                        ? 'border-brand-orange bg-brand-orange/10'
-                        : 'border-brand-dark-border hover:border-zinc-500'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full border border-zinc-600" style={{ backgroundColor: liner.color_hex }} />
-                        <div>
-                          <span className="font-medium text-white">{liner.name.split(' (')[0]}</span>
-                          <span className="text-xs text-zinc-500 ml-1">({isCarbonFibre ? '2.5mm' : '1mm'})</span>
-                          {(liner.square_liner_premium || 0) > 0 && (
-                            <span className="text-xs text-zinc-400 ml-2">+{formatPrice(liner.square_liner_premium || 0)}</span>
+              <CardContent>
+                {isThickLiner && (
+                  <div className="flex items-start gap-2 mb-4 p-3 bg-zinc-800/50 rounded-lg text-xs text-zinc-400">
+                    <Info className="h-4 w-4 text-brand-orange flex-shrink-0 mt-0.5" />
+                    <span>Thick liners require a 1mm carbon fibre scale. Wood and 2.5mm CF are not available with 2.5mm liners.</span>
+                  </div>
+                )}
+
+                {filteredCfs.length > 0 && (
+                  <div className="space-y-2 mb-4">
+                    <p className="text-xs text-zinc-500 mb-2">Carbon Fibre:</p>
+                    {filteredCfs.map((cf) => (
+                      <button
+                        key={cf.id}
+                        onClick={() => { setSelectedScaleMaterial(cf.id); setScaleMaterialType('cf') }}
+                        className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                          scaleMaterialType === 'cf' && selectedScaleMaterial === cf.id
+                            ? 'border-brand-orange bg-brand-orange/10'
+                            : 'border-brand-dark-border hover:border-zinc-500'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-6 h-6 rounded-full border border-zinc-600" style={{ backgroundColor: '#2A2A2A' }} />
+                            <div>
+                              <span className="text-sm font-medium text-white">{cf.name}</span>
+                              {(cf.square_scale_premium || 0) > 0 && (
+                                <span className="text-xs text-zinc-400 ml-2">+{formatPrice(cf.square_scale_premium || 0)}</span>
+                              )}
+                            </div>
+                          </div>
+                          {scaleMaterialType === 'cf' && selectedScaleMaterial === cf.id && (
+                            <Check className="h-5 w-5 text-brand-orange" />
                           )}
                         </div>
-                      </div>
-                      {selectedLiner === liner.id && <Check className="h-5 w-5 text-brand-orange" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {filteredWoods.length > 0 && (
+                  <>
+                    <p className="text-xs text-zinc-500 mb-3">{filteredCfs.length > 0 ? 'Or choose a wood species:' : 'Choose a wood species:'}</p>
+                    <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
+                      {filteredWoods.map((wood) => (
+                        <button
+                          key={wood.id}
+                          onClick={() => { setSelectedScaleMaterial(wood.id); setScaleMaterialType('wood') }}
+                          className={`p-3 rounded-lg border-2 transition-all ${
+                            scaleMaterialType === 'wood' && selectedScaleMaterial === wood.id
+                              ? 'border-brand-orange bg-brand-orange/10'
+                              : 'border-brand-dark-border hover:border-zinc-500'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 text-left">
+                            {wood.grain_image_url ? (
+                              <img src={wood.grain_image_url} alt={wood.name} className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0 object-cover" />
+                            ) : (
+                              <div className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0" style={{ backgroundColor: wood.color_hex }} />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium block text-white">{wood.name}</span>
+                              {(wood.square_scale_premium || 0) > 0 && (
+                                <span className="text-xs text-zinc-400">+{formatPrice(wood.square_scale_premium || 0)}</span>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
                     </div>
-                  </button>
-                ))}
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -438,16 +489,14 @@ export default function CustomSquarePage() {
                     <span className="text-white font-medium">{SCALE_TYPES.find((s) => s.id === selectedScaleType)?.label}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-zinc-400">Scale material:</span>
+                    <span className="text-zinc-400">Liner:</span>
                     <span className="text-white font-medium">
-                      {isCarbonFibre ? 'Carbon Fibre' : woodScales.find((w) => w.id === selectedScaleMaterial)?.name || '—'}
+                      {selectedLinerObj?.name.split(' (')[0] || '—'} ({getLinerThickness()})
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-zinc-400">Liner:</span>
-                    <span className="text-white font-medium">
-                      {liners.find((l) => l.id === selectedLiner)?.name.split(' (')[0] || '—'} ({isCarbonFibre ? '2.5mm' : '1mm'})
-                    </span>
+                    <span className="text-zinc-400">Scale material:</span>
+                    <span className="text-white font-medium">{getScaleName()}</span>
                   </div>
                 </div>
 

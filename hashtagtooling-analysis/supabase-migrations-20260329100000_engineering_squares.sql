@@ -37,7 +37,8 @@ UPDATE materials SET square_liner_premium = 8.00 WHERE name LIKE 'Brass Liner%' 
 UPDATE materials SET square_liner_premium = 10.00 WHERE name LIKE 'Bronze Liner%' AND category = 'liner';
 UPDATE materials SET square_liner_premium = 12.00 WHERE name LIKE 'Copper Liner%' AND category = 'liner';
 
--- Add carbon fibre as a scale material
+-- Add carbon fibre scale materials (two thicknesses)
 INSERT INTO materials (name, category, color_hex, description, available, sort_order, square_scale_premium) VALUES
-  ('Carbon Fibre', 'square_scale', '#2A2A2A', 'Woven carbon fibre scale, 1mm thickness — requires 2.5mm liner', true, 0, 15.00)
+  ('Carbon Fibre (1mm)', 'square_scale', '#2A2A2A', 'Woven carbon fibre scale, 1mm thickness', true, 0, 15.00),
+  ('Carbon Fibre (2.5mm)', 'square_scale', '#2A2A2A', 'Woven carbon fibre scale, 2.5mm thickness — standard with 1mm liner', true, 1, 20.00)
 ON CONFLICT (name, category) DO NOTHING;
