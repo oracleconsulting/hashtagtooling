@@ -104,7 +104,7 @@ export default function MailingListPage() {
                       {copied ? <Check className="h-5 w-5 text-green-400" /> : <Copy className="h-5 w-5 text-zinc-400" />}
                     </button>
                   </div>
-                  <p className="text-zinc-500 text-sm mt-3">Valid until 31 December 2026 · Check your email for details</p>
+                  <p className="text-zinc-500 text-sm mt-3">Valid until 31 July 2026 · Check your email for details</p>
                 </div>
               )}
               <div className="mt-8">
@@ -183,10 +183,9 @@ export default function MailingListPage() {
                 <p>• 10% discount applies to one item only (the most expensive in your order)</p>
                 <p>• Single use — once redeemed, it&apos;s done</p>
                 <p>• Tied to the email address you signed up with — non-transferable</p>
-                <p>• Valid until 31 December 2026</p>
+                <p>• Valid until 31 July 2026</p>
                 <p>• Cannot be combined with gift vouchers or referral discounts</p>
-                <p>• Applies to in-stock mallets, awls, engineering squares, and EDC coins only</p>
-                <p>• Not valid on custom mallet builds, custom awl builds, commissions, timber blanks, or digital products</p>
+                <p>• Applies to mallets, awls, and EDC coins — not timber blanks or digital products</p>
               </div>
             )}
           </div>

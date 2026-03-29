@@ -86,6 +86,8 @@ export default function AdoptPage() {
       price: blank.price,
       quantity: 1,
       image_url: blank.image_url,
+      category: 'wood',
+      stock_status: 'in_stock',
     })
     window.location.href = '/cart'
   }

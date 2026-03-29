@@ -143,6 +143,8 @@ export default function CustomMalletPage() {
       price,
       quantity: 1,
       image_url: 'https://placehold.co/600x400/666/white?text=Custom+Mallet',
+      category: 'mallet',
+      stock_status: 'made_to_order',
       customConfig: {
         styleId: selectedStyle,
         styleName: style.style_name,

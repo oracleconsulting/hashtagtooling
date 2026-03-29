@@ -10,7 +10,7 @@ function getStripe() {
 export async function POST(req: NextRequest) {
   try {
     const stripe = getStripe()
-    const { items, customerEmail, shippingAddress, shippingCost, voucherCode, voucherDiscount, referralCode, referralDiscount } = await req.json()
+    const { items, customerEmail, shippingAddress, shippingCost, voucherCode, voucherDiscount, referralCode, referralDiscount, launchVoucherCode, launchVoucherDiscount } = await req.json()
 
     const lineItems = items.map((item: { name: string; price: number; quantity: number; image_url?: string; id?: string; is_digital?: boolean }) => ({
       price_data: {
@@ -42,6 +42,17 @@ export async function POST(req: NextRequest) {
           currency: 'gbp',
           product_data: { name: `Gift Voucher (${voucherCode})`, images: [] },
           unit_amount: -Math.round(Number(voucherDiscount) * 100),
+        },
+        quantity: 1,
+      })
+    }
+
+    if (launchVoucherCode && Number(launchVoucherDiscount) > 0) {
+      lineItems.push({
+        price_data: {
+          currency: 'gbp',
+          product_data: { name: `Launch Voucher (${launchVoucherCode})`, images: [] },
+          unit_amount: -Math.round(Number(launchVoucherDiscount) * 100),
         },
         quantity: 1,
       })
@@ -79,6 +90,8 @@ export async function POST(req: NextRequest) {
         voucher_discount: voucherDiscount ? String(voucherDiscount) : '',
         referral_code: referralCode || '',
         referral_discount: referralDiscount ? String(referralDiscount) : '',
+        launch_voucher_code: launchVoucherCode || '',
+        launch_voucher_discount: launchVoucherDiscount ? String(launchVoucherDiscount) : '',
         product_ids: productIds,
         digital_ids: digitalIds,
       },
