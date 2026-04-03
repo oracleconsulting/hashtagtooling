@@ -138,9 +138,13 @@ export default function ProductContent() {
     )
   }
 
-  const imageUrls = product.metadata?.images?.length
+  const FALLBACK_IMAGE = '/placeholder-product.png'
+  const imageUrls = (product.metadata?.images?.length
     ? product.metadata.images
     : [product.image_url]
+  ).filter(Boolean) as string[]
+  if (imageUrls.length === 0) imageUrls.push(FALLBACK_IMAGE)
+  const heroImage = product.image_url || imageUrls[0] || FALLBACK_IMAGE
   const hasVideo = Boolean(product.metadata?.video)
   const allMedia = hasVideo
     ? [{ type: 'video' as const, url: product.metadata!.video! }, ...imageUrls.map((url) => ({ type: 'image' as const, url }))]
@@ -170,7 +174,7 @@ export default function ProductContent() {
             {selectedIsVideo ? (
               <video
                 src={product.metadata!.video}
-                poster={product.image_url}
+                poster={heroImage}
                 controls
                 muted
                 loop
@@ -212,7 +216,7 @@ export default function ProductContent() {
                   {item.type === 'video' ? (
                     <>
                       <Image
-                        src={product.image_url}
+                        src={heroImage}
                         alt={`${product.name} — video`}
                         fill
                         className="object-cover"
