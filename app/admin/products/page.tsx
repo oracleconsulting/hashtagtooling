@@ -61,12 +61,25 @@ export default function AdminProductsPage() {
         .eq('id', id)
 
       if (error) throw error
-      
-      // Reload products
       loadProducts()
     } catch (error) {
       console.error('Error deleting product:', error)
       alert('Failed to delete product')
+    }
+  }
+
+  const markAsSold = async (id: string, name: string) => {
+    if (!confirm(`Mark "${name}" as sold?`)) return
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ stock_status: 'sold' })
+        .eq('id', id)
+      if (error) throw error
+      loadProducts()
+    } catch (error) {
+      console.error('Error marking as sold:', error)
+      alert('Failed to update — please try again.')
     }
   }
 
@@ -194,6 +207,17 @@ export default function AdminProductsPage() {
                       Edit
                     </Button>
                   </Link>
+                  {product.stock_status !== 'sold' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => markAsSold(product.id, product.name)}
+                      className="border-red-600 text-red-400 hover:bg-red-600 hover:text-white"
+                      title="Mark as Sold"
+                    >
+                      Sold
+                    </Button>
+                  )}
                   <Button 
                     variant="destructive" 
                     size="sm"

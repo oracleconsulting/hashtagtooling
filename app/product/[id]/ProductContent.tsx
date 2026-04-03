@@ -138,7 +138,7 @@ export default function ProductContent() {
     )
   }
 
-  const FALLBACK_IMAGE = '/placeholder-product.png'
+  const FALLBACK_IMAGE = '/placeholder-product.svg'
   const imageUrls = (product.metadata?.images?.length
     ? product.metadata.images
     : [product.image_url]

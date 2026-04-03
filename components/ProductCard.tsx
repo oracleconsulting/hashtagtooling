@@ -32,7 +32,10 @@ const WOOD_SUBCATEGORY_LABELS: Record<string, string> = {
   pen_blank: 'PEN BLANK',
 }
 
+const FALLBACK_IMAGE = '/placeholder-product.svg'
+
 export function ProductCard({ id, name, description, price, image_url, category, stock_status, subcategory, is_digital, metadata }: ProductCardProps) {
+  const safeImageUrl = image_url || FALLBACK_IMAGE
   const addItem = useCart((state) => state.addItem)
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlist()
   const inWishlist = isInWishlist(id)
@@ -41,7 +44,7 @@ export function ProductCard({ id, name, description, price, image_url, category,
     e.preventDefault()
     e.stopPropagation()
     if (inWishlist) removeFromWishlist(id)
-    else addToWishlist({ id, name, price, image_url })
+    else addToWishlist({ id, name, price, image_url: safeImageUrl })
   }
 
   const handleAddToCart = () => {
@@ -51,7 +54,7 @@ export function ProductCard({ id, name, description, price, image_url, category,
       name,
       price,
       quantity: 1,
-      image_url,
+      image_url: safeImageUrl,
       category,
       stock_status,
       shipping: metadata?.shipping,
@@ -77,7 +80,7 @@ export function ProductCard({ id, name, description, price, image_url, category,
       <Link href={`/product/${id}`}>
         <div className="relative h-64 bg-brand-dark-card">
           <Image
-            src={image_url}
+            src={safeImageUrl}
             alt={`${name} — exotic wood tool by #TOOLING`}
             fill
             className="object-cover group-hover:scale-105 transition-transform duration-300"
