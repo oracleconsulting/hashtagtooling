@@ -72,7 +72,7 @@ export default function ProductContent() {
           .select('*')
           .eq('category', data.category)
           .neq('id', id)
-          .neq('stock_status', 'out_of_stock')
+          .in('stock_status', ['in_stock', 'made_to_order', 'sold'])
           .limit(3)
         setRelated(relatedData || [])
       }

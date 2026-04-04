@@ -98,7 +98,7 @@ export default function AdminSocialPage() {
     const { data } = await supabase
       .from('products')
       .select('id, name, description, price, category, image_url, stock_status')
-      .neq('stock_status', 'out_of_stock')
+      .in('stock_status', ['in_stock', 'made_to_order', 'sold'])
       .order('created_at', { ascending: false })
     setProducts(data || [])
     setLoadingProducts(false)

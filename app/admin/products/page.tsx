@@ -22,7 +22,7 @@ export default function AdminProductsPage() {
   const router = useRouter()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'live' | 'gallery'>('live')
+  const [activeTab, setActiveTab] = useState<'live' | 'drafts' | 'gallery'>('live')
 
   useEffect(() => {
     // Check auth
@@ -139,9 +139,10 @@ export default function AdminProductsPage() {
       </div>
 
       {(() => {
-        const liveProducts = products.filter(p => p.stock_status !== 'sold')
+        const liveProducts = products.filter(p => !['sold', 'draft'].includes(p.stock_status))
+        const draftProducts = products.filter(p => p.stock_status === 'draft')
         const galleryProducts = products.filter(p => p.stock_status === 'sold')
-        const displayProducts = activeTab === 'live' ? liveProducts : galleryProducts
+        const displayProducts = activeTab === 'live' ? liveProducts : activeTab === 'drafts' ? draftProducts : galleryProducts
         return (<>
           <div className="flex gap-2 mb-6">
             <button
@@ -155,6 +156,16 @@ export default function AdminProductsPage() {
               Live Products ({liveProducts.length})
             </button>
             <button
+              onClick={() => setActiveTab('drafts')}
+              className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                activeTab === 'drafts'
+                  ? 'bg-brand-orange text-brand-dark'
+                  : 'border border-brand-dark-border text-zinc-300 hover:border-zinc-500'
+              }`}
+            >
+              Drafts ({draftProducts.length})
+            </button>
+            <button
               onClick={() => setActiveTab('gallery')}
               className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
                 activeTab === 'gallery'
@@ -165,6 +176,14 @@ export default function AdminProductsPage() {
               Gallery / Sold ({galleryProducts.length})
             </button>
           </div>
+
+          {activeTab === 'drafts' && (
+            <div className="mb-6 p-4 rounded-lg border border-brand-dark-border bg-brand-dark-card">
+              <p className="text-zinc-400 text-sm">
+                Draft products are hidden from the public site. Edit each one to add images, then change its status to <strong className="text-white">Sold</strong> (for gallery) or <strong className="text-white">In Stock</strong> (for shop) when ready.
+              </p>
+            </div>
+          )}
 
           {activeTab === 'gallery' && (
             <div className="mb-6 p-4 rounded-lg border border-brand-dark-border bg-brand-dark-card">

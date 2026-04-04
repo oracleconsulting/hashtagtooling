@@ -55,7 +55,7 @@ export default function MysteryBoxPage() {
         .from('products')
         .select('id, name, description, price, image_url, metadata')
         .eq('category', 'mystery')
-        .neq('stock_status', 'out_of_stock')
+        .in('stock_status', ['in_stock', 'made_to_order'])
       setProducts(data || [])
       setLoading(false)
     }

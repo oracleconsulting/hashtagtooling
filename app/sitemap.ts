@@ -11,7 +11,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     supabase
       .from("products")
       .select("id, updated_at")
-      .neq("stock_status", "out_of_stock"),
+      .in("stock_status", ["in_stock", "made_to_order", "sold"]),
     supabase
       .from("blog_posts")
       .select("slug, published_at, updated_at")
