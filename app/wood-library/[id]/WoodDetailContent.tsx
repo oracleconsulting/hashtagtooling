@@ -90,7 +90,6 @@ export default function WoodDetailContent({ wood, tools, stock }: WoodDetailCont
       label: 'Durability',
       value: wood.durability.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
     },
-    wood.color_description && { label: 'Colour', value: wood.color_description },
   ].filter(Boolean) as { label: string; value: string }[]
 
   return (
@@ -146,6 +145,12 @@ export default function WoodDetailContent({ wood, tools, stock }: WoodDetailCont
                     style={{ width: `${hardnessPercent}%` }}
                   />
                 </div>
+              </div>
+            )}
+            {wood.color_description && (
+              <div className="mt-6 p-5 rounded-lg bg-brand-dark-card border border-brand-dark-border">
+                <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-2">Colour</h3>
+                <p className="text-zinc-300 leading-relaxed">{wood.color_description}</p>
               </div>
             )}
           </section>
