@@ -32,6 +32,14 @@ interface Material {
   grain_image_url?: string | null
   square_scale_premium?: number
   square_liner_premium?: number
+  available_square_scale?: boolean
+}
+
+interface MaterialStylePricingRow {
+  material_id: string
+  base_price_id: string
+  position: string
+  premium: number
 }
 
 const SIZE_KEYS: SquareSize[] = ['chode', '95mm', '125mm', '175mm', '250mm']
@@ -44,6 +52,7 @@ export default function CustomSquarePage() {
   const [woodScales, setWoodScales] = useState<Material[]>([])
   const [cfScales, setCfScales] = useState<Material[]>([])
   const [liners, setLiners] = useState<Material[]>([])
+  const [stylePricing, setStylePricing] = useState<MaterialStylePricingRow[]>([])
 
   const [selectedSize, setSelectedSize] = useState<SquareSize>('95mm')
   const [selectedBody, setSelectedBody] = useState<string>('tool_steel')
@@ -60,21 +69,30 @@ export default function CustomSquarePage() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [pricesRes, woodRes, cfRes, linerRes] = await Promise.all([
+      const [pricesRes, woodRes, cfRes, linerRes, mspRes] = await Promise.all([
         supabase.from('base_prices').select('*').eq('product_type', 'square').eq('available', true),
         supabase.from('materials').select('*').eq('category', 'wood').eq('available', true).order('name'),
         supabase.from('materials').select('*').eq('category', 'square_scale').eq('available', true).order('sort_order'),
         supabase.from('materials').select('*').eq('category', 'liner').eq('available', true).order('sort_order'),
+        supabase.from('material_style_pricing').select('material_id, base_price_id, position, premium'),
       ])
 
+      if (pricesRes.error) throw pricesRes.error
+      if (woodRes.error) throw woodRes.error
+      if (cfRes.error) throw cfRes.error
+      if (linerRes.error) throw linerRes.error
+      if (mspRes.error) throw mspRes.error
+
       setBasePrices(pricesRes.data || [])
-      setWoodScales(woodRes.data || [])
+      setStylePricing((mspRes.data || []) as MaterialStylePricingRow[])
+      const woodsFiltered = (woodRes.data || []).filter((w) => (w as Material).available_square_scale !== false)
+      setWoodScales(woodsFiltered)
       setCfScales(cfRes.data || [])
       setLiners(linerRes.data || [])
 
       const standardLiners = (linerRes.data || []).filter((l) => l.name.includes('1mm') && !l.name.includes('2.5mm'))
       if (standardLiners.length) setSelectedLiner(standardLiners[0].id)
-      if (woodRes.data?.length) setSelectedScaleMaterial(woodRes.data[0].id)
+      if (woodsFiltered.length) setSelectedScaleMaterial(woodsFiltered[0].id)
     } catch (error) {
       console.error('Error loading materials:', error)
     } finally {
@@ -118,13 +136,26 @@ export default function CustomSquarePage() {
     return bp?.base_price || 0
   }
 
+  const getSquareStylePremiumForWood = (woodId: string | null): number => {
+    if (!woodId) return 0
+    const wood = woodScales.find((w) => w.id === woodId)
+    if (!wood) return 0
+    const styleName = `${selectedSize}_${selectedBody}`
+    const bp = basePrices.find((p) => p.style_name === styleName)
+    if (!bp) return wood.square_scale_premium || 0
+    const row = stylePricing.find(
+      (sp) => sp.material_id === woodId && sp.base_price_id === bp.id && sp.position === 'square_scale'
+    )
+    if (row) return Number(row.premium) || 0
+    return wood.square_scale_premium || 0
+  }
+
   const getScalePremium = (): number => {
     if (scaleMaterialType === 'cf') {
       const cf = cfScales.find((c) => c.id === selectedScaleMaterial)
       return cf?.square_scale_premium || 0
     }
-    const wood = woodScales.find((w) => w.id === selectedScaleMaterial)
-    return wood?.square_scale_premium || 0
+    return getSquareStylePremiumForWood(selectedScaleMaterial)
   }
 
   const getLinerPremium = (): number => {
@@ -456,8 +487,8 @@ export default function CustomSquarePage() {
                             )}
                             <div className="flex-1 min-w-0">
                               <span className="text-sm font-medium block text-white">{wood.name}</span>
-                              {(wood.square_scale_premium || 0) > 0 && (
-                                <span className="text-xs text-zinc-400">+{formatPrice(wood.square_scale_premium || 0)}</span>
+                              {getSquareStylePremiumForWood(wood.id) > 0 && (
+                                <span className="text-xs text-zinc-400">+{formatPrice(getSquareStylePremiumForWood(wood.id))}</span>
                               )}
                             </div>
                           </div>

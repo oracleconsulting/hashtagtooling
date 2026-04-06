@@ -22,7 +22,15 @@ interface Material {
   color_hex: string | null
   awl_handle_premium: number
   awl_ferrule_premium: number
+  available_awl_handle?: boolean
   grain_image_url?: string | null
+}
+
+interface MaterialStylePricingRow {
+  material_id: string
+  base_price_id: string
+  position: string
+  premium: number
 }
 
 export default function CustomAwlPage() {
@@ -31,6 +39,7 @@ export default function CustomAwlPage() {
   const [awlStyles, setAwlStyles] = useState<AwlStyle[]>([])
   const [handleWoods, setHandleWoods] = useState<Material[]>([])
   const [ferruleMaterials, setFerruleMaterials] = useState<Material[]>([])
+  const [stylePricing, setStylePricing] = useState<MaterialStylePricingRow[]>([])
   
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null)
   const [selectedHandleWood, setSelectedHandleWood] = useState<string | null>(null)
@@ -64,7 +73,15 @@ export default function CustomAwlPage() {
         .order('name', { ascending: true })
 
       if (woodsError) throw woodsError
-      setHandleWoods(woods || [])
+      const filteredWoods = (woods || []).filter((w) => w.available_awl_handle !== false)
+      setHandleWoods(filteredWoods)
+
+      const { data: mspData, error: mspError } = await supabase
+        .from('material_style_pricing')
+        .select('material_id, base_price_id, position, premium')
+
+      if (mspError) throw mspError
+      setStylePricing((mspData || []) as MaterialStylePricingRow[])
 
       // Load ferrule materials
       const { data: ferrules, error: ferrulesError } = await supabase
@@ -77,11 +94,28 @@ export default function CustomAwlPage() {
       if (ferrulesError) throw ferrulesError
       setFerruleMaterials(ferrules || [])
 
+      if (styles && styles.length > 0) setSelectedStyle(styles[0].id)
+      if (filteredWoods.length > 0) setSelectedHandleWood(filteredWoods[0].id)
+      if (ferrules && ferrules.length > 0) setSelectedFerrule(ferrules[0].id)
+
     } catch (error) {
       console.error('Error loading materials:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  const awlHandlePremiumFor = (woodId: string | null, styleId: string | null) => {
+    if (!woodId || !styleId) return 0
+    const row = stylePricing.find(
+      (sp) =>
+        sp.material_id === woodId &&
+        sp.base_price_id === styleId &&
+        sp.position === 'awl_handle'
+    )
+    if (row) return Number(row.premium) || 0
+    const wood = handleWoods.find((w) => w.id === woodId)
+    return wood?.awl_handle_premium ?? 0
   }
 
   const calculatePrice = () => {
@@ -91,7 +125,7 @@ export default function CustomAwlPage() {
 
     if (!style || !handleWood || !ferrule) return 0
 
-    return style.base_price + handleWood.awl_handle_premium + ferrule.awl_ferrule_premium
+    return style.base_price + awlHandlePremiumFor(selectedHandleWood, selectedStyle) + ferrule.awl_ferrule_premium
   }
 
   const handleAddToCart = () => {
@@ -205,7 +239,9 @@ export default function CustomAwlPage() {
                         <span className="text-xs font-medium truncate text-white">{wood.name}</span>
                       </div>
                       <p className="text-xs text-zinc-400">
-                        {wood.awl_handle_premium > 0 ? `+${formatPrice(wood.awl_handle_premium)}` : 'Base price'}
+                        {awlHandlePremiumFor(wood.id, selectedStyle) > 0
+                          ? `+${formatPrice(awlHandlePremiumFor(wood.id, selectedStyle))}`
+                          : 'Base price'}
                       </p>
                     </button>
                   ))}

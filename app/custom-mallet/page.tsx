@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,8 @@ interface Material {
   mallet_head_premium: number
   mallet_handle_premium: number
   available: boolean
+  available_mallet_head?: boolean
+  available_mallet_handle?: boolean
   grain_image_url?: string | null
 }
 
@@ -113,8 +115,10 @@ export default function CustomMalletPage() {
       // Set default selections
       if (styles && styles.length > 0) setSelectedStyle(styles[0].id)
       if (woodData && woodData.length > 0) {
-        setSelectedHeadWood(woodData[0].id)
-        setSelectedHandleWood(woodData[0].id)
+        const headList = woodData.filter((w) => w.available_mallet_head !== false)
+        const handleList = woodData.filter((w) => w.available_mallet_handle !== false)
+        if (headList[0]) setSelectedHeadWood(headList[0].id)
+        if (handleList[0]) setSelectedHandleWood(handleList[0].id)
       }
       if (transData && transData.length > 0) setSelectedTransition(transData[0].id)
       
@@ -193,6 +197,18 @@ export default function CustomMalletPage() {
     setAddedToCart(true)
     setTimeout(() => setAddedToCart(false), 3000)
   }
+
+  const woodsForHead = useMemo(
+    () => woods.filter((w) => w.available_mallet_head !== false),
+    [woods]
+  )
+  const woodsForHandle = useMemo(
+    () => woods.filter((w) => w.available_mallet_handle !== false),
+    [woods]
+  )
+
+  const headPremiumDisplay = premiumForWood(selectedHeadWood, selectedStyle, 'head')
+  const handlePremiumDisplay = premiumForWood(selectedHandleWood, selectedStyle, 'handle')
 
   if (loading) {
     return (
@@ -273,7 +289,7 @@ export default function CustomMalletPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
-                  {woods.map(wood => (
+                  {woodsForHead.map(wood => (
                     <button
                       key={wood.id}
                       onClick={() => setSelectedHeadWood(wood.id)}
@@ -291,8 +307,8 @@ export default function CustomMalletPage() {
                         )}
                         <div className="flex-1 min-w-0">
                           <span className="text-sm font-medium block text-white">{wood.name}</span>
-                          {wood.mallet_head_premium > 0 && (
-                            <span className="text-xs text-zinc-400">+£{wood.mallet_head_premium}</span>
+                          {premiumForWood(wood.id, selectedStyle, 'head') > 0 && (
+                            <span className="text-xs text-zinc-400">{formatPrice(premiumForWood(wood.id, selectedStyle, 'head'))}</span>
                           )}
                         </div>
                       </div>
@@ -309,7 +325,7 @@ export default function CustomMalletPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
-                  {woods.map(wood => (
+                  {woodsForHandle.map(wood => (
                     <button
                       key={wood.id}
                       onClick={() => setSelectedHandleWood(wood.id)}
@@ -327,8 +343,8 @@ export default function CustomMalletPage() {
                         )}
                         <div className="flex-1 min-w-0">
                           <span className="text-sm font-medium block text-white">{wood.name}</span>
-                          {wood.mallet_handle_premium > 0 && (
-                            <span className="text-xs text-zinc-400">+£{wood.mallet_handle_premium}</span>
+                          {premiumForWood(wood.id, selectedStyle, 'handle') > 0 && (
+                            <span className="text-xs text-zinc-400">{formatPrice(premiumForWood(wood.id, selectedStyle, 'handle'))}</span>
                           )}
                         </div>
                       </div>
@@ -422,16 +438,16 @@ export default function CustomMalletPage() {
                       <span className="text-zinc-400">Base price:</span>
                       <span className="text-white">{formatPrice(malletStyles.find(s => s.id === selectedStyle)?.base_price || 0)}</span>
                     </div>
-                    {woods.find(w => w.id === selectedHeadWood)?.mallet_head_premium ? (
+                    {headPremiumDisplay > 0 ? (
                       <div className="flex justify-between">
                         <span className="text-zinc-400">Head wood premium:</span>
-                        <span className="text-white">+{formatPrice(woods.find(w => w.id === selectedHeadWood)!.mallet_head_premium)}</span>
+                        <span className="text-white">+{formatPrice(headPremiumDisplay)}</span>
                       </div>
                     ) : null}
-                    {woods.find(w => w.id === selectedHandleWood)?.mallet_handle_premium ? (
+                    {handlePremiumDisplay > 0 ? (
                       <div className="flex justify-between">
                         <span className="text-zinc-400">Handle wood premium:</span>
-                        <span className="text-white">+{formatPrice(woods.find(w => w.id === selectedHandleWood)!.mallet_handle_premium)}</span>
+                        <span className="text-white">+{formatPrice(handlePremiumDisplay)}</span>
                       </div>
                     ) : null}
                     {transitions.find(t => t.id === selectedTransition)?.mallet_head_premium ? (

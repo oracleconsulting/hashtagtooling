@@ -31,6 +31,10 @@ interface Material {
   texture?: string | null
   durability?: string | null
   color_description?: string | null
+  available_mallet_head?: boolean
+  available_mallet_handle?: boolean
+  available_awl_handle?: boolean
+  available_square_scale?: boolean
 }
 
 interface BasePrice {
@@ -41,11 +45,13 @@ interface BasePrice {
   description: string
 }
 
+type StylePricingPosition = 'head' | 'handle' | 'awl_handle' | 'square_scale'
+
 interface MaterialStylePricingRow {
   id?: string
   material_id: string
   base_price_id: string
-  position: 'head' | 'handle'
+  position: StylePricingPosition
   premium: number
 }
 
@@ -59,6 +65,35 @@ function styleAbbreviation(styleName: string): string {
     .toUpperCase()
     .slice(0, 6)
 }
+
+function awlAbbreviation(styleName: string): string {
+  const n = styleName.trim()
+  if (n.includes('Small Scratch')) return 'SSA'
+  if (n.includes('Large Scratch')) return 'LSA'
+  if (n.includes('Small Birdcage')) return 'SBA'
+  if (n.includes('Large Birdcage')) return 'LBA'
+  if (n.includes('75mm') || n.includes('Burnisher')) return '75B'
+  return styleAbbreviation(styleName)
+}
+
+function squareAbbreviation(styleName: string): string {
+  const s = styleName.toLowerCase()
+  if (s.startsWith('chode')) {
+    return s.includes('titanium') ? 'Chode Ti' : 'Chode TS'
+  }
+  const m = s.match(/^(\d+)mm/)
+  const num = m ? m[1] : ''
+  const ti = s.includes('titanium')
+  return num ? `${num} ${ti ? 'Ti' : 'TS'}` : styleAbbreviation(styleName)
+}
+
+function premiumFormKey(materialId: string, basePriceId: string, position: StylePricingPosition) {
+  return `${materialId}|${basePriceId}|${position}`
+}
+
+const inputDarkClass = 'bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500'
+const selectDarkClass = 'w-full h-9 rounded border border-zinc-700 bg-zinc-800 px-2 text-white'
+const textareaDarkClass = 'w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-sm text-white placeholder:text-zinc-500'
 
 export default function MaterialsAdminPage() {
   const router = useRouter()
@@ -79,6 +114,10 @@ export default function MaterialsAdminPage() {
     mallet_head_premium: 0,
     mallet_handle_premium: 0,
     awl_handle_premium: 0,
+    available_mallet_head: true,
+    available_mallet_handle: true,
+    available_awl_handle: true,
+    available_square_scale: true,
   })
 
   const [newBasePrice, setNewBasePrice] = useState({
@@ -91,7 +130,7 @@ export default function MaterialsAdminPage() {
   const [materialStylePricing, setMaterialStylePricing] = useState<MaterialStylePricingRow[]>([])
   const [expandedPricingMaterialId, setExpandedPricingMaterialId] = useState<string | null>(null)
   const [pricingForm, setPricingForm] = useState<Record<string, string>>({})
-  const [savingPricing, setSavingPricing] = useState(false)
+  const [savingPricingSection, setSavingPricingSection] = useState<null | 'mallet' | 'awl' | 'square'>(null)
   const [showAddTransition, setShowAddTransition] = useState(false)
   const [newTransition, setNewTransition] = useState({
     name: '',
@@ -133,13 +172,22 @@ export default function MaterialsAdminPage() {
     }
   }
 
-  const seedStylePricingForWood = async (materialId: string, malletStyles: BasePrice[]) => {
-    const rows: { material_id: string; base_price_id: string; position: 'head' | 'handle'; premium: number }[] = []
+  const seedAllStylePricingForWood = async (materialId: string, allBase: BasePrice[]) => {
+    const malletStyles = allBase.filter((b) => b.product_type === 'mallet')
+    const awlStyles = allBase.filter((b) => b.product_type === 'awl')
+    const squareStyles = allBase.filter((b) => b.product_type === 'square')
+    const rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number }[] = []
     for (const bp of malletStyles) {
       rows.push(
         { material_id: materialId, base_price_id: bp.id, position: 'head', premium: 0 },
         { material_id: materialId, base_price_id: bp.id, position: 'handle', premium: 0 }
       )
+    }
+    for (const bp of awlStyles) {
+      rows.push({ material_id: materialId, base_price_id: bp.id, position: 'awl_handle', premium: 0 })
+    }
+    for (const bp of squareStyles) {
+      rows.push({ material_id: materialId, base_price_id: bp.id, position: 'square_scale', premium: 0 })
     }
     if (rows.length === 0) return
     const { error } = await supabase.from('material_style_pricing').insert(rows)
@@ -156,7 +204,12 @@ export default function MaterialsAdminPage() {
               color_hex: newMaterial.color_hex,
               mallet_head_premium: 0,
               mallet_handle_premium: 0,
-              awl_handle_premium: newMaterial.awl_handle_premium,
+              awl_handle_premium: 0,
+              available: true,
+              available_mallet_head: newMaterial.available_mallet_head,
+              available_mallet_handle: newMaterial.available_mallet_handle,
+              available_awl_handle: newMaterial.available_awl_handle,
+              available_square_scale: newMaterial.available_square_scale,
             }
           : newMaterial
 
@@ -164,8 +217,7 @@ export default function MaterialsAdminPage() {
       if (error) throw error
 
       if (inserted?.id && newMaterial.category === 'wood') {
-        const malletStyles = basePrices.filter((b) => b.product_type === 'mallet')
-        await seedStylePricingForWood(inserted.id, malletStyles)
+        await seedAllStylePricingForWood(inserted.id, basePrices)
       }
 
       setShowAddMaterial(false)
@@ -176,6 +228,10 @@ export default function MaterialsAdminPage() {
         mallet_head_premium: 0,
         mallet_handle_premium: 0,
         awl_handle_premium: 0,
+        available_mallet_head: true,
+        available_mallet_handle: true,
+        available_awl_handle: true,
+        available_square_scale: true,
       })
       loadData()
     } catch (error) {
@@ -211,28 +267,44 @@ export default function MaterialsAdminPage() {
 
   const openPricingGrid = (materialId: string) => {
     const malletStyles = basePrices.filter((b) => b.product_type === 'mallet')
+    const awlStyles = basePrices.filter((b) => b.product_type === 'awl')
+    const squareStyles = basePrices.filter((b) => b.product_type === 'square')
     const next: Record<string, string> = {}
     for (const bp of malletStyles) {
       for (const pos of ['head', 'handle'] as const) {
-        const key = `${materialId}|${bp.id}|${pos}`
+        const key = premiumFormKey(materialId, bp.id, pos)
         const found = materialStylePricing.find(
           (r) => r.material_id === materialId && r.base_price_id === bp.id && r.position === pos
         )
         next[key] = String(found?.premium ?? 0)
       }
     }
+    for (const bp of awlStyles) {
+      const key = premiumFormKey(materialId, bp.id, 'awl_handle')
+      const found = materialStylePricing.find(
+        (r) => r.material_id === materialId && r.base_price_id === bp.id && r.position === 'awl_handle'
+      )
+      next[key] = String(found?.premium ?? 0)
+    }
+    for (const bp of squareStyles) {
+      const key = premiumFormKey(materialId, bp.id, 'square_scale')
+      const found = materialStylePricing.find(
+        (r) => r.material_id === materialId && r.base_price_id === bp.id && r.position === 'square_scale'
+      )
+      next[key] = String(found?.premium ?? 0)
+    }
     setPricingForm(next)
     setExpandedPricingMaterialId(materialId)
   }
 
-  const savePricingGrid = async (materialId: string) => {
-    setSavingPricing(true)
+  const saveMalletPremiums = async (materialId: string) => {
+    setSavingPricingSection('mallet')
     try {
       const malletStyles = basePrices.filter((b) => b.product_type === 'mallet')
-      const rows: { material_id: string; base_price_id: string; position: 'head' | 'handle'; premium: number }[] = []
+      const rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number }[] = []
       for (const bp of malletStyles) {
         for (const pos of ['head', 'handle'] as const) {
-          const key = `${materialId}|${bp.id}|${pos}`
+          const key = premiumFormKey(materialId, bp.id, pos)
           const v = parseFloat(pricingForm[key] || '0')
           rows.push({
             material_id: materialId,
@@ -246,14 +318,93 @@ export default function MaterialsAdminPage() {
         onConflict: 'material_id,base_price_id,position',
       })
       if (error) throw error
-      setExpandedPricingMaterialId(null)
       loadData()
     } catch (e) {
       console.error(e)
-      alert('Failed to save pricing')
+      alert('Failed to save mallet premiums')
     } finally {
-      setSavingPricing(false)
+      setSavingPricingSection(null)
     }
+  }
+
+  const saveAwlPremiums = async (materialId: string) => {
+    setSavingPricingSection('awl')
+    try {
+      const awlStyles = basePrices.filter((b) => b.product_type === 'awl')
+      const rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number }[] = []
+      for (const bp of awlStyles) {
+        const key = premiumFormKey(materialId, bp.id, 'awl_handle')
+        const v = parseFloat(pricingForm[key] || '0')
+        rows.push({
+          material_id: materialId,
+          base_price_id: bp.id,
+          position: 'awl_handle',
+          premium: Number.isFinite(v) ? v : 0,
+        })
+      }
+      const { error } = await supabase.from('material_style_pricing').upsert(rows, {
+        onConflict: 'material_id,base_price_id,position',
+      })
+      if (error) throw error
+      loadData()
+    } catch (e) {
+      console.error(e)
+      alert('Failed to save awl premiums')
+    } finally {
+      setSavingPricingSection(null)
+    }
+  }
+
+  const saveSquarePremiums = async (materialId: string) => {
+    setSavingPricingSection('square')
+    try {
+      const squareStyles = basePrices.filter((b) => b.product_type === 'square')
+      const rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number }[] = []
+      for (const bp of squareStyles) {
+        const key = premiumFormKey(materialId, bp.id, 'square_scale')
+        const v = parseFloat(pricingForm[key] || '0')
+        rows.push({
+          material_id: materialId,
+          base_price_id: bp.id,
+          position: 'square_scale',
+          premium: Number.isFinite(v) ? v : 0,
+        })
+      }
+      const { error } = await supabase.from('material_style_pricing').upsert(rows, {
+        onConflict: 'material_id,base_price_id,position',
+      })
+      if (error) throw error
+      loadData()
+    } catch (e) {
+      console.error(e)
+      alert('Failed to save square premiums')
+    } finally {
+      setSavingPricingSection(null)
+    }
+  }
+
+  const toggleWoodAppAvailability = async (
+    materialId: string,
+    field: 'available_mallet_head' | 'available_mallet_handle' | 'available_awl_handle' | 'available_square_scale',
+    currentValue: boolean
+  ) => {
+    const { error } = await supabase.from('materials').update({ [field]: !currentValue }).eq('id', materialId)
+    if (error) {
+      console.error(error)
+      alert('Failed to update availability')
+      return
+    }
+    loadData()
+  }
+
+  const toggleWoodMasterAvailable = async (materialId: string, currentValue: boolean) => {
+    const { error } = await supabase.from('materials').update({ available: !currentValue }).eq('id', materialId)
+    if (error) {
+      console.error(error)
+      alert('Failed to update availability')
+      return
+    }
+    loadData()
   }
 
   const uploadGrainImage = async (materialId: string, file: File) => {
@@ -384,7 +535,10 @@ export default function MaterialsAdminPage() {
         color_description: material.color_description ?? null,
       }
       if (material.category === 'wood') {
-        // Mallet premiums live in material_style_pricing
+        baseUpdate.available_mallet_head = material.available_mallet_head ?? true
+        baseUpdate.available_mallet_handle = material.available_mallet_handle ?? true
+        baseUpdate.available_awl_handle = material.available_awl_handle ?? true
+        baseUpdate.available_square_scale = material.available_square_scale ?? true
       } else if (material.category === 'transition') {
         baseUpdate.mallet_head_premium = material.mallet_head_premium
         baseUpdate.mallet_handle_premium = material.mallet_handle_premium
@@ -464,6 +618,7 @@ export default function MaterialsAdminPage() {
   const transitionMaterials = materials.filter(m => m.category === 'transition')
   const malletBasePrices = basePrices.filter(bp => bp.product_type === 'mallet')
   const awlBasePrices = basePrices.filter(bp => bp.product_type === 'awl')
+  const squareBasePrices = basePrices.filter(bp => bp.product_type === 'square')
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -526,7 +681,7 @@ export default function MaterialsAdminPage() {
                     <>
                       <div className="flex-1">
                         <p className="font-medium">{bp.style_name}</p>
-                        <p className="text-sm text-zinc-600">{bp.description}</p>
+                        <p className="text-sm text-zinc-400">{bp.description}</p>
                       </div>
                       <p className="font-bold text-lg">£{bp.base_price.toFixed(2)}</p>
                       <Button size="sm" variant="outline" onClick={() => setEditingBasePrice(bp)}>
@@ -568,7 +723,7 @@ export default function MaterialsAdminPage() {
                     <>
                       <div className="flex-1">
                         <p className="font-medium">{bp.style_name}</p>
-                        <p className="text-sm text-zinc-600">{bp.description}</p>
+                        <p className="text-sm text-zinc-400">{bp.description}</p>
                       </div>
                       <p className="font-bold text-lg">£{bp.base_price.toFixed(2)}</p>
                       <Button size="sm" variant="outline" onClick={() => setEditingBasePrice(bp)}>
@@ -579,24 +734,72 @@ export default function MaterialsAdminPage() {
                 </div>
               ))}
             </div>
+
+            <div>
+              <h3 className="font-semibold mb-2">Squares</h3>
+              {squareBasePrices.length === 0 ? (
+                <p className="text-sm text-zinc-500">No square base prices yet.</p>
+              ) : (
+                squareBasePrices.map(bp => (
+                  <div key={bp.id} className="flex items-center gap-4 p-3 border border-zinc-700 rounded mb-2">
+                    {editingBasePrice?.id === bp.id ? (
+                      <>
+                        <div className="flex-1">
+                          <p className="font-medium">{bp.style_name}</p>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={editingBasePrice.base_price}
+                            onChange={(e) => setEditingBasePrice({
+                              ...editingBasePrice,
+                              base_price: parseFloat(e.target.value)
+                            })}
+                            className={`w-32 mt-1 ${inputDarkClass}`}
+                          />
+                        </div>
+                        <Button size="sm" onClick={() => updateBasePrice(editingBasePrice)}>
+                          Save
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setEditingBasePrice(null)}>
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex-1">
+                          <p className="font-medium">{bp.style_name}</p>
+                          <p className="text-sm text-zinc-400">{bp.description}</p>
+                        </div>
+                        <p className="font-bold text-lg">£{bp.base_price.toFixed(2)}</p>
+                        <Button size="sm" variant="outline" onClick={() => setEditingBasePrice(bp)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           {showAddBasePrice && (
-            <div className="mt-4 p-4 border rounded bg-zinc-50">
-              <h4 className="font-semibold mb-3">Add Base Price</h4>
+            <div className="mt-4 p-4 border border-zinc-700 rounded bg-brand-dark-card bg-zinc-900/80">
+              <h4 className="font-semibold mb-3 text-zinc-200">Add Base Price</h4>
               <div className="space-y-3">
                 <select
-                  className="w-full h-10 rounded-md border px-3"
+                  className={`h-10 rounded-md px-3 ${selectDarkClass}`}
                   value={newBasePrice.product_type}
                   onChange={(e) => setNewBasePrice({ ...newBasePrice, product_type: e.target.value })}
                 >
                   <option value="mallet">Mallet</option>
                   <option value="awl">Awl</option>
+                  <option value="square">Square</option>
                 </select>
                 <Input
                   placeholder="Style name (e.g., Turned Carving Mallet)"
                   value={newBasePrice.style_name}
                   onChange={(e) => setNewBasePrice({ ...newBasePrice, style_name: e.target.value })}
+                  className={inputDarkClass}
                 />
                 <Input
                   type="number"
@@ -604,11 +807,13 @@ export default function MaterialsAdminPage() {
                   placeholder="Base price"
                   value={newBasePrice.base_price || ''}
                   onChange={(e) => setNewBasePrice({ ...newBasePrice, base_price: parseFloat(e.target.value) })}
+                  className={inputDarkClass}
                 />
                 <Input
                   placeholder="Description"
                   value={newBasePrice.description}
                   onChange={(e) => setNewBasePrice({ ...newBasePrice, description: e.target.value })}
+                  className={inputDarkClass}
                 />
                 <div className="flex gap-2">
                   <Button onClick={addBasePrice}>Add</Button>
@@ -635,13 +840,16 @@ export default function MaterialsAdminPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b">
-                  <th className="text-left p-2">Material</th>
-                  <th className="text-center p-2">Grain</th>
-                  <th className="text-center p-2">Mallet (per style)</th>
-                  <th className="text-right p-2">Awl Handle</th>
-                  <th className="text-center p-2">Available</th>
-                  <th className="text-center p-2">Actions</th>
+                <tr className="border-b border-zinc-700">
+                  <th className="text-left p-2 text-zinc-300">Material</th>
+                  <th className="text-center p-2 text-zinc-300">Grain</th>
+                  <th className="text-center p-2 text-zinc-300">Mallet (per style)</th>
+                  <th className="text-center p-2 text-zinc-300 w-14" title="Mallet head">Head</th>
+                  <th className="text-center p-2 text-zinc-300 w-14" title="Mallet handle">Handle</th>
+                  <th className="text-center p-2 text-zinc-300 w-14" title="Awl handle">Awl</th>
+                  <th className="text-center p-2 text-zinc-300 w-14" title="Engineering square scale">Scale</th>
+                  <th className="text-center p-2 text-zinc-300 w-14" title="Show in builders (master)">All</th>
+                  <th className="text-center p-2 text-zinc-300">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -685,26 +893,60 @@ export default function MaterialsAdminPage() {
                         <td className="p-2 text-center text-sm text-zinc-500">
                           Use &quot;Edit pricing&quot; below
                         </td>
-                        <td className="p-2">
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={editingMaterial.awl_handle_premium}
-                            onChange={(e) => setEditingMaterial({
-                              ...editingMaterial,
-                              awl_handle_premium: parseFloat(e.target.value)
-                            })}
-                            className="w-24 text-right"
+                        <td className="p-2 text-center">
+                          <input
+                            type="checkbox"
+                            title="Mallet head"
+                            checked={mat.available_mallet_head !== false}
+                            onChange={() =>
+                              toggleWoodAppAvailability(mat.id, 'available_mallet_head', mat.available_mallet_head !== false)
+                            }
+                            className="accent-brand-orange"
                           />
                         </td>
                         <td className="p-2 text-center">
                           <input
                             type="checkbox"
+                            title="Mallet handle"
+                            checked={mat.available_mallet_handle !== false}
+                            onChange={() =>
+                              toggleWoodAppAvailability(mat.id, 'available_mallet_handle', mat.available_mallet_handle !== false)
+                            }
+                            className="accent-brand-orange"
+                          />
+                        </td>
+                        <td className="p-2 text-center">
+                          <input
+                            type="checkbox"
+                            title="Awl handle"
+                            checked={mat.available_awl_handle !== false}
+                            onChange={() =>
+                              toggleWoodAppAvailability(mat.id, 'available_awl_handle', mat.available_awl_handle !== false)
+                            }
+                            className="accent-brand-orange"
+                          />
+                        </td>
+                        <td className="p-2 text-center">
+                          <input
+                            type="checkbox"
+                            title="Square scale"
+                            checked={mat.available_square_scale !== false}
+                            onChange={() =>
+                              toggleWoodAppAvailability(mat.id, 'available_square_scale', mat.available_square_scale !== false)
+                            }
+                            className="accent-brand-orange"
+                          />
+                        </td>
+                        <td className="p-2 text-center">
+                          <input
+                            type="checkbox"
+                            title="Available (master)"
                             checked={editingMaterial.available}
                             onChange={(e) => setEditingMaterial({
                               ...editingMaterial,
                               available: e.target.checked
                             })}
+                            className="accent-brand-orange"
                           />
                         </td>
                         <td className="p-2">
@@ -753,11 +995,58 @@ export default function MaterialsAdminPage() {
                             {expandedPricingMaterialId === mat.id ? 'Close grid' : 'Edit pricing'}
                           </Button>
                         </td>
-                        <td className="p-2 text-right">
-                          {mat.awl_handle_premium === 0 ? '—' : `+£${mat.awl_handle_premium.toFixed(2)}`}
+                        <td className="p-2 text-center">
+                          <input
+                            type="checkbox"
+                            title="Mallet head"
+                            checked={mat.available_mallet_head !== false}
+                            onChange={() =>
+                              toggleWoodAppAvailability(mat.id, 'available_mallet_head', mat.available_mallet_head !== false)
+                            }
+                            className="accent-brand-orange"
+                          />
                         </td>
                         <td className="p-2 text-center">
-                          {mat.available ? '✓' : '✗'}
+                          <input
+                            type="checkbox"
+                            title="Mallet handle"
+                            checked={mat.available_mallet_handle !== false}
+                            onChange={() =>
+                              toggleWoodAppAvailability(mat.id, 'available_mallet_handle', mat.available_mallet_handle !== false)
+                            }
+                            className="accent-brand-orange"
+                          />
+                        </td>
+                        <td className="p-2 text-center">
+                          <input
+                            type="checkbox"
+                            title="Awl handle"
+                            checked={mat.available_awl_handle !== false}
+                            onChange={() =>
+                              toggleWoodAppAvailability(mat.id, 'available_awl_handle', mat.available_awl_handle !== false)
+                            }
+                            className="accent-brand-orange"
+                          />
+                        </td>
+                        <td className="p-2 text-center">
+                          <input
+                            type="checkbox"
+                            title="Square scale"
+                            checked={mat.available_square_scale !== false}
+                            onChange={() =>
+                              toggleWoodAppAvailability(mat.id, 'available_square_scale', mat.available_square_scale !== false)
+                            }
+                            className="accent-brand-orange"
+                          />
+                        </td>
+                        <td className="p-2 text-center">
+                          <input
+                            type="checkbox"
+                            title="Available (master)"
+                            checked={mat.available}
+                            onChange={() => toggleWoodMasterAvailable(mat.id, mat.available)}
+                            className="accent-brand-orange"
+                          />
                         </td>
                         <td className="p-2">
                           <div className="flex gap-2 justify-center">
@@ -774,83 +1063,205 @@ export default function MaterialsAdminPage() {
                   </tr>
                   {expandedPricingMaterialId === mat.id && (
                     <tr>
-                      <td colSpan={6} className="p-4 bg-zinc-100 dark:bg-zinc-900 border-b">
-                        <div className="space-y-3 overflow-x-auto">
-                          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-                            Premiums by mallet style (£) — HEAD and HANDLE rows
-                          </p>
-                          <div className="inline-block min-w-full">
-                            <table className="w-full text-xs border-collapse">
-                              <thead>
-                                <tr>
-                                  <th className="border p-2 text-left bg-zinc-200 dark:bg-zinc-800">Position</th>
-                                  {malletBasePrices.map((bp) => (
-                                    <th
-                                      key={bp.id}
-                                      className="border p-2 text-center bg-zinc-200 dark:bg-zinc-800 min-w-[4rem]"
-                                      title={bp.style_name}
-                                    >
-                                      {styleAbbreviation(bp.style_name)}
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(['head', 'handle'] as const).map((pos) => (
-                                  <tr key={pos}>
-                                    <td className="border p-2 font-medium capitalize bg-zinc-50 dark:bg-zinc-900/50">
-                                      {pos}
-                                    </td>
-                                    {malletBasePrices.map((bp) => {
-                                      const key = `${mat.id}|${bp.id}|${pos}`
-                                      return (
-                                        <td key={key} className="border p-1">
-                                          <Input
-                                            type="number"
-                                            step="0.01"
-                                            className="w-full h-8 text-right text-xs px-1"
-                                            value={pricingForm[key] ?? '0'}
-                                            onChange={(e) =>
-                                              setPricingForm((prev) => ({
-                                                ...prev,
-                                                [key]: e.target.value,
-                                              }))
-                                            }
-                                          />
+                      <td colSpan={9} className="p-4 border-b border-zinc-800 bg-brand-dark-card bg-zinc-900/95">
+                        <div className="space-y-8 overflow-x-auto text-zinc-200">
+                          {((mat.available_mallet_head ?? true) || (mat.available_mallet_handle ?? true)) && malletBasePrices.length > 0 && (
+                            <div className="space-y-3">
+                              <p className="text-sm font-medium text-zinc-200">Mallet premiums (£)</p>
+                              <div className="inline-block min-w-full">
+                                <table className="w-full text-xs border-collapse border border-zinc-700">
+                                  <thead>
+                                    <tr>
+                                      <th className="border border-zinc-700 p-2 text-left bg-zinc-800 text-zinc-300">Position</th>
+                                      {malletBasePrices.map((bp) => (
+                                        <th
+                                          key={bp.id}
+                                          className="border border-zinc-700 p-2 text-center bg-zinc-800 text-zinc-300 min-w-[4rem]"
+                                          title={bp.style_name}
+                                        >
+                                          {styleAbbreviation(bp.style_name)}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {(['head', 'handle'] as const).map((pos) => (
+                                      <tr key={pos}>
+                                        <td className="border border-zinc-700 p-2 font-medium capitalize bg-zinc-900/80 text-zinc-200">
+                                          {pos}
                                         </td>
-                                      )
-                                    })}
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                          <Button type="button" size="sm" disabled={savingPricing} onClick={() => savePricingGrid(mat.id)}>
-                            {savingPricing ? 'Saving…' : 'Save all mallet premiums'}
-                          </Button>
+                                        {malletBasePrices.map((bp) => {
+                                          const key = premiumFormKey(mat.id, bp.id, pos)
+                                          return (
+                                            <td key={key} className="border border-zinc-700 p-1 bg-zinc-900/50">
+                                              <Input
+                                                type="number"
+                                                step="0.01"
+                                                className={`w-full h-8 text-right text-xs px-1 ${inputDarkClass}`}
+                                                value={pricingForm[key] ?? '0'}
+                                                onChange={(e) =>
+                                                  setPricingForm((prev) => ({
+                                                    ...prev,
+                                                    [key]: e.target.value,
+                                                  }))
+                                                }
+                                              />
+                                            </td>
+                                          )
+                                        })}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="bg-brand-orange hover:bg-brand-orange/90"
+                                disabled={savingPricingSection === 'mallet'}
+                                onClick={() => saveMalletPremiums(mat.id)}
+                              >
+                                {savingPricingSection === 'mallet' ? 'Saving…' : 'Save mallet premiums'}
+                              </Button>
+                            </div>
+                          )}
+
+                          {(mat.available_awl_handle ?? true) && awlBasePrices.length > 0 && (
+                            <div className="space-y-3">
+                              <p className="text-sm font-medium text-zinc-200">Awl handle premiums (£)</p>
+                              <div className="inline-block min-w-full">
+                                <table className="w-full text-xs border-collapse border border-zinc-700">
+                                  <thead>
+                                    <tr>
+                                      <th className="border border-zinc-700 p-2 text-left bg-zinc-800 text-zinc-300">Style</th>
+                                      {awlBasePrices.map((bp) => (
+                                        <th
+                                          key={bp.id}
+                                          className="border border-zinc-700 p-2 text-center bg-zinc-800 text-zinc-300 min-w-[4rem]"
+                                          title={bp.style_name}
+                                        >
+                                          {awlAbbreviation(bp.style_name)}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    <tr>
+                                      <td className="border border-zinc-700 p-2 font-medium bg-zinc-900/80 text-zinc-200">Premium</td>
+                                      {awlBasePrices.map((bp) => {
+                                        const key = premiumFormKey(mat.id, bp.id, 'awl_handle')
+                                        return (
+                                          <td key={key} className="border border-zinc-700 p-1 bg-zinc-900/50">
+                                            <Input
+                                              type="number"
+                                              step="0.01"
+                                              className={`w-full h-8 text-right text-xs px-1 ${inputDarkClass}`}
+                                              value={pricingForm[key] ?? '0'}
+                                              onChange={(e) =>
+                                                setPricingForm((prev) => ({
+                                                  ...prev,
+                                                  [key]: e.target.value,
+                                                }))
+                                              }
+                                            />
+                                          </td>
+                                        )
+                                      })}
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="bg-brand-orange hover:bg-brand-orange/90"
+                                disabled={savingPricingSection === 'awl'}
+                                onClick={() => saveAwlPremiums(mat.id)}
+                              >
+                                {savingPricingSection === 'awl' ? 'Saving…' : 'Save awl premiums'}
+                              </Button>
+                            </div>
+                          )}
+
+                          {(mat.available_square_scale ?? true) && squareBasePrices.length > 0 && (
+                            <div className="space-y-3">
+                              <p className="text-sm font-medium text-zinc-200">Square scale premiums (£)</p>
+                              <div className="inline-block min-w-full">
+                                <table className="w-full text-xs border-collapse border border-zinc-700">
+                                  <thead>
+                                    <tr>
+                                      <th className="border border-zinc-700 p-2 text-left bg-zinc-800 text-zinc-300">Size</th>
+                                      {squareBasePrices.map((bp) => (
+                                        <th
+                                          key={bp.id}
+                                          className="border border-zinc-700 p-2 text-center bg-zinc-800 text-zinc-300 min-w-[3.5rem]"
+                                          title={bp.style_name}
+                                        >
+                                          {squareAbbreviation(bp.style_name)}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    <tr>
+                                      <td className="border border-zinc-700 p-2 font-medium bg-zinc-900/80 text-zinc-200">Premium</td>
+                                      {squareBasePrices.map((bp) => {
+                                        const key = premiumFormKey(mat.id, bp.id, 'square_scale')
+                                        return (
+                                          <td key={key} className="border border-zinc-700 p-1 bg-zinc-900/50">
+                                            <Input
+                                              type="number"
+                                              step="0.01"
+                                              className={`w-full h-8 text-right text-xs px-1 ${inputDarkClass}`}
+                                              value={pricingForm[key] ?? '0'}
+                                              onChange={(e) =>
+                                                setPricingForm((prev) => ({
+                                                  ...prev,
+                                                  [key]: e.target.value,
+                                                }))
+                                              }
+                                            />
+                                          </td>
+                                        )
+                                      })}
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="bg-brand-orange hover:bg-brand-orange/90"
+                                disabled={savingPricingSection === 'square'}
+                                onClick={() => saveSquarePremiums(mat.id)}
+                              >
+                                {savingPricingSection === 'square' ? 'Saving…' : 'Save square premiums'}
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>
                   )}
                   {editingMaterial?.id === mat.id && (
                     <tr>
-                      <td colSpan={6} className="p-4 bg-zinc-100 dark:bg-zinc-900 border-b">
+                      <td colSpan={9} className="p-4 border-b border-zinc-800 bg-brand-dark-card bg-zinc-900/95">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                           <div>
-                            <label className="block font-medium mb-1">Janka Hardness</label>
-                            <Input type="number" value={editingMaterial.janka_hardness ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, janka_hardness: e.target.value ? parseInt(e.target.value, 10) : null })} className="w-full" />
+                            <label className="block font-medium mb-1 text-zinc-300">Janka Hardness</label>
+                            <Input type="number" value={editingMaterial.janka_hardness ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, janka_hardness: e.target.value ? parseInt(e.target.value, 10) : null })} className={`w-full ${inputDarkClass}`} />
                           </div>
                           <div>
-                            <label className="block font-medium mb-1">Specific Gravity</label>
-                            <Input type="number" step="0.01" value={editingMaterial.specific_gravity ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, specific_gravity: e.target.value ? parseFloat(e.target.value) : null })} className="w-full" />
+                            <label className="block font-medium mb-1 text-zinc-300">Specific Gravity</label>
+                            <Input type="number" step="0.01" value={editingMaterial.specific_gravity ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, specific_gravity: e.target.value ? parseFloat(e.target.value) : null })} className={`w-full ${inputDarkClass}`} />
                           </div>
                           <div>
-                            <label className="block font-medium mb-1">Origin</label>
-                            <Input value={editingMaterial.origin ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, origin: e.target.value || null })} className="w-full" placeholder="e.g. North America" />
+                            <label className="block font-medium mb-1 text-zinc-300">Origin</label>
+                            <Input value={editingMaterial.origin ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, origin: e.target.value || null })} className={`w-full ${inputDarkClass}`} placeholder="e.g. North America" />
                           </div>
                           <div>
-                            <label className="block font-medium mb-1">Grain Type</label>
-                            <select className="w-full h-9 rounded border px-2" value={editingMaterial.grain_type ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, grain_type: e.target.value || null })}>
+                            <label className="block font-medium mb-1 text-zinc-300">Grain Type</label>
+                            <select className={selectDarkClass} value={editingMaterial.grain_type ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, grain_type: e.target.value || null })}>
                               <option value="">—</option>
                               <option value="straight">Straight</option>
                               <option value="interlocked">Interlocked</option>
@@ -861,8 +1272,8 @@ export default function MaterialsAdminPage() {
                             </select>
                           </div>
                           <div>
-                            <label className="block font-medium mb-1">Texture</label>
-                            <select className="w-full h-9 rounded border px-2" value={editingMaterial.texture ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, texture: e.target.value || null })}>
+                            <label className="block font-medium mb-1 text-zinc-300">Texture</label>
+                            <select className={selectDarkClass} value={editingMaterial.texture ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, texture: e.target.value || null })}>
                               <option value="">—</option>
                               <option value="fine">Fine</option>
                               <option value="medium">Medium</option>
@@ -870,8 +1281,8 @@ export default function MaterialsAdminPage() {
                             </select>
                           </div>
                           <div>
-                            <label className="block font-medium mb-1">Durability</label>
-                            <select className="w-full h-9 rounded border px-2" value={editingMaterial.durability ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, durability: e.target.value || null })}>
+                            <label className="block font-medium mb-1 text-zinc-300">Durability</label>
+                            <select className={selectDarkClass} value={editingMaterial.durability ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, durability: e.target.value || null })}>
                               <option value="">—</option>
                               <option value="very_high">Very High</option>
                               <option value="high">High</option>
@@ -880,15 +1291,15 @@ export default function MaterialsAdminPage() {
                             </select>
                           </div>
                           <div className="md:col-span-2">
-                            <label className="block font-medium mb-1">Grain Description</label>
-                            <textarea rows={2} className="w-full rounded border px-2 py-1 text-sm" value={editingMaterial.grain_description ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, grain_description: e.target.value || null })} placeholder="Describe the grain and figure" />
+                            <label className="block font-medium mb-1 text-zinc-300">Grain Description</label>
+                            <textarea rows={2} className={textareaDarkClass} value={editingMaterial.grain_description ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, grain_description: e.target.value || null })} placeholder="Describe the grain and figure" />
                           </div>
                           <div className="md:col-span-2">
-                            <label className="block font-medium mb-1">Colour Description</label>
-                            <Input value={editingMaterial.color_description ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, color_description: e.target.value || null })} className="w-full" placeholder="e.g. Dark chocolate brown" />
+                            <label className="block font-medium mb-1 text-zinc-300">Colour Description</label>
+                            <Input value={editingMaterial.color_description ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, color_description: e.target.value || null })} className={`w-full ${inputDarkClass}`} placeholder="e.g. Dark chocolate brown" />
                           </div>
-                          <div className="md:col-span-2 border-t border-zinc-200 dark:border-zinc-700 pt-4 mt-4">
-                            <label className="block font-medium mb-2">Tap Test Audio</label>
+                          <div className="md:col-span-2 border-t border-zinc-700 pt-4 mt-4">
+                            <label className="block font-medium mb-2 text-zinc-300">Tap Test Audio</label>
                             <input
                               type="file"
                               accept="audio/mp3,audio/wav,audio/m4a,audio/ogg"
@@ -912,13 +1323,13 @@ export default function MaterialsAdminPage() {
                                 </div>
                               </div>
                             ) : (
-                              <label htmlFor={`tap-audio-${editingMaterial.id}`} className="inline-flex items-center gap-2 px-3 py-2 rounded border border-dashed border-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer text-sm">
+                              <label htmlFor={`tap-audio-${editingMaterial.id}`} className="inline-flex items-center gap-2 px-3 py-2 rounded border border-dashed border-zinc-500 hover:bg-zinc-800 cursor-pointer text-sm text-zinc-200">
                                 <Upload className="h-4 w-4" />
                                 Upload audio (MP3, WAV, M4A, OGG)
                               </label>
                             )}
                             <Input
-                              className="mt-2"
+                              className={`mt-2 ${inputDarkClass}`}
                               placeholder="e.g. Deep, resonant ring with a warm sustain"
                               value={editingMaterial.tap_audio_description ?? ''}
                               onChange={(e) => setEditingMaterial({ ...editingMaterial, tap_audio_description: e.target.value || null })}
@@ -936,16 +1347,17 @@ export default function MaterialsAdminPage() {
           </div>
 
           {showAddMaterial && (
-            <div className="mt-4 p-4 border rounded bg-zinc-50">
-              <h4 className="font-semibold mb-3">Add Material</h4>
+            <div className="mt-4 p-4 border border-zinc-700 rounded bg-brand-dark-card bg-zinc-900/80">
+              <h4 className="font-semibold mb-3 text-zinc-200">Add Material</h4>
               <div className="grid grid-cols-2 gap-3">
                 <Input
                   placeholder="Material name"
                   value={newMaterial.name}
                   onChange={(e) => setNewMaterial({ ...newMaterial, name: e.target.value })}
+                  className={inputDarkClass}
                 />
                 <select
-                  className="h-10 rounded-md border px-3"
+                  className={`h-10 rounded-md px-3 ${selectDarkClass}`}
                   value={newMaterial.category}
                   onChange={(e) => setNewMaterial({ ...newMaterial, category: e.target.value })}
                 >
@@ -956,6 +1368,7 @@ export default function MaterialsAdminPage() {
                   type="color"
                   value={newMaterial.color_hex}
                   onChange={(e) => setNewMaterial({ ...newMaterial, color_hex: e.target.value })}
+                  className="h-10 bg-zinc-800 border-zinc-700"
                 />
                 {newMaterial.category === 'transition' && (
                   <>
@@ -965,6 +1378,7 @@ export default function MaterialsAdminPage() {
                       placeholder="Mallet transition premium"
                       value={newMaterial.mallet_head_premium || ''}
                       onChange={(e) => setNewMaterial({ ...newMaterial, mallet_head_premium: parseFloat(e.target.value) || 0 })}
+                      className={inputDarkClass}
                     />
                     <Input
                       type="number"
@@ -972,19 +1386,63 @@ export default function MaterialsAdminPage() {
                       placeholder="Mallet handle (unused)"
                       value={newMaterial.mallet_handle_premium || ''}
                       onChange={(e) => setNewMaterial({ ...newMaterial, mallet_handle_premium: parseFloat(e.target.value) || 0 })}
+                      className={inputDarkClass}
                     />
                   </>
                 )}
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="Awl handle premium"
-                  value={newMaterial.awl_handle_premium || ''}
-                  onChange={(e) => setNewMaterial({ ...newMaterial, awl_handle_premium: parseFloat(e.target.value) || 0 })}
-                />
+                {newMaterial.category === 'transition' && (
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="Awl handle premium"
+                    value={newMaterial.awl_handle_premium || ''}
+                    onChange={(e) => setNewMaterial({ ...newMaterial, awl_handle_premium: parseFloat(e.target.value) || 0 })}
+                    className={inputDarkClass}
+                  />
+                )}
                 {newMaterial.category === 'wood' && (
-                  <p className="col-span-2 text-sm text-zinc-500">
-                    After adding, use &quot;Edit pricing&quot; in the table to set premiums per mallet style.
+                  <div className="col-span-2 flex flex-wrap gap-4 text-sm text-zinc-300">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newMaterial.available_mallet_head}
+                        onChange={(e) => setNewMaterial({ ...newMaterial, available_mallet_head: e.target.checked })}
+                        className="accent-brand-orange"
+                      />
+                      Head
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newMaterial.available_mallet_handle}
+                        onChange={(e) => setNewMaterial({ ...newMaterial, available_mallet_handle: e.target.checked })}
+                        className="accent-brand-orange"
+                      />
+                      Handle
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newMaterial.available_awl_handle}
+                        onChange={(e) => setNewMaterial({ ...newMaterial, available_awl_handle: e.target.checked })}
+                        className="accent-brand-orange"
+                      />
+                      Awl
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newMaterial.available_square_scale}
+                        onChange={(e) => setNewMaterial({ ...newMaterial, available_square_scale: e.target.checked })}
+                        className="accent-brand-orange"
+                      />
+                      Scale
+                    </label>
+                  </div>
+                )}
+                {newMaterial.category === 'wood' && (
+                  <p className="col-span-2 text-sm text-zinc-400">
+                    After adding, use &quot;Edit pricing&quot; in the table to set premiums per style (mallet, awl, square).
                   </p>
                 )}
               </div>
@@ -1015,8 +1473,8 @@ export default function MaterialsAdminPage() {
         </CardHeader>
         <CardContent>
           {showAddTransition && (
-            <div className="mb-6 p-4 border rounded bg-zinc-50 dark:bg-zinc-900/50 space-y-3">
-              <h4 className="font-semibold">New transition material</h4>
+            <div className="mb-6 p-4 border border-zinc-700 rounded bg-zinc-900/80 space-y-3">
+              <h4 className="font-semibold text-zinc-200">New transition material</h4>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <Input placeholder="Name" value={newTransition.name} onChange={(e) => setNewTransition({ ...newTransition, name: e.target.value })} />
                 <Input type="color" value={newTransition.color_hex} onChange={(e) => setNewTransition({ ...newTransition, color_hex: e.target.value })} />
@@ -1068,9 +1526,9 @@ export default function MaterialsAdminPage() {
                   </>
                 ) : (
                   <>
-                    <span className="text-sm text-zinc-600">Mallet £{mat.mallet_head_premium.toFixed(2)}</span>
-                    <span className="text-sm text-zinc-600">Awl £{mat.awl_handle_premium.toFixed(2)}</span>
-                    <span className="text-sm text-zinc-600">Coin £{(mat.coin_premium ?? 0).toFixed(2)}</span>
+                    <span className="text-sm text-zinc-400">Mallet £{mat.mallet_head_premium.toFixed(2)}</span>
+                    <span className="text-sm text-zinc-400">Awl £{mat.awl_handle_premium.toFixed(2)}</span>
+                    <span className="text-sm text-zinc-400">Coin £{(mat.coin_premium ?? 0).toFixed(2)}</span>
                     <Button size="sm" variant="outline" onClick={() => setEditingMaterial({ ...mat, coin_premium: mat.coin_premium ?? 0 })}>
                       <Pencil className="h-4 w-4" />
                     </Button>
