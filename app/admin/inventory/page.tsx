@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { supabase } from '@/lib/supabase'
-import { Loader2, Plus, Trash2, Printer, Package, X } from 'lucide-react'
+import { Loader2, Plus, Trash2, Printer, Package, X, Pencil, ChevronLeft, ChevronRight } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
 import { compressImage } from '@/lib/image-utils'
 
@@ -45,13 +45,55 @@ interface WoodMaterialOption {
   grain_image_url?: string | null
 }
 
-function childPieceThumb(k: ProductRow): { src: string | null; extraCount: number } {
+function getPieceGalleryUrls(k: ProductRow): string[] {
   const meta = k.metadata as { images?: string[] } | null | undefined
-  const imgs = meta?.images
-  if (imgs && imgs.length > 0) {
-    return { src: imgs[0], extraCount: Math.max(0, imgs.length - 1) }
+  if (meta?.images && meta.images.length > 0) return [...meta.images]
+  if (k.image_url) return [k.image_url]
+  return []
+}
+
+function thumbSrcForPiece(k: ProductRow, parent: ProductRow): string | null {
+  if (k.image_url) return k.image_url
+  if (parent.materials?.grain_image_url) return parent.materials.grain_image_url
+  return null
+}
+
+function extraImageBadgeCount(k: ProductRow): number {
+  const meta = k.metadata as { images?: string[] } | undefined
+  if (meta?.images && meta.images.length > 1) return meta.images.length - 1
+  return 0
+}
+
+async function uploadInventoryProductImages(
+  productId: string,
+  files: File[]
+): Promise<{ urls: string[]; errors: string[] }> {
+  const urls: string[] = []
+  const errors: string[] = []
+  for (const rawFile of files) {
+    let processed = rawFile
+    if (rawFile.type.startsWith('image/')) {
+      try {
+        processed = await compressImage(rawFile)
+      } catch {
+        /* use original */
+      }
+    }
+    const rand = Math.random().toString(36).slice(2, 10)
+    const path = `inventory/${productId}/${Date.now()}-${rand}.jpg`
+    const { error: upErr } = await supabase.storage.from('products').upload(path, processed, {
+      upsert: true,
+      contentType: processed.type?.startsWith('image/') ? processed.type : 'image/jpeg',
+    })
+    if (upErr) {
+      errors.push(upErr.message)
+      console.error('[inventory] storage upload error:', upErr)
+    } else {
+      const { data: pub } = supabase.storage.from('products').getPublicUrl(path)
+      urls.push(pub.publicUrl)
+    }
   }
-  return { src: k.image_url, extraCount: 0 }
+  return { urls, errors }
 }
 
 function revokeObjectUrls(urls: string[]) {
@@ -138,6 +180,18 @@ export default function AdminInventoryPage() {
   const [childForms, setChildForms] = useState<Record<string, ChildFormFields>>({})
 
   const [selectedSkus, setSelectedSkus] = useState<Set<string>>(new Set())
+
+  const [editingPieceId, setEditingPieceId] = useState<string | null>(null)
+  const [editPieceForm, setEditPieceForm] = useState({
+    dimensions: '',
+    price: '',
+    cost_price: '',
+    piece_notes: '',
+    stock_status: 'in_stock',
+    extraFiles: [] as File[],
+  })
+  const [expandedPieceId, setExpandedPieceId] = useState<string | null>(null)
+  const [savingPieceEdit, setSavingPieceEdit] = useState(false)
 
   const resetParentForm = useCallback(() => {
     setParentForm({
@@ -503,37 +557,35 @@ export default function AdminInventoryPage() {
       const newId = inserted?.id as string
       if (!newId) throw new Error('No product id returned')
 
-      const uploadedUrls: string[] = []
-      for (const rawFile of f.files) {
-        let processed = rawFile
-        if (rawFile.type.startsWith('image/')) {
-          try {
-            processed = await compressImage(rawFile)
-          } catch {
-            /* use original */
-          }
-        }
-        const rand = Math.random().toString(36).slice(2, 10)
-        const path = `inventory/${newId}/${Date.now()}-${rand}.jpg`
-        const { error: upErr } = await supabase.storage.from('products').upload(path, processed, {
-          upsert: true,
-          contentType: processed.type || 'image/jpeg',
-        })
-        if (!upErr) {
-          const { data: pub } = supabase.storage.from('products').getPublicUrl(path)
-          uploadedUrls.push(pub.publicUrl)
-        }
+      const { urls: uploadedUrls, errors: uploadErrors } = await uploadInventoryProductImages(newId, f.files)
+      if (uploadErrors.length > 0) {
+        console.warn('[savePiece] some uploads failed:', uploadErrors)
       }
+      console.log('[savePiece] uploaded URLs:', uploadedUrls)
+      console.log('[savePiece] setting image_url to:', uploadedUrls[0])
 
       if (uploadedUrls.length > 0) {
-        const { error: upErr } = await supabase
+        const { error: imgError } = await supabase
           .from('products')
           .update({
             image_url: uploadedUrls[0],
             metadata: { ...baseMeta, images: uploadedUrls },
           })
           .eq('id', newId)
-        if (upErr) throw upErr
+        if (imgError) {
+          console.error('[savePiece] image update error:', imgError)
+          throw imgError
+        }
+        console.log('[savePiece] images saved successfully:', uploadedUrls.length, 'images')
+        alert(
+          `Piece ${f.sku.trim()} saved with ${uploadedUrls.length} image${uploadedUrls.length !== 1 ? 's' : ''}.`
+        )
+      } else if (f.files.length > 0) {
+        alert(
+          `Piece ${f.sku.trim()} saved, but no images could be uploaded. Check the browser console and storage policies for the products bucket.`
+        )
+      } else {
+        alert(`Piece ${f.sku.trim()} saved.`)
       }
 
       revokeObjectUrls(f.previewUrls)
@@ -658,6 +710,125 @@ export default function AdminInventoryPage() {
 
   const toggleLabelPrinted = async (id: string, current: boolean | null) => {
     await updateChildField(id, { sku_label_printed: !current })
+  }
+
+  const startEditPiece = (piece: ProductRow) => {
+    setExpandedPieceId(null)
+    setEditingPieceId(piece.id)
+    setEditPieceForm({
+      dimensions: piece.dimensions || '',
+      price: String(piece.price ?? ''),
+      cost_price: piece.cost_price != null ? String(piece.cost_price) : '',
+      piece_notes: piece.piece_notes || '',
+      stock_status: piece.stock_status || 'in_stock',
+      extraFiles: [],
+    })
+  }
+
+  const cancelEditPiece = () => {
+    setEditingPieceId(null)
+  }
+
+  const saveEditedPiece = async (piece: ProductRow) => {
+    if (editingPieceId !== piece.id) return
+    const price = parseFloat(editPieceForm.price)
+    if (!Number.isFinite(price) || price < 0) {
+      alert('Enter a valid sale price')
+      return
+    }
+    setSavingPieceEdit(true)
+    try {
+      const cost = parseFloat(editPieceForm.cost_price)
+      const baseMeta =
+        piece.metadata && typeof piece.metadata === 'object' && !Array.isArray(piece.metadata)
+          ? { ...piece.metadata }
+          : {}
+
+      let nextImages = getPieceGalleryUrls(piece)
+      if (editPieceForm.extraFiles.length > 0) {
+        const { urls, errors } = await uploadInventoryProductImages(piece.id, editPieceForm.extraFiles)
+        if (errors.length) console.warn('[editPiece] upload errors:', errors)
+        nextImages = [...nextImages, ...urls]
+      }
+
+      const patch: Record<string, unknown> = {
+        dimensions: editPieceForm.dimensions.trim() || null,
+        price,
+        cost_price: Number.isFinite(cost) ? cost : null,
+        piece_notes: editPieceForm.piece_notes.trim() || null,
+        stock_status: editPieceForm.stock_status,
+      }
+
+      if (nextImages.length > 0) {
+        patch.image_url = nextImages[0]
+        patch.metadata = { ...baseMeta, images: nextImages }
+      } else {
+        patch.metadata = baseMeta
+      }
+
+      const { error } = await supabase.from('products').update(patch).eq('id', piece.id)
+      if (error) throw error
+
+      setEditingPieceId(null)
+      setEditPieceForm((f) => ({ ...f, extraFiles: [] }))
+      load()
+    } catch (e) {
+      console.error(e)
+      alert(e instanceof Error ? e.message : 'Failed to save piece')
+    } finally {
+      setSavingPieceEdit(false)
+    }
+  }
+
+  const persistPieceGallery = async (piece: ProductRow, urls: string[]) => {
+    const baseMeta =
+      piece.metadata && typeof piece.metadata === 'object' && !Array.isArray(piece.metadata)
+        ? { ...piece.metadata }
+        : {}
+    const { error } = await supabase
+      .from('products')
+      .update({
+        image_url: urls[0] ?? null,
+        metadata: { ...baseMeta, images: urls },
+      })
+      .eq('id', piece.id)
+    if (error) {
+      alert(error.message)
+      return
+    }
+    load()
+  }
+
+  const moveGalleryImage = async (piece: ProductRow, index: number, dir: -1 | 1) => {
+    const urls = getPieceGalleryUrls(piece)
+    const j = index + dir
+    if (j < 0 || j >= urls.length) return
+    const next = [...urls]
+    ;[next[index], next[j]] = [next[j], next[index]]
+    await persistPieceGallery(piece, next)
+  }
+
+  const deleteGalleryImageAt = async (piece: ProductRow, index: number) => {
+    const urls = getPieceGalleryUrls(piece).filter((_, i) => i !== index)
+    await persistPieceGallery(piece, urls)
+  }
+
+  const setMainGalleryImage = async (piece: ProductRow, index: number) => {
+    if (index === 0) return
+    const urls = getPieceGalleryUrls(piece)
+    const next = [...urls]
+    const [picked] = next.splice(index, 1)
+    next.unshift(picked)
+    await persistPieceGallery(piece, next)
+  }
+
+  const addMorePieceImagesExpand = async (piece: ProductRow, files: FileList | null) => {
+    if (!files?.length) return
+    const { urls, errors } = await uploadInventoryProductImages(piece.id, Array.from(files))
+    if (errors.length) console.warn('[addMorePieceImages]', errors)
+    if (urls.length === 0) return
+    const merged = [...getPieceGalleryUrls(piece), ...urls]
+    await persistPieceGallery(piece, merged)
   }
 
   const printLabels = () => {
@@ -1090,65 +1261,271 @@ export default function AdminInventoryPage() {
                     </thead>
                     <tbody>
                       {kids.map((k) => {
-                        const { src: thumbSrc, extraCount } = childPieceThumb(k)
+                        const tsrc = thumbSrcForPiece(k, parent)
+                        const extraN = extraImageBadgeCount(k)
+                        const galleryUrls = getPieceGalleryUrls(k)
+
+                        if (editingPieceId === k.id) {
+                          return (
+                            <tr key={k.id} className="border-b border-brand-dark-border/60 bg-zinc-900/40">
+                              <td colSpan={9} className="p-4">
+                                <p className="text-sm text-zinc-400 mb-3">Edit piece {k.sku || k.id}</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  <Input
+                                    placeholder="Dimensions"
+                                    value={editPieceForm.dimensions}
+                                    onChange={(e) => setEditPieceForm((f) => ({ ...f, dimensions: e.target.value }))}
+                                    className="bg-brand-dark border-brand-dark-border text-white"
+                                  />
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="Sale price £"
+                                    value={editPieceForm.price}
+                                    onChange={(e) => setEditPieceForm((f) => ({ ...f, price: e.target.value }))}
+                                    className="bg-brand-dark border-brand-dark-border text-white"
+                                  />
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="Cost £"
+                                    value={editPieceForm.cost_price}
+                                    onChange={(e) => setEditPieceForm((f) => ({ ...f, cost_price: e.target.value }))}
+                                    className="bg-brand-dark border-brand-dark-border text-white"
+                                  />
+                                  <select
+                                    className="bg-brand-dark border border-brand-dark-border rounded px-2 py-2 text-sm text-white"
+                                    value={editPieceForm.stock_status}
+                                    onChange={(e) => setEditPieceForm((f) => ({ ...f, stock_status: e.target.value }))}
+                                  >
+                                    <option value="in_stock">In stock</option>
+                                    <option value="sold">Sold</option>
+                                    <option value="out_of_stock">Out of stock</option>
+                                    <option value="draft">Draft</option>
+                                  </select>
+                                  <Textarea
+                                    placeholder="Internal notes"
+                                    className="bg-brand-dark border-brand-dark-border text-white md:col-span-2"
+                                    rows={2}
+                                    value={editPieceForm.piece_notes}
+                                    onChange={(e) => setEditPieceForm((f) => ({ ...f, piece_notes: e.target.value }))}
+                                  />
+                                  <div className="md:col-span-2 lg:col-span-3">
+                                    <label className="text-xs text-zinc-500 block mb-1">Add more photos</label>
+                                    <input
+                                      type="file"
+                                      accept="image/*,.heic,.HEIC"
+                                      multiple
+                                      className="text-sm text-zinc-400"
+                                      onChange={(e) =>
+                                        setEditPieceForm((f) => ({
+                                          ...f,
+                                          extraFiles: [...f.extraFiles, ...Array.from(e.target.files || [])].slice(0, 8),
+                                        }))
+                                      }
+                                    />
+                                    {editPieceForm.extraFiles.length > 0 && (
+                                      <p className="text-xs text-zinc-500 mt-1">
+                                        {editPieceForm.extraFiles.length} file(s) will upload on save
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex gap-2 mt-4">
+                                  <Button disabled={savingPieceEdit} onClick={() => saveEditedPiece(k)}>
+                                    {savingPieceEdit ? 'Saving…' : 'Save changes'}
+                                  </Button>
+                                  <Button variant="outline" onClick={cancelEditPiece}>
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        }
+
                         return (
-                        <tr key={k.id} className="border-b border-brand-dark-border/60">
-                          <td className="py-2 pr-2">
-                            {k.sku && (
-                              <input
-                                type="checkbox"
-                                checked={k.sku ? selectedSkus.has(k.sku) : false}
-                                onChange={(e) => {
-                                  const next = new Set(selectedSkus)
-                                  if (e.target.checked && k.sku) next.add(k.sku)
-                                  else if (k.sku) next.delete(k.sku)
-                                  setSelectedSkus(next)
-                                }}
-                              />
+                          <Fragment key={k.id}>
+                            <tr className="border-b border-brand-dark-border/60">
+                              <td className="py-2 pr-2" onClick={(e) => e.stopPropagation()}>
+                                {k.sku && (
+                                  <input
+                                    type="checkbox"
+                                    checked={k.sku ? selectedSkus.has(k.sku) : false}
+                                    onChange={(e) => {
+                                      const next = new Set(selectedSkus)
+                                      if (e.target.checked && k.sku) next.add(k.sku)
+                                      else if (k.sku) next.delete(k.sku)
+                                      setSelectedSkus(next)
+                                    }}
+                                  />
+                                )}
+                              </td>
+                              <td className="py-2 text-white font-mono">
+                                <button
+                                  type="button"
+                                  className="text-left hover:text-brand-orange underline-offset-2 hover:underline"
+                                  onClick={() => setExpandedPieceId((id) => (id === k.id ? null : k.id))}
+                                >
+                                  {k.sku || '—'}
+                                </button>
+                              </td>
+                              <td className="py-2">
+                                <button
+                                  type="button"
+                                  className="relative block w-12 h-12 rounded overflow-hidden bg-brand-dark border border-brand-dark-border text-left"
+                                  onClick={() => setExpandedPieceId((id) => (id === k.id ? null : k.id))}
+                                  title="Show photos"
+                                >
+                                  {tsrc ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={tsrc}
+                                      alt={k.sku || ''}
+                                      className={`w-12 h-12 object-cover ${k.image_url ? '' : 'opacity-50'}`}
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full bg-zinc-800" />
+                                  )}
+                                  {extraN > 0 && (
+                                    <span className="absolute bottom-0 right-0 rounded-tl bg-black/75 text-white text-[10px] font-medium px-1 py-0.5 leading-none">
+                                      +{extraN}
+                                    </span>
+                                  )}
+                                </button>
+                              </td>
+                              <td className="py-2 text-zinc-300 max-w-[140px] truncate">{k.dimensions || '—'}</td>
+                              <td className="py-2 text-brand-orange">{formatPrice(k.price)}</td>
+                              <td className="py-2 text-zinc-500">{k.cost_price != null ? formatPrice(k.cost_price) : '—'}</td>
+                              <td className="py-2">
+                                <select
+                                  className="bg-brand-dark border border-brand-dark-border rounded px-2 py-1 text-xs"
+                                  value={k.stock_status}
+                                  onChange={(e) => updateChildField(k.id, { stock_status: e.target.value })}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <option value="in_stock">In stock</option>
+                                  <option value="sold">Sold</option>
+                                  <option value="out_of_stock">Out of stock</option>
+                                  <option value="draft">Draft</option>
+                                </select>
+                              </td>
+                              <td className="py-2" onClick={(e) => e.stopPropagation()}>
+                                <label className="flex items-center gap-1 text-xs text-zinc-400 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(k.sku_label_printed)}
+                                    onChange={() => toggleLabelPrinted(k.id, k.sku_label_printed)}
+                                  />
+                                  Printed
+                                </label>
+                              </td>
+                              <td className="py-2" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex gap-1">
+                                  <Button size="sm" variant="outline" onClick={() => startEditPiece(k)}>
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                  <Button size="sm" variant="destructive" onClick={() => deleteChild(k.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                            {expandedPieceId === k.id && (
+                              <tr className="bg-zinc-900/50 border-b border-brand-dark-border/60">
+                                <td colSpan={9} className="p-4">
+                                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                    <Link
+                                      href={`/product/${k.id}`}
+                                      className="text-sm text-brand-orange hover:underline"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      Open shop listing →
+                                    </Link>
+                                    <span className="text-xs text-zinc-500">First image = main thumbnail (image_url)</span>
+                                  </div>
+                                  <div className="flex gap-3 overflow-x-auto pb-2">
+                                    {galleryUrls.map((url, i) => (
+                                      <div key={`${k.id}-g-${i}-${url.slice(-12)}`} className="relative flex-shrink-0">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                          src={url}
+                                          alt=""
+                                          className="w-32 h-32 rounded object-cover border border-brand-dark-border"
+                                        />
+                                        {i === 0 && (
+                                          <span className="absolute top-1 left-1 text-xs bg-brand-orange text-black px-1 rounded">
+                                            Main
+                                          </span>
+                                        )}
+                                        <div className="absolute bottom-1 left-1 right-1 flex gap-1 justify-center">
+                                          <button
+                                            type="button"
+                                            className="p-1 rounded bg-black/60 text-white disabled:opacity-30"
+                                            disabled={i === 0}
+                                            onClick={() => moveGalleryImage(k, i, -1)}
+                                            aria-label="Move left"
+                                          >
+                                            <ChevronLeft className="h-4 w-4" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="p-1 rounded bg-black/60 text-white disabled:opacity-30"
+                                            disabled={i >= galleryUrls.length - 1}
+                                            onClick={() => moveGalleryImage(k, i, 1)}
+                                            aria-label="Move right"
+                                          >
+                                            <ChevronRight className="h-4 w-4" />
+                                          </button>
+                                        </div>
+                                        {i !== 0 && (
+                                          <button
+                                            type="button"
+                                            className="absolute top-1 right-1 text-xs bg-brand-orange text-black px-1.5 py-0.5 rounded"
+                                            onClick={() => setMainGalleryImage(k, i)}
+                                          >
+                                            Main
+                                          </button>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => deleteGalleryImageAt(k, i)}
+                                          className="absolute -top-2 -right-2 w-6 h-6 bg-red-600 rounded-full text-white text-xs flex items-center justify-center"
+                                          aria-label="Remove image"
+                                        >
+                                          ×
+                                        </button>
+                                      </div>
+                                    ))}
+                                    {galleryUrls.length === 0 && (
+                                      <div className="text-sm text-zinc-500 space-y-2">
+                                        <p>No images stored on this piece yet.</p>
+                                        {parent.materials?.grain_image_url && !k.image_url && (
+                                          <p className="text-xs text-zinc-600">
+                                            Thumbnail uses parent species grain in the table only — upload photos here to show on the shop listing.
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="mt-3">
+                                    <label className="text-xs text-zinc-500 block mb-1">Add images</label>
+                                    <input
+                                      type="file"
+                                      accept="image/*,.heic,.HEIC"
+                                      multiple
+                                      className="text-sm text-zinc-400"
+                                      onChange={(e) => {
+                                        void addMorePieceImagesExpand(k, e.target.files)
+                                        e.target.value = ''
+                                      }}
+                                    />
+                                  </div>
+                                </td>
+                              </tr>
                             )}
-                          </td>
-                          <td className="py-2 text-white font-mono">{k.sku || '—'}</td>
-                          <td className="py-2">
-                            <div className="relative w-12 h-12 rounded overflow-hidden bg-brand-dark">
-                              {thumbSrc && <Image src={thumbSrc} alt="" fill className="object-cover" sizes="48px" />}
-                              {extraCount > 0 && (
-                                <span className="absolute bottom-0 right-0 rounded-tl bg-black/75 text-white text-[10px] font-medium px-1 py-0.5 leading-none">
-                                  +{extraCount}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-2 text-zinc-300 max-w-[140px] truncate">{k.dimensions || '—'}</td>
-                          <td className="py-2 text-brand-orange">{formatPrice(k.price)}</td>
-                          <td className="py-2 text-zinc-500">{k.cost_price != null ? formatPrice(k.cost_price) : '—'}</td>
-                          <td className="py-2">
-                            <select
-                              className="bg-brand-dark border border-brand-dark-border rounded px-2 py-1 text-xs"
-                              value={k.stock_status}
-                              onChange={(e) => updateChildField(k.id, { stock_status: e.target.value })}
-                            >
-                              <option value="in_stock">In stock</option>
-                              <option value="sold">Sold</option>
-                              <option value="out_of_stock">Out of stock</option>
-                              <option value="draft">Draft</option>
-                            </select>
-                          </td>
-                          <td className="py-2">
-                            <label className="flex items-center gap-1 text-xs text-zinc-400 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={Boolean(k.sku_label_printed)}
-                                onChange={() => toggleLabelPrinted(k.id, k.sku_label_printed)}
-                              />
-                              Printed
-                            </label>
-                          </td>
-                          <td className="py-2">
-                            <Button size="sm" variant="destructive" onClick={() => deleteChild(k.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </td>
-                        </tr>
+                          </Fragment>
                         )
                       })}
                     </tbody>
