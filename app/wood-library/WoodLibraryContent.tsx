@@ -1,13 +1,11 @@
 'use client'
 
-import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
+import { useState, useMemo, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { ArrowRight, Volume2, Loader2 } from 'lucide-react'
+import { ArrowRight, Volume2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Search } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import { formatPrice } from '@/lib/utils'
 
 export interface WoodItem {
   id: string
@@ -31,14 +29,6 @@ export interface WoodItem {
   color_description?: string | null
 }
 
-interface StockPiece {
-  id: string
-  name: string
-  sku: string | null
-  dimensions: string | null
-  price: number
-}
-
 interface WoodLibraryContentProps {
   woods: WoodItem[]
   stockCounts?: Record<string, number>
@@ -49,42 +39,6 @@ export default function WoodLibraryContent({ woods, stockCounts = {} }: WoodLibr
   const [audioOnly, setAudioOnly] = useState(false)
   const [playingId, setPlayingId] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
-
-  const [selectedWoodId, setSelectedWoodId] = useState<string | null>(null)
-  const [detailPieces, setDetailPieces] = useState<StockPiece[]>([])
-  const [loadingPieces, setLoadingPieces] = useState(false)
-
-  useEffect(() => {
-    if (!selectedWoodId) {
-      setDetailPieces([])
-      return
-    }
-    let cancelled = false
-    setLoadingPieces(true)
-    supabase
-      .from('products')
-      .select('id,name,sku,dimensions,price,stock_status,material_id,material_ids')
-      .eq('stock_status', 'in_stock')
-      .not('parent_product_id', 'is', null)
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error) {
-          console.error(error)
-          setDetailPieces([])
-          setLoadingPieces(false)
-          return
-        }
-        const list = (data || []).filter(
-          (row: { material_id?: string | null; material_ids?: string[] | null }) =>
-            row.material_id === selectedWoodId || (row.material_ids && row.material_ids.includes(selectedWoodId))
-        ) as StockPiece[]
-        setDetailPieces(list)
-        setLoadingPieces(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [selectedWoodId])
 
   const filteredWoods = useMemo(() => {
     let list = woods
@@ -97,8 +51,6 @@ export default function WoodLibraryContent({ woods, stockCounts = {} }: WoodLibr
   }, [woods, search, audioOnly])
 
   const speciesWithAudio = useMemo(() => woods.filter((w) => w.tap_audio_url).length, [woods])
-
-  const selectedWood = useMemo(() => woods.find((w) => w.id === selectedWoodId), [woods, selectedWoodId])
 
   const handlePlay = useCallback(
     (wood: WoodItem) => {
@@ -172,27 +124,20 @@ export default function WoodLibraryContent({ woods, stockCounts = {} }: WoodLibr
           if (hasAwl) badges.push('Awl')
 
           const stockCount = stockCounts[wood.id] ?? 0
-          const selected = selectedWoodId === wood.id
 
           return (
-            <div
+            <Link
               key={wood.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => setSelectedWoodId((id) => (id === wood.id ? null : wood.id))}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  setSelectedWoodId((id) => (id === wood.id ? null : wood.id))
-                }
-              }}
-              className={`bg-brand-dark-card border rounded-lg overflow-hidden transition-all text-left cursor-pointer ${
-                selected ? 'border-brand-orange ring-2 ring-brand-orange/40' : 'border-brand-dark-border hover:border-brand-orange'
-              }`}
+              href={`/wood-library/${wood.id}`}
+              className="bg-brand-dark-card border rounded-lg overflow-hidden transition-all text-left border-brand-dark-border hover:border-brand-orange group"
             >
-              <div className="w-full aspect-[4/3] rounded-lg overflow-hidden bg-brand-dark mb-4 pointer-events-none">
+              <div className="w-full aspect-[4/3] rounded-lg overflow-hidden bg-brand-dark mb-4">
                 {wood.grain_image_url ? (
-                  <img src={wood.grain_image_url} alt={`${wood.name} wood grain`} className="w-full h-full object-cover" />
+                  <img
+                    src={wood.grain_image_url}
+                    alt={`${wood.name} wood grain`}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: wood.color_hex || '#333' }}>
                     <span className="text-xs text-white/50 italic">Grain photo coming soon</span>
@@ -202,13 +147,9 @@ export default function WoodLibraryContent({ woods, stockCounts = {} }: WoodLibr
               <div className="p-4">
                 <h3 className="font-semibold text-lg text-white mb-2">{wood.name}</h3>
                 {stockCount > 0 && (
-                  <Link
-                    href={`/shop?category=wood&species=${encodeURIComponent(wood.name)}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="inline-block mb-2 text-xs px-2.5 py-1 rounded-full bg-brand-orange/20 text-brand-orange border border-brand-orange/30 hover:bg-brand-orange/30 transition-colors"
-                  >
+                  <span className="inline-block mb-2 text-xs px-2.5 py-1 rounded-full bg-brand-orange/20 text-brand-orange border border-brand-orange/30">
                     {stockCount === 1 ? '1 piece available' : `${stockCount} in stock`}
-                  </Link>
+                  </span>
                 )}
                 {wood.origin && <p className="text-xs text-zinc-500 mb-1">{wood.origin}</p>}
                 {(wood.janka_hardness != null || wood.specific_gravity != null || wood.texture || wood.durability) && (
@@ -221,7 +162,7 @@ export default function WoodLibraryContent({ woods, stockCounts = {} }: WoodLibr
                   </p>
                 )}
                 {wood.janka_hardness != null && (
-                  <div className="mt-3 pointer-events-none">
+                  <div className="mt-3">
                     <div className="flex justify-between text-xs text-zinc-500 mb-1">
                       <span>Soft</span>
                       <span>Hard</span>
@@ -234,12 +175,12 @@ export default function WoodLibraryContent({ woods, stockCounts = {} }: WoodLibr
                     </div>
                   </div>
                 )}
-                {wood.grain_description && <p className="text-sm text-zinc-400 mt-3 leading-relaxed pointer-events-none">{wood.grain_description}</p>}
+                {wood.grain_description && <p className="text-sm text-zinc-400 mt-3 leading-relaxed line-clamp-3">{wood.grain_description}</p>}
                 {wood.tap_audio_url && (
-                  <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+                  <div className="mt-3" onClick={(e) => e.preventDefault()}>
                     <button
                       type="button"
-                      onClick={() => handlePlay(wood)}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handlePlay(wood) }}
                       className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-brand-dark-border hover:border-brand-orange transition-colors text-sm"
                       aria-label={`Play tap test for ${wood.name}`}
                     >
@@ -260,7 +201,7 @@ export default function WoodLibraryContent({ woods, stockCounts = {} }: WoodLibr
                   </div>
                 )}
                 {badges.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-3 pointer-events-none">
+                  <div className="flex flex-wrap gap-1 mt-3">
                     {badges.map((b) => (
                       <span key={b} className="px-2 py-0.5 rounded text-xs font-medium bg-brand-dark-border text-zinc-400">
                         {b}
@@ -268,56 +209,12 @@ export default function WoodLibraryContent({ woods, stockCounts = {} }: WoodLibr
                     ))}
                   </div>
                 )}
-                <p className="text-xs text-zinc-500 mt-3">Click card for stock details</p>
+                <p className="text-xs text-zinc-500 mt-3">Click to explore this species →</p>
               </div>
-            </div>
+            </Link>
           )
         })}
       </div>
-
-      {selectedWood && (
-        <div className="mb-16 p-6 rounded-lg border border-brand-dark-border bg-brand-dark-card">
-          <h2 className="font-heading text-xl text-white mb-2">Available stock — {selectedWood.name}</h2>
-          {loadingPieces ? (
-            <div className="flex items-center gap-2 text-zinc-400 py-6">
-              <Loader2 className="h-5 w-5 animate-spin text-brand-orange" />
-              Loading pieces…
-            </div>
-          ) : detailPieces.length > 0 ? (
-            <ul className="space-y-3 mt-4">
-              {detailPieces.map((piece) => (
-                <li
-                  key={piece.id}
-                  className="flex flex-wrap items-center justify-between gap-3 py-3 border-b border-brand-dark-border/60 last:border-0"
-                >
-                  <div>
-                    <p className="text-white font-medium">{piece.name}</p>
-                    <p className="text-xs text-zinc-500 font-mono">{piece.sku || '—'}</p>
-                    {piece.dimensions && <p className="text-sm text-zinc-400">{piece.dimensions}</p>}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-brand-orange font-semibold">{formatPrice(piece.price)}</span>
-                    <Link
-                      href={`/product/${piece.id}`}
-                      className="inline-flex items-center justify-center rounded-md font-medium transition-colors h-8 px-3 text-sm bg-brand-orange text-brand-dark hover:bg-brand-orange-hover font-bold"
-                    >
-                      View
-                    </Link>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-zinc-400 mt-4">
-              No pieces currently in stock. Check back soon or{' '}
-              <Link href="/commissions" className="text-brand-orange hover:underline">
-                commission a custom piece
-              </Link>
-              .
-            </p>
-          )}
-        </div>
-      )}
 
       {filteredWoods.length === 0 && (
         <p className="text-center text-zinc-400 py-8">

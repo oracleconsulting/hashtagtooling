@@ -40,6 +40,10 @@ interface Material {
   stock_awl_handles?: number
   stock_square_scales?: number
   stock_alert_threshold?: number
+  description?: string | null
+  uses_description?: string | null
+  gallery_images?: string[] | null
+  videos?: { url: string; title?: string }[] | null
 }
 
 interface BasePrice {
@@ -713,6 +717,10 @@ export default function MaterialsAdminPage() {
         texture: material.texture ?? null,
         durability: material.durability ?? null,
         color_description: material.color_description ?? null,
+        description: material.description ?? null,
+        uses_description: material.uses_description ?? null,
+        gallery_images: material.gallery_images ?? [],
+        videos: material.videos ?? [],
       }
       if (material.category === 'wood') {
         baseUpdate.available_mallet_head = material.available_mallet_head ?? true
@@ -1664,6 +1672,46 @@ export default function MaterialsAdminPage() {
                           <div className="md:col-span-2">
                             <label className="block font-medium mb-1 text-zinc-300">Colour Description</label>
                             <Input value={editingMaterial.color_description ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, color_description: e.target.value || null })} className={`w-full ${inputDarkClass}`} placeholder="e.g. Dark chocolate brown" />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block font-medium mb-1 text-zinc-300">History / Description</label>
+                            <textarea rows={4} className={textareaDarkClass} value={editingMaterial.description ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, description: e.target.value || null })} placeholder="The story and history of this wood species" />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block font-medium mb-1 text-zinc-300">Common Uses</label>
+                            <textarea rows={3} className={textareaDarkClass} value={editingMaterial.uses_description ?? ''} onChange={(e) => setEditingMaterial({ ...editingMaterial, uses_description: e.target.value || null })} placeholder="Musical instruments, tool handles, furniture, etc." />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block font-medium mb-1 text-zinc-300">Gallery Images (URLs, one per line)</label>
+                            <textarea
+                              rows={3}
+                              className={textareaDarkClass}
+                              value={(editingMaterial.gallery_images || []).join('\n')}
+                              onChange={(e) => setEditingMaterial({
+                                ...editingMaterial,
+                                gallery_images: e.target.value.split('\n').map((s) => s.trim()).filter(Boolean),
+                              })}
+                              placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg"
+                            />
+                            <p className="text-xs text-zinc-500 mt-1">Upload gallery images to storage then paste URLs here</p>
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block font-medium mb-1 text-zinc-300">Videos (one per line: URL | Title)</label>
+                            <textarea
+                              rows={3}
+                              className={textareaDarkClass}
+                              value={(editingMaterial.videos || []).map((v) => v.title ? `${v.url} | ${v.title}` : v.url).join('\n')}
+                              onChange={(e) => setEditingMaterial({
+                                ...editingMaterial,
+                                videos: e.target.value.split('\n').map((line) => {
+                                  const [url, ...rest] = line.split('|').map((s) => s.trim())
+                                  if (!url) return null
+                                  return { url, title: rest.join('|').trim() || undefined }
+                                }).filter(Boolean) as { url: string; title?: string }[],
+                              })}
+                              placeholder="https://youtu.be/abcd1234 | Working with Lignum Vitae"
+                            />
+                            <p className="text-xs text-zinc-500 mt-1">YouTube links auto-embed. Format: URL | Optional title</p>
                           </div>
                           <div className="md:col-span-2 border-t border-zinc-700 pt-4 mt-4">
                             <label className="block font-medium mb-2 text-zinc-300">Tap Test Audio</label>

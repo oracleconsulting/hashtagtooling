@@ -7,7 +7,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const [productsRes, blogRes] = await Promise.all([
+  const [productsRes, blogRes, woodsRes] = await Promise.all([
     supabase
       .from("products")
       .select("id, updated_at")
@@ -16,6 +16,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .from("blog_posts")
       .select("slug, published_at, updated_at")
       .eq("published", true),
+    supabase
+      .from("materials")
+      .select("id, updated_at")
+      .eq("category", "wood")
+      .eq("available", true),
   ]);
 
   const productUrls = (productsRes.data || []).map((product) => ({
@@ -30,6 +35,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: post.updated_at ? new Date(post.updated_at) : new Date(),
     changeFrequency: "monthly" as const,
     priority: 0.7,
+  }));
+
+  const woodUrls = (woodsRes.data || []).map((wood) => ({
+    url: `https://hashtag.guru/wood-library/${wood.id}`,
+    lastModified: wood.updated_at ? new Date(wood.updated_at) : new Date(),
+    changeFrequency: "monthly" as const,
+    priority: 0.6,
   }));
 
   return [
@@ -167,5 +179,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     ...productUrls,
     ...blogUrls,
+    ...woodUrls,
   ];
 }
