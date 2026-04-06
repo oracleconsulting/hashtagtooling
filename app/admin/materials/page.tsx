@@ -1079,7 +1079,7 @@ export default function MaterialsAdminPage() {
                   <th className="text-center p-2 text-zinc-300 w-14" title="Mallet handle">Handle</th>
                   <th className="text-center p-2 text-zinc-300 w-14" title="Awl handle">Awl</th>
                   <th className="text-center p-2 text-zinc-300 w-14" title="Engineering square scale">Scale</th>
-                  <th className="text-center p-2 text-zinc-300 w-14" title="Show in builders (master)">All</th>
+                  <th className="text-center p-2 text-zinc-300 w-14" title="Master on/off — hides from ENTIRE site (library, builders, shop)">Live</th>
                   <th className="text-center p-2 text-zinc-300 w-16" title="Total stock (heads + handles + awl + scale)">
                     Stock
                   </th>
