@@ -194,6 +194,7 @@ export default function AdminInventoryPage() {
     prefix: string
     sku: string
     dimensions: string
+    weight_kg: string
     price: string
     cost_price: string
     notes: string
@@ -209,6 +210,7 @@ export default function AdminInventoryPage() {
   const [editingPieceId, setEditingPieceId] = useState<string | null>(null)
   const [editPieceForm, setEditPieceForm] = useState({
     dimensions: '',
+    weight_kg: '',
     price: '',
     cost_price: '',
     piece_notes: '',
@@ -464,6 +466,7 @@ export default function AdminInventoryPage() {
           prefix: prefix.slice(0, 4),
           sku: '',
           dimensions: '',
+          weight_kg: '',
           price: '',
           cost_price: '',
           notes: '',
@@ -573,7 +576,7 @@ export default function AdminInventoryPage() {
           material_ids: mids,
           piece_notes: f.notes.trim() || null,
           sku_label_printed: false,
-          metadata: baseMeta,
+          metadata: { ...baseMeta, ...(f.weight_kg.trim() ? { weight_kg: f.weight_kg.trim() } : {}) },
         })
         .select('id')
         .single()
@@ -590,11 +593,12 @@ export default function AdminInventoryPage() {
       console.log('[savePiece] setting image_url to:', uploadedUrls[0])
 
       if (uploadedUrls.length > 0) {
+        const wm = f.weight_kg.trim() ? { weight_kg: f.weight_kg.trim() } : {}
         const { error: imgError } = await supabase
           .from('products')
           .update({
             image_url: uploadedUrls[0],
-            metadata: { ...baseMeta, images: uploadedUrls },
+            metadata: { ...baseMeta, ...wm, images: uploadedUrls },
           })
           .eq('id', newId)
         if (imgError) {
@@ -623,6 +627,7 @@ export default function AdminInventoryPage() {
           saving: false,
           sku: '',
           dimensions: '',
+          weight_kg: '',
           price: '',
           cost_price: '',
           notes: '',
@@ -743,8 +748,10 @@ export default function AdminInventoryPage() {
   const startEditPiece = (piece: ProductRow) => {
     setExpandedPieceId(piece.id)
     setEditingPieceId(piece.id)
+    const meta = piece.metadata as { weight_kg?: string } | null | undefined
     setEditPieceForm({
       dimensions: piece.dimensions || '',
+      weight_kg: meta?.weight_kg || '',
       price: String(piece.price ?? ''),
       cost_price: piece.cost_price != null ? String(piece.cost_price) : '',
       piece_notes: piece.piece_notes || '',
@@ -787,11 +794,12 @@ export default function AdminInventoryPage() {
         stock_status: editPieceForm.stock_status,
       }
 
+      const weightMeta = editPieceForm.weight_kg.trim() ? { weight_kg: editPieceForm.weight_kg.trim() } : {}
       if (nextImages.length > 0) {
         patch.image_url = nextImages[0]
-        patch.metadata = { ...baseMeta, images: nextImages }
+        patch.metadata = { ...baseMeta, ...weightMeta, images: nextImages }
       } else {
-        patch.metadata = baseMeta
+        patch.metadata = { ...baseMeta, ...weightMeta }
       }
 
       const { error } = await supabase.from('products').update(patch).eq('id', piece.id)
@@ -1175,6 +1183,14 @@ export default function AdminInventoryPage() {
                         className="bg-brand-dark border-brand-dark-border text-white"
                       />
                       <Input
+                        placeholder="Weight (kg)"
+                        type="number"
+                        step="0.01"
+                        value={cf.weight_kg}
+                        onChange={(e) => setChildForms((p) => ({ ...p, [parent.id]: { ...cf, weight_kg: e.target.value } }))}
+                        className="bg-brand-dark border-brand-dark-border text-white"
+                      />
+                      <Input
                         placeholder="Sale price £"
                         type="number"
                         step="0.01"
@@ -1280,6 +1296,7 @@ export default function AdminInventoryPage() {
                         <th className="pb-2">SKU</th>
                         <th className="pb-2">Thumb</th>
                         <th className="pb-2">Dimensions</th>
+                        <th className="pb-2">Weight</th>
                         <th className="pb-2">Sale</th>
                         <th className="pb-2">Cost</th>
                         <th className="pb-2">Status</th>
@@ -1298,7 +1315,7 @@ export default function AdminInventoryPage() {
                           const editGrainFallback = !k.image_url && parent.materials?.grain_image_url
                           return (
                             <tr key={k.id} className="border-b border-brand-dark-border/60 bg-zinc-900/40">
-                              <td colSpan={9} className="p-4">
+                              <td colSpan={10} className="p-4">
                                 <p className="text-sm text-zinc-400 mb-3">Edit piece {k.sku || k.id}</p>
                                 {(editGallery.length > 0 || editGrainFallback) && (
                                   <div className="mb-4">
@@ -1331,6 +1348,14 @@ export default function AdminInventoryPage() {
                                     placeholder="Dimensions"
                                     value={editPieceForm.dimensions}
                                     onChange={(e) => setEditPieceForm((f) => ({ ...f, dimensions: e.target.value }))}
+                                    className="bg-brand-dark border-brand-dark-border text-white"
+                                  />
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="Weight (kg)"
+                                    value={editPieceForm.weight_kg}
+                                    onChange={(e) => setEditPieceForm((f) => ({ ...f, weight_kg: e.target.value }))}
                                     className="bg-brand-dark border-brand-dark-border text-white"
                                   />
                                   <Input
@@ -1451,6 +1476,7 @@ export default function AdminInventoryPage() {
                                 </button>
                               </td>
                               <td className="py-2 text-zinc-300 max-w-[140px] truncate">{k.dimensions || '—'}</td>
+                              <td className="py-2 text-zinc-400 text-xs">{(k.metadata as { weight_kg?: string } | undefined)?.weight_kg ? `${(k.metadata as { weight_kg?: string }).weight_kg}kg` : '—'}</td>
                               <td className="py-2 text-brand-orange">{formatPrice(k.price)}</td>
                               <td className="py-2 text-zinc-500">{k.cost_price != null ? formatPrice(k.cost_price) : '—'}</td>
                               <td className="py-2">
@@ -1489,7 +1515,7 @@ export default function AdminInventoryPage() {
                             </tr>
                             {expandedPieceId === k.id && (
                               <tr className="bg-zinc-900/50 border-b border-brand-dark-border/60">
-                                <td colSpan={9} className="p-4">
+                                <td colSpan={10} className="p-4">
                                   <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                                     <Link
                                       href={`/product/${k.id}`}
