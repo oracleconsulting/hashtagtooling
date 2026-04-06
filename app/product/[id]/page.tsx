@@ -36,7 +36,8 @@ async function resolveProductHeroImage(
   imageUrl: string | null,
   materialId: string | null | undefined
 ): Promise<string | null> {
-  if (imageUrl) return imageUrl
+  const isReal = imageUrl && !imageUrl.includes('placehold.co')
+  if (isReal) return imageUrl
   if (!materialId) return null
   const { data: mat } = await supabase.from('materials').select('grain_image_url').eq('id', materialId).maybeSingle()
   return mat?.grain_image_url ?? null

@@ -68,6 +68,24 @@ function extraImageBadgeCount(k: ProductRow): number {
   return real.length > 1 ? real.length - 1 : 0
 }
 
+function isHeic(file: File): boolean {
+  const t = file.type.toLowerCase()
+  const n = file.name.toLowerCase()
+  return t === 'image/heic' || t === 'image/heif' || n.endsWith('.heic') || n.endsWith('.heif')
+}
+
+async function convertHeicToJpeg(file: File): Promise<File> {
+  const form = new FormData()
+  form.append('file', file)
+  const resp = await fetch('/api/convert-heic', { method: 'POST', body: form })
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}))
+    throw new Error(body.error || `HEIC conversion failed (${resp.status})`)
+  }
+  const blob = await resp.blob()
+  return new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' })
+}
+
 async function uploadInventoryProductImages(
   productId: string,
   files: File[]
@@ -75,19 +93,22 @@ async function uploadInventoryProductImages(
   const urls: string[] = []
   const errors: string[] = []
   for (const rawFile of files) {
-    let processed = rawFile
-    if (rawFile.type.startsWith('image/')) {
-      try {
+    let processed: File = rawFile
+    try {
+      if (isHeic(rawFile)) {
+        processed = await convertHeicToJpeg(rawFile)
+        processed = await compressImage(processed)
+      } else if (rawFile.type.startsWith('image/')) {
         processed = await compressImage(rawFile)
-      } catch {
-        /* use original */
       }
+    } catch (err) {
+      console.warn('[inventory] image processing failed, using original:', err)
     }
     const rand = Math.random().toString(36).slice(2, 10)
     const path = `inventory/${productId}/${Date.now()}-${rand}.jpg`
     const { error: upErr } = await supabase.storage.from('products').upload(path, processed, {
       upsert: true,
-      contentType: processed.type?.startsWith('image/') ? processed.type : 'image/jpeg',
+      contentType: 'image/jpeg',
     })
     if (upErr) {
       errors.push(upErr.message)
@@ -637,12 +658,15 @@ export default function AdminInventoryPage() {
       let imageUrl = 'https://placehold.co/600x400/666/white?text=Wood+listing'
       if (parentImageFile) {
         let file = parentImageFile
-        if (file.type.startsWith('image/')) {
-          try {
+        try {
+          if (isHeic(file)) {
+            file = await convertHeicToJpeg(file)
             file = await compressImage(file)
-          } catch {
-            /* */
+          } else if (file.type.startsWith('image/')) {
+            file = await compressImage(file)
           }
+        } catch {
+          /* use original */
         }
         const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
         const path = `products/parent-${Date.now()}.${ext}`
