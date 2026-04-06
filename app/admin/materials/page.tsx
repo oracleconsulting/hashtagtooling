@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState, Fragment } from 'react'
+import { useEffect, useState, Fragment, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
-import { Plus, Pencil, Trash2, ArrowLeft, Upload, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, ArrowLeft, Upload, Loader2, AlertTriangle, X } from 'lucide-react'
 import { compressImage } from '@/lib/image-utils'
 
 interface Material {
@@ -35,6 +35,11 @@ interface Material {
   available_mallet_handle?: boolean
   available_awl_handle?: boolean
   available_square_scale?: boolean
+  stock_heads?: number
+  stock_handles?: number
+  stock_awl_handles?: number
+  stock_square_scales?: number
+  stock_alert_threshold?: number
 }
 
 interface BasePrice {
@@ -91,6 +96,22 @@ function premiumFormKey(materialId: string, basePriceId: string, position: Style
   return `${materialId}|${basePriceId}|${position}`
 }
 
+function stockTotal(mat: Material): number {
+  return (mat.stock_heads ?? 0) + (mat.stock_handles ?? 0) + (mat.stock_awl_handles ?? 0) + (mat.stock_square_scales ?? 0)
+}
+
+function stockTotalColorClass(mat: Material): string {
+  const total = stockTotal(mat)
+  const t = mat.stock_alert_threshold ?? 3
+  if (total > t) return 'text-emerald-400 font-medium tabular-nums'
+  if (total === t) return 'text-amber-400 font-medium tabular-nums'
+  return 'text-red-400 font-medium tabular-nums'
+}
+
+function stockBreakdownTitle(mat: Material): string {
+  return `Heads: ${mat.stock_heads ?? 0}, Handles: ${mat.stock_handles ?? 0}, Awl: ${mat.stock_awl_handles ?? 0}, Scale: ${mat.stock_square_scales ?? 0}`
+}
+
 const inputDarkClass = 'bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500'
 const selectDarkClass = 'w-full h-9 rounded border border-zinc-700 bg-zinc-800 px-2 text-white'
 const textareaDarkClass = 'w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-sm text-white placeholder:text-zinc-500'
@@ -131,6 +152,15 @@ export default function MaterialsAdminPage() {
   const [expandedPricingMaterialId, setExpandedPricingMaterialId] = useState<string | null>(null)
   const [pricingForm, setPricingForm] = useState<Record<string, string>>({})
   const [savingPricingSection, setSavingPricingSection] = useState<null | 'mallet' | 'awl' | 'square'>(null)
+  type StockDraft = {
+    stock_heads: string
+    stock_handles: string
+    stock_awl_handles: string
+    stock_square_scales: string
+    stock_alert_threshold: string
+  }
+  const [stockDraftByMaterial, setStockDraftByMaterial] = useState<Record<string, StockDraft>>({})
+  const [lowStockBannerDismissed, setLowStockBannerDismissed] = useState(false)
   const [showAddTransition, setShowAddTransition] = useState(false)
   const [newTransition, setNewTransition] = useState({
     name: '',
@@ -266,6 +296,19 @@ export default function MaterialsAdminPage() {
   }
 
   const openPricingGrid = (materialId: string) => {
+    const mat = materials.find((m) => m.id === materialId)
+    if (mat) {
+      setStockDraftByMaterial((prev) => ({
+        ...prev,
+        [materialId]: {
+          stock_heads: String(mat.stock_heads ?? 0),
+          stock_handles: String(mat.stock_handles ?? 0),
+          stock_awl_handles: String(mat.stock_awl_handles ?? 0),
+          stock_square_scales: String(mat.stock_square_scales ?? 0),
+          stock_alert_threshold: String(mat.stock_alert_threshold ?? 3),
+        },
+      }))
+    }
     const malletStyles = basePrices.filter((b) => b.product_type === 'mallet')
     const awlStyles = basePrices.filter((b) => b.product_type === 'awl')
     const squareStyles = basePrices.filter((b) => b.product_type === 'square')
@@ -297,6 +340,56 @@ export default function MaterialsAdminPage() {
     setExpandedPricingMaterialId(materialId)
   }
 
+  const applyMaterialStockDraft = async (materialId: string) => {
+    const d = stockDraftByMaterial[materialId]
+    if (!d) return true
+    const { error } = await supabase
+      .from('materials')
+      .update({
+        stock_heads: parseInt(d.stock_heads, 10) || 0,
+        stock_handles: parseInt(d.stock_handles, 10) || 0,
+        stock_awl_handles: parseInt(d.stock_awl_handles, 10) || 0,
+        stock_square_scales: parseInt(d.stock_square_scales, 10) || 0,
+        stock_alert_threshold: parseInt(d.stock_alert_threshold, 10) || 3,
+      })
+      .eq('id', materialId)
+    if (error) {
+      console.error('[Stock] update error:', error)
+      alert(`Stock levels not saved: ${error.message}`)
+      return false
+    }
+    return true
+  }
+
+  const persistMspUpsert = async (
+    section: 'mallet' | 'awl' | 'square',
+    rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number }[]
+  ) => {
+    const normalized = rows.map((r) => ({
+      material_id: r.material_id,
+      base_price_id: r.base_price_id,
+      position: r.position,
+      premium: Math.round((Number.isFinite(r.premium) ? r.premium : 0) * 100) / 100,
+    }))
+    console.log(`[MSP ${section}] upsert`, { count: normalized.length, sample: normalized[0] })
+    const { data, error } = await supabase
+      .from('material_style_pricing')
+      .upsert(normalized, {
+        onConflict: 'material_id,base_price_id,position',
+        ignoreDuplicates: false,
+        defaultToNull: false,
+      })
+      .select('id')
+
+    if (error) {
+      console.error(`[MSP ${section}] error:`, error)
+      alert(`Failed to save: ${error.message}${error.hint ? ` — ${error.hint}` : ''}`)
+      return false
+    }
+    console.log(`[MSP ${section}] OK`, data?.length, 'rows')
+    return true
+  }
+
   const saveMalletPremiums = async (materialId: string) => {
     setSavingPricingSection('mallet')
     try {
@@ -305,7 +398,8 @@ export default function MaterialsAdminPage() {
       for (const bp of malletStyles) {
         for (const pos of ['head', 'handle'] as const) {
           const key = premiumFormKey(materialId, bp.id, pos)
-          const v = parseFloat(pricingForm[key] || '0')
+          const raw = pricingForm[key]
+          const v = parseFloat(raw === undefined || raw === '' ? '0' : String(raw))
           rows.push({
             material_id: materialId,
             base_price_id: bp.id,
@@ -314,11 +408,12 @@ export default function MaterialsAdminPage() {
           })
         }
       }
-      const { error } = await supabase.from('material_style_pricing').upsert(rows, {
-        onConflict: 'material_id,base_price_id,position',
-      })
-      if (error) throw error
-      loadData()
+      const ok = await persistMspUpsert('mallet', rows)
+      if (!ok) return
+      const stockOk = await applyMaterialStockDraft(materialId)
+      if (!stockOk) return
+      await loadData()
+      alert('Saved successfully')
     } catch (e) {
       console.error(e)
       alert('Failed to save mallet premiums')
@@ -334,7 +429,8 @@ export default function MaterialsAdminPage() {
       const rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number }[] = []
       for (const bp of awlStyles) {
         const key = premiumFormKey(materialId, bp.id, 'awl_handle')
-        const v = parseFloat(pricingForm[key] || '0')
+        const raw = pricingForm[key]
+        const v = parseFloat(raw === undefined || raw === '' ? '0' : String(raw))
         rows.push({
           material_id: materialId,
           base_price_id: bp.id,
@@ -342,11 +438,12 @@ export default function MaterialsAdminPage() {
           premium: Number.isFinite(v) ? v : 0,
         })
       }
-      const { error } = await supabase.from('material_style_pricing').upsert(rows, {
-        onConflict: 'material_id,base_price_id,position',
-      })
-      if (error) throw error
-      loadData()
+      const ok = await persistMspUpsert('awl', rows)
+      if (!ok) return
+      const stockOk = await applyMaterialStockDraft(materialId)
+      if (!stockOk) return
+      await loadData()
+      alert('Saved successfully')
     } catch (e) {
       console.error(e)
       alert('Failed to save awl premiums')
@@ -362,7 +459,8 @@ export default function MaterialsAdminPage() {
       const rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number }[] = []
       for (const bp of squareStyles) {
         const key = premiumFormKey(materialId, bp.id, 'square_scale')
-        const v = parseFloat(pricingForm[key] || '0')
+        const raw = pricingForm[key]
+        const v = parseFloat(raw === undefined || raw === '' ? '0' : String(raw))
         rows.push({
           material_id: materialId,
           base_price_id: bp.id,
@@ -370,11 +468,12 @@ export default function MaterialsAdminPage() {
           premium: Number.isFinite(v) ? v : 0,
         })
       }
-      const { error } = await supabase.from('material_style_pricing').upsert(rows, {
-        onConflict: 'material_id,base_price_id,position',
-      })
-      if (error) throw error
-      loadData()
+      const ok = await persistMspUpsert('square', rows)
+      if (!ok) return
+      const stockOk = await applyMaterialStockDraft(materialId)
+      if (!stockOk) return
+      await loadData()
+      alert('Saved successfully')
     } catch (e) {
       console.error(e)
       alert('Failed to save square premiums')
@@ -612,13 +711,33 @@ export default function MaterialsAdminPage() {
     }
   }
 
-  if (loading) return <div className="container mx-auto px-4 py-12">Loading...</div>
+  const woodMaterials = materials.filter((m) => m.category === 'wood')
+  const transitionMaterials = materials.filter((m) => m.category === 'transition')
+  const malletBasePrices = basePrices.filter((bp) => bp.product_type === 'mallet')
+  const awlBasePrices = basePrices.filter((bp) => bp.product_type === 'awl')
+  const squareBasePrices = basePrices.filter((bp) => bp.product_type === 'square')
 
-  const woodMaterials = materials.filter(m => m.category === 'wood')
-  const transitionMaterials = materials.filter(m => m.category === 'transition')
-  const malletBasePrices = basePrices.filter(bp => bp.product_type === 'mallet')
-  const awlBasePrices = basePrices.filter(bp => bp.product_type === 'awl')
-  const squareBasePrices = basePrices.filter(bp => bp.product_type === 'square')
+  const lowStockWarnings = useMemo(() => {
+    const out: { material: Material; app: string; count: number; threshold: number }[] = []
+    for (const m of woodMaterials) {
+      const t = m.stock_alert_threshold ?? 3
+      if (m.available_mallet_head !== false && (m.stock_heads ?? 0) <= t) {
+        out.push({ material: m, app: 'Mallet head', count: m.stock_heads ?? 0, threshold: t })
+      }
+      if (m.available_mallet_handle !== false && (m.stock_handles ?? 0) <= t) {
+        out.push({ material: m, app: 'Mallet handle', count: m.stock_handles ?? 0, threshold: t })
+      }
+      if (m.available_awl_handle !== false && (m.stock_awl_handles ?? 0) <= t) {
+        out.push({ material: m, app: 'Awl handle', count: m.stock_awl_handles ?? 0, threshold: t })
+      }
+      if (m.available_square_scale !== false && (m.stock_square_scales ?? 0) <= t) {
+        out.push({ material: m, app: 'Square scale', count: m.stock_square_scales ?? 0, threshold: t })
+      }
+    }
+    return out.sort((a, b) => a.count - b.count || a.material.name.localeCompare(b.material.name))
+  }, [woodMaterials])
+
+  if (loading) return <div className="container mx-auto px-4 py-12">Loading...</div>
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -637,6 +756,29 @@ export default function MaterialsAdminPage() {
       </div>
 
       <h1 className="text-4xl font-bold mb-8">Materials & Pricing</h1>
+
+      {lowStockWarnings.length > 0 && !lowStockBannerDismissed && (
+        <div className="mb-6 rounded-lg border border-amber-700/80 bg-amber-950/50 px-4 py-3 text-sm text-amber-100">
+          <div className="flex gap-3">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-amber-400 mt-0.5" aria-hidden />
+            <div className="min-w-0 flex-1 space-y-1">
+              {lowStockWarnings.map((w, i) => (
+                <p key={`${w.material.id}-${w.app}-${i}`}>
+                  Low stock warning: {w.material.name} — {w.app} ({w.count} remaining)
+                </p>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="shrink-0 rounded p-1 text-amber-200/80 hover:bg-amber-900/60 hover:text-amber-50"
+              aria-label="Dismiss low stock warnings"
+              onClick={() => setLowStockBannerDismissed(true)}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Base Prices */}
       <Card className="mb-8">
@@ -849,11 +991,24 @@ export default function MaterialsAdminPage() {
                   <th className="text-center p-2 text-zinc-300 w-14" title="Awl handle">Awl</th>
                   <th className="text-center p-2 text-zinc-300 w-14" title="Engineering square scale">Scale</th>
                   <th className="text-center p-2 text-zinc-300 w-14" title="Show in builders (master)">All</th>
+                  <th className="text-center p-2 text-zinc-300 w-16" title="Total stock (heads + handles + awl + scale)">
+                    Stock
+                  </th>
                   <th className="text-center p-2 text-zinc-300">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {woodMaterials.map(mat => (
+                {woodMaterials.map((mat) => {
+                  const stockDraft =
+                    stockDraftByMaterial[mat.id] ?? {
+                      stock_heads: String(mat.stock_heads ?? 0),
+                      stock_handles: String(mat.stock_handles ?? 0),
+                      stock_awl_handles: String(mat.stock_awl_handles ?? 0),
+                      stock_square_scales: String(mat.stock_square_scales ?? 0),
+                      stock_alert_threshold: String(mat.stock_alert_threshold ?? 3),
+                    }
+                  const stockThr = parseInt(stockDraft.stock_alert_threshold, 10) || 3
+                  return (
                   <Fragment key={mat.id}>
                   <tr className="border-b">
                     {editingMaterial?.id === mat.id ? (
@@ -948,6 +1103,12 @@ export default function MaterialsAdminPage() {
                             })}
                             className="accent-brand-orange"
                           />
+                        </td>
+                        <td
+                          className={`p-2 text-center text-sm ${stockTotalColorClass(mat)}`}
+                          title={stockBreakdownTitle(mat)}
+                        >
+                          {stockTotal(mat)}
                         </td>
                         <td className="p-2">
                           <div className="flex gap-2 justify-center">
@@ -1048,6 +1209,12 @@ export default function MaterialsAdminPage() {
                             className="accent-brand-orange"
                           />
                         </td>
+                        <td
+                          className={`p-2 text-center text-sm ${stockTotalColorClass(mat)}`}
+                          title={stockBreakdownTitle(mat)}
+                        >
+                          {stockTotal(mat)}
+                        </td>
                         <td className="p-2">
                           <div className="flex gap-2 justify-center">
                             <Button size="sm" variant="outline" onClick={() => setEditingMaterial(mat)}>
@@ -1063,10 +1230,77 @@ export default function MaterialsAdminPage() {
                   </tr>
                   {expandedPricingMaterialId === mat.id && (
                     <tr>
-                      <td colSpan={9} className="p-4 border-b border-zinc-800 bg-brand-dark-card bg-zinc-900/95">
+                      <td colSpan={10} className="p-4 border-b border-zinc-800 bg-brand-dark-card bg-zinc-900/95">
                         <div className="space-y-8 overflow-x-auto text-zinc-200">
+                          <div className="flex flex-wrap items-end gap-4 text-xs border-b border-zinc-700/80 pb-3">
+                            <div>
+                              <label className="block text-zinc-400 mb-1">Stock alert threshold</label>
+                              <Input
+                                type="number"
+                                min={0}
+                                className={`w-20 h-8 text-xs ${inputDarkClass}`}
+                                value={stockDraft.stock_alert_threshold}
+                                onChange={(e) =>
+                                  setStockDraftByMaterial((prev) => ({
+                                    ...prev,
+                                    [mat.id]: { ...stockDraft, stock_alert_threshold: e.target.value },
+                                  }))
+                                }
+                              />
+                            </div>
+                          </div>
                           {((mat.available_mallet_head ?? true) || (mat.available_mallet_handle ?? true)) && malletBasePrices.length > 0 && (
                             <div className="space-y-3">
+                              <div className="flex flex-wrap items-end gap-4 text-xs">
+                                <div>
+                                  <label className="block text-zinc-400 mb-1">Head stock</label>
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      className={`w-20 h-8 text-xs ${inputDarkClass} ${
+                                        (parseInt(stockDraft.stock_heads, 10) || 0) <= stockThr ? 'text-red-400 border-red-700' : ''
+                                      }`}
+                                      value={stockDraft.stock_heads}
+                                      onChange={(e) =>
+                                        setStockDraftByMaterial((prev) => ({
+                                          ...prev,
+                                          [mat.id]: { ...stockDraft, stock_heads: e.target.value },
+                                        }))
+                                      }
+                                    />
+                                    {(parseInt(stockDraft.stock_heads, 10) || 0) <= stockThr && (
+                                      <span title="At or below threshold" className="inline-flex">
+                                      <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" aria-hidden />
+                                    </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="block text-zinc-400 mb-1">Handle stock</label>
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      className={`w-20 h-8 text-xs ${inputDarkClass} ${
+                                        (parseInt(stockDraft.stock_handles, 10) || 0) <= stockThr ? 'text-red-400 border-red-700' : ''
+                                      }`}
+                                      value={stockDraft.stock_handles}
+                                      onChange={(e) =>
+                                        setStockDraftByMaterial((prev) => ({
+                                          ...prev,
+                                          [mat.id]: { ...stockDraft, stock_handles: e.target.value },
+                                        }))
+                                      }
+                                    />
+                                    {(parseInt(stockDraft.stock_handles, 10) || 0) <= stockThr && (
+                                      <span title="At or below threshold" className="inline-flex">
+                                      <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" aria-hidden />
+                                    </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
                               <p className="text-sm font-medium text-zinc-200">Mallet premiums (£)</p>
                               <div className="inline-block min-w-full">
                                 <table className="w-full text-xs border-collapse border border-zinc-700">
@@ -1128,6 +1362,32 @@ export default function MaterialsAdminPage() {
 
                           {(mat.available_awl_handle ?? true) && awlBasePrices.length > 0 && (
                             <div className="space-y-3">
+                              <div className="flex flex-wrap items-end gap-4 text-xs">
+                                <div>
+                                  <label className="block text-zinc-400 mb-1">Awl handle stock</label>
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      className={`w-20 h-8 text-xs ${inputDarkClass} ${
+                                        (parseInt(stockDraft.stock_awl_handles, 10) || 0) <= stockThr ? 'text-red-400 border-red-700' : ''
+                                      }`}
+                                      value={stockDraft.stock_awl_handles}
+                                      onChange={(e) =>
+                                        setStockDraftByMaterial((prev) => ({
+                                          ...prev,
+                                          [mat.id]: { ...stockDraft, stock_awl_handles: e.target.value },
+                                        }))
+                                      }
+                                    />
+                                    {(parseInt(stockDraft.stock_awl_handles, 10) || 0) <= stockThr && (
+                                      <span title="At or below threshold" className="inline-flex">
+                                      <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" aria-hidden />
+                                    </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
                               <p className="text-sm font-medium text-zinc-200">Awl handle premiums (£)</p>
                               <div className="inline-block min-w-full">
                                 <table className="w-full text-xs border-collapse border border-zinc-700">
@@ -1185,6 +1445,32 @@ export default function MaterialsAdminPage() {
 
                           {(mat.available_square_scale ?? true) && squareBasePrices.length > 0 && (
                             <div className="space-y-3">
+                              <div className="flex flex-wrap items-end gap-4 text-xs">
+                                <div>
+                                  <label className="block text-zinc-400 mb-1">Scale stock</label>
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      className={`w-20 h-8 text-xs ${inputDarkClass} ${
+                                        (parseInt(stockDraft.stock_square_scales, 10) || 0) <= stockThr ? 'text-red-400 border-red-700' : ''
+                                      }`}
+                                      value={stockDraft.stock_square_scales}
+                                      onChange={(e) =>
+                                        setStockDraftByMaterial((prev) => ({
+                                          ...prev,
+                                          [mat.id]: { ...stockDraft, stock_square_scales: e.target.value },
+                                        }))
+                                      }
+                                    />
+                                    {(parseInt(stockDraft.stock_square_scales, 10) || 0) <= stockThr && (
+                                      <span title="At or below threshold" className="inline-flex">
+                                      <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" aria-hidden />
+                                    </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
                               <p className="text-sm font-medium text-zinc-200">Square scale premiums (£)</p>
                               <div className="inline-block min-w-full">
                                 <table className="w-full text-xs border-collapse border border-zinc-700">
@@ -1245,7 +1531,7 @@ export default function MaterialsAdminPage() {
                   )}
                   {editingMaterial?.id === mat.id && (
                     <tr>
-                      <td colSpan={9} className="p-4 border-b border-zinc-800 bg-brand-dark-card bg-zinc-900/95">
+                      <td colSpan={10} className="p-4 border-b border-zinc-800 bg-brand-dark-card bg-zinc-900/95">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                           <div>
                             <label className="block font-medium mb-1 text-zinc-300">Janka Hardness</label>
@@ -1341,7 +1627,8 @@ export default function MaterialsAdminPage() {
                     </tr>
                   )}
                   </Fragment>
-                ))}
+                )
+                })}
               </tbody>
             </table>
           </div>
