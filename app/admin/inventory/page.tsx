@@ -34,12 +34,34 @@ interface ProductRow {
   material_id?: string | null
   material_ids?: string[] | null
   metadata?: Record<string, unknown> | null
+  /** From `materials(...)` embed when loading parent listings */
+  materials?: { grain_image_url: string | null; color_hex: string | null; name: string } | null
 }
 
 interface WoodMaterialOption {
   id: string
   name: string
   color_hex: string
+  grain_image_url?: string | null
+}
+
+function childPieceThumb(k: ProductRow): { src: string | null; extraCount: number } {
+  const meta = k.metadata as { images?: string[] } | null | undefined
+  const imgs = meta?.images
+  if (imgs && imgs.length > 0) {
+    return { src: imgs[0], extraCount: Math.max(0, imgs.length - 1) }
+  }
+  return { src: k.image_url, extraCount: 0 }
+}
+
+function revokeObjectUrls(urls: string[]) {
+  urls.forEach((u) => {
+    try {
+      URL.revokeObjectURL(u)
+    } catch {
+      /* ignore */
+    }
+  })
 }
 
 const TAB_LABELS: { id: WoodTab; label: string }[] = [
@@ -100,22 +122,20 @@ export default function AdminInventoryPage() {
   const [savingParent, setSavingParent] = useState(false)
   const [savingNewSpecies, setSavingNewSpecies] = useState(false)
 
-  const [childForms, setChildForms] = useState<
-    Record<
-      string,
-      {
-        open: boolean
-        prefix: string
-        sku: string
-        dimensions: string
-        price: string
-        cost_price: string
-        notes: string
-        file: File | null
-        saving: boolean
-      }
-    >
-  >({})
+  type ChildFormFields = {
+    open: boolean
+    prefix: string
+    sku: string
+    dimensions: string
+    price: string
+    cost_price: string
+    notes: string
+    files: File[]
+    previewUrls: string[]
+    saving: boolean
+  }
+
+  const [childForms, setChildForms] = useState<Record<string, ChildFormFields>>({})
 
   const [selectedSkus, setSelectedSkus] = useState<Set<string>>(new Set())
 
@@ -138,7 +158,7 @@ export default function AdminInventoryPage() {
 
   const loadWoodMaterials = useCallback(async () => {
     const [{ data: mats, error: e1 }, { data: bp, error: e2 }] = await Promise.all([
-      supabase.from('materials').select('id, name, color_hex').eq('category', 'wood').order('name'),
+      supabase.from('materials').select('id, name, color_hex, grain_image_url').eq('category', 'wood').order('name'),
       supabase.from('base_prices').select('id, product_type'),
     ])
     if (!e1 && mats) setWoodMaterials(mats as WoodMaterialOption[])
@@ -170,10 +190,19 @@ export default function AdminInventoryPage() {
     try {
       const { data: woodParents, error: e1 } = await supabase
         .from('products')
-        .select('*')
+        .select(
+          `
+          *,
+          materials (
+            grain_image_url,
+            color_hex,
+            name
+          )
+        `
+        )
         .eq('category', 'wood')
         .is('parent_product_id', null)
-        .order('created_at', { ascending: false })
+        .order('name')
 
       if (e1) throw e1
 
@@ -346,22 +375,64 @@ export default function AdminInventoryPage() {
       .replace(/[^a-zA-Z]/g, '')
       .slice(0, 4)
       .toUpperCase() || 'XX'
-    setChildForms((prev) => ({
-      ...prev,
-      [parent.id]: {
-        open: true,
-        prefix: prefix.slice(0, 4),
-        sku: '',
-        dimensions: '',
-        price: '',
-        cost_price: '',
-        notes: '',
-        file: null,
-        saving: false,
-      },
-    }))
+    setChildForms((prev) => {
+      const old = prev[parent.id]
+      if (old?.previewUrls?.length) revokeObjectUrls(old.previewUrls)
+      return {
+        ...prev,
+        [parent.id]: {
+          open: true,
+          prefix: prefix.slice(0, 4),
+          sku: '',
+          dimensions: '',
+          price: '',
+          cost_price: '',
+          notes: '',
+          files: [],
+          previewUrls: [],
+          saving: false,
+        },
+      }
+    })
   }
 
+  const handlePieceImages = (parentId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files || [])
+    e.target.value = ''
+    setChildForms((prev) => {
+      const cf = prev[parentId]
+      if (!cf) return prev
+      revokeObjectUrls(cf.previewUrls)
+      const merged = [...cf.files, ...picked].slice(0, 8)
+      return {
+        ...prev,
+        [parentId]: {
+          ...cf,
+          files: merged,
+          previewUrls: merged.map((f) => URL.createObjectURL(f)),
+        },
+      }
+    })
+  }
+
+  const removePieceImage = (parentId: string, index: number) => {
+    setChildForms((prev) => {
+      const cf = prev[parentId]
+      if (!cf) return prev
+      revokeObjectUrls(cf.previewUrls)
+      const merged = cf.files.filter((_, i) => i !== index)
+      return {
+        ...prev,
+        [parentId]: {
+          ...cf,
+          files: merged,
+          previewUrls: merged.map((f) => URL.createObjectURL(f)),
+        },
+      }
+    })
+  }
+
+  /** SKU: Postgres `generate_sku` uses `sku_sequences` — one counter per prefix (e.g. ARGE-001 → ARGE-002). */
   const generateSku = async (parentId: string) => {
     const f = childForms[parentId]
     if (!f?.prefix.trim()) return
@@ -393,47 +464,79 @@ export default function AdminInventoryPage() {
     setChildForms((prev) => ({ ...prev, [parent.id]: { ...f, saving: true } }))
 
     try {
-      let imageUrl = parent.image_url || 'https://placehold.co/600x400/666/white?text=Wood'
-      if (f.file) {
-        let file = f.file
-        if (file.type.startsWith('image/')) {
+      const parentGrain = parent.materials?.grain_image_url
+      let initialImageUrl =
+        parent.image_url || parentGrain || 'https://placehold.co/600x400/666/white?text=Wood'
+
+      const cost = parseFloat(f.cost_price)
+      const mids = parent.material_ids && parent.material_ids.length > 0 ? parent.material_ids : []
+      const baseMeta =
+        parent.metadata && typeof parent.metadata === 'object' && !Array.isArray(parent.metadata)
+          ? { ...parent.metadata }
+          : {}
+
+      const { data: inserted, error: insErr } = await supabase
+        .from('products')
+        .insert({
+          name: `${parent.name} — ${f.sku}`,
+          description: parent.description || '',
+          price,
+          category: parent.category,
+          subcategory: parent.subcategory,
+          image_url: initialImageUrl,
+          stock_status: 'in_stock',
+          parent_product_id: parent.id,
+          sku: f.sku.trim(),
+          dimensions: f.dimensions.trim() || null,
+          cost_price: Number.isFinite(cost) ? cost : null,
+          material_species: parent.material_species || parent.name,
+          material_id: parent.material_id ?? null,
+          material_ids: mids,
+          piece_notes: f.notes.trim() || null,
+          sku_label_printed: false,
+          metadata: baseMeta,
+        })
+        .select('id')
+        .single()
+
+      if (insErr) throw insErr
+      const newId = inserted?.id as string
+      if (!newId) throw new Error('No product id returned')
+
+      const uploadedUrls: string[] = []
+      for (const rawFile of f.files) {
+        let processed = rawFile
+        if (rawFile.type.startsWith('image/')) {
           try {
-            file = await compressImage(file)
+            processed = await compressImage(rawFile)
           } catch {
             /* use original */
           }
         }
-        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-        const path = `products/${parent.id}-child-${Date.now()}.${ext}`
-        const { error: upErr } = await supabase.storage.from('products').upload(path, file)
-        if (upErr) throw upErr
-        const { data: pub } = supabase.storage.from('products').getPublicUrl(path)
-        imageUrl = pub.publicUrl
+        const rand = Math.random().toString(36).slice(2, 10)
+        const path = `inventory/${newId}/${Date.now()}-${rand}.jpg`
+        const { error: upErr } = await supabase.storage.from('products').upload(path, processed, {
+          upsert: true,
+          contentType: processed.type || 'image/jpeg',
+        })
+        if (!upErr) {
+          const { data: pub } = supabase.storage.from('products').getPublicUrl(path)
+          uploadedUrls.push(pub.publicUrl)
+        }
       }
 
-      const cost = parseFloat(f.cost_price)
-      const mids = parent.material_ids && parent.material_ids.length > 0 ? parent.material_ids : []
-      const { error } = await supabase.from('products').insert({
-        name: `${parent.name} — ${f.sku}`,
-        description: parent.description || '',
-        price,
-        category: parent.category,
-        subcategory: parent.subcategory,
-        image_url: imageUrl,
-        stock_status: 'in_stock',
-        parent_product_id: parent.id,
-        sku: f.sku.trim(),
-        dimensions: f.dimensions.trim() || null,
-        cost_price: Number.isFinite(cost) ? cost : null,
-        material_species: parent.material_species || parent.name,
-        material_id: parent.material_id ?? null,
-        material_ids: mids,
-        piece_notes: f.notes.trim() || null,
-        sku_label_printed: false,
-        metadata: parent.metadata || {},
-      })
+      if (uploadedUrls.length > 0) {
+        const { error: upErr } = await supabase
+          .from('products')
+          .update({
+            image_url: uploadedUrls[0],
+            metadata: { ...baseMeta, images: uploadedUrls },
+          })
+          .eq('id', newId)
+        if (upErr) throw upErr
+      }
 
-      if (error) throw error
+      revokeObjectUrls(f.previewUrls)
 
       setChildForms((prev) => ({
         ...prev,
@@ -446,7 +549,8 @@ export default function AdminInventoryPage() {
           price: '',
           cost_price: '',
           notes: '',
-          file: null,
+          files: [],
+          previewUrls: [],
         },
       }))
       load()
@@ -490,6 +594,17 @@ export default function AdminInventoryPage() {
         if (upErr) throw upErr
         const { data: pub } = supabase.storage.from('products').getPublicUrl(path)
         imageUrl = pub.publicUrl
+      } else if (!multiMode && parentForm.material_id) {
+        const m = woodMaterials.find((w) => w.id === parentForm.material_id)
+        if (m?.grain_image_url) imageUrl = m.grain_image_url
+      } else if (multiMode && parentForm.material_ids.length > 0) {
+        for (const mid of parentForm.material_ids) {
+          const m = woodMaterials.find((w) => w.id === mid)
+          if (m?.grain_image_url) {
+            imageUrl = m.grain_image_url
+            break
+          }
+        }
       }
 
       const speciesLabel =
@@ -790,10 +905,22 @@ export default function AdminInventoryPage() {
             <CardHeader className="flex flex-row items-start justify-between gap-4">
               <div className="flex gap-4">
                 <div className="relative w-20 h-20 rounded overflow-hidden bg-brand-dark shrink-0">
-                  {parent.image_url ? (
-                    <Image src={parent.image_url} alt="" fill className="object-cover" sizes="80px" />
+                  {parent.materials?.grain_image_url ? (
+                    <Image
+                      src={parent.materials.grain_image_url}
+                      alt={parent.name}
+                      fill
+                      className="object-cover"
+                      sizes="80px"
+                    />
+                  ) : parent.image_url ? (
+                    <Image src={parent.image_url} alt={parent.name} fill className="object-cover" sizes="80px" />
+                  ) : parent.materials?.color_hex ? (
+                    <div className="absolute inset-0" style={{ backgroundColor: parent.materials.color_hex }} title={parent.materials.name} />
                   ) : (
-                    <Package className="m-6 text-zinc-600" />
+                    <div className="absolute inset-0 bg-zinc-800 flex items-center justify-center">
+                      <Package className="h-8 w-8 text-zinc-600" />
+                    </div>
                   )}
                 </div>
                 <div>
@@ -871,23 +998,57 @@ export default function AdminInventoryPage() {
                         className="bg-brand-dark border-brand-dark-border text-white md:col-span-2"
                         rows={2}
                       />
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="text-sm md:col-span-2"
-                        onChange={(e) =>
-                          setChildForms((p) => ({
-                            ...p,
-                            [parent.id]: { ...cf, file: e.target.files?.[0] || null },
-                          }))
-                        }
-                      />
+                      <div className="md:col-span-2">
+                        <label className="text-sm text-zinc-400 mb-2 block">Photos (up to 8)</label>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.HEIC"
+                          multiple
+                          className="text-sm text-zinc-400"
+                          onChange={(e) => handlePieceImages(parent.id, e)}
+                        />
+                        {cf.previewUrls.length > 0 && (
+                          <div className="flex gap-2 mt-3 flex-wrap">
+                            {cf.previewUrls.map((url, i) => (
+                              <div key={url} className="relative w-20 h-20">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={url}
+                                  alt=""
+                                  className="w-20 h-20 rounded object-cover border border-brand-dark-border"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removePieceImage(parent.id, i)}
+                                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 rounded-full text-white text-xs flex items-center justify-center"
+                                  aria-label="Remove photo"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <Button disabled={cf.saving} onClick={() => saveChild(parent)}>
                         {cf.saving ? 'Saving…' : 'Save piece'}
                       </Button>
-                      <Button variant="outline" onClick={() => setChildForms((p) => ({ ...p, [parent.id]: { ...cf, open: false } }))}>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setChildForms((p) => {
+                            const cur = p[parent.id]
+                            if (!cur) return p
+                            if (cur.previewUrls.length) revokeObjectUrls(cur.previewUrls)
+                            return {
+                              ...p,
+                              [parent.id]: { ...cur, open: false, files: [], previewUrls: [] },
+                            }
+                          })
+                        }}
+                      >
                         Cancel
                       </Button>
                     </div>
@@ -928,7 +1089,9 @@ export default function AdminInventoryPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {kids.map((k) => (
+                      {kids.map((k) => {
+                        const { src: thumbSrc, extraCount } = childPieceThumb(k)
+                        return (
                         <tr key={k.id} className="border-b border-brand-dark-border/60">
                           <td className="py-2 pr-2">
                             {k.sku && (
@@ -947,7 +1110,12 @@ export default function AdminInventoryPage() {
                           <td className="py-2 text-white font-mono">{k.sku || '—'}</td>
                           <td className="py-2">
                             <div className="relative w-12 h-12 rounded overflow-hidden bg-brand-dark">
-                              {k.image_url && <Image src={k.image_url} alt="" fill className="object-cover" sizes="48px" />}
+                              {thumbSrc && <Image src={thumbSrc} alt="" fill className="object-cover" sizes="48px" />}
+                              {extraCount > 0 && (
+                                <span className="absolute bottom-0 right-0 rounded-tl bg-black/75 text-white text-[10px] font-medium px-1 py-0.5 leading-none">
+                                  +{extraCount}
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td className="py-2 text-zinc-300 max-w-[140px] truncate">{k.dimensions || '—'}</td>
@@ -981,7 +1149,8 @@ export default function AdminInventoryPage() {
                             </Button>
                           </td>
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
                   {kids.length === 0 && <p className="text-zinc-500 text-sm py-4">No pieces yet — add one above.</p>}
