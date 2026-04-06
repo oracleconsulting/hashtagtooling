@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -23,6 +23,10 @@ interface Product {
   category: string
   image_url: string
   stock_status: string
+  parent_product_id?: string | null
+  sku?: string | null
+  dimensions?: string | null
+  material_species?: string | null
   is_digital?: boolean
   metadata?: {
     images?: string[]
@@ -38,6 +42,8 @@ interface Product {
 
 export default function ProductContent() {
   const params = useParams()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const id = params.id as string
   const addItem = useCart((state) => state.addItem)
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlist()
@@ -50,6 +56,7 @@ export default function ProductContent() {
   const [notifyEmail, setNotifyEmail] = useState('')
   const [notifySubmitting, setNotifySubmitting] = useState(false)
   const [notifySuccess, setNotifySuccess] = useState(false)
+  const [childPieces, setChildPieces] = useState<Product[]>([])
 
   useEffect(() => {
     if (id) loadProduct()
@@ -64,7 +71,24 @@ export default function ProductContent() {
         .single()
 
       if (error) throw error
+
+      if (data?.parent_product_id) {
+        router.replace(`/product/${data.parent_product_id}?child=${id}`)
+        return
+      }
+
       setProduct(data)
+
+      if (data?.category === 'wood' && !data.parent_product_id) {
+        const { data: kids } = await supabase
+          .from('products')
+          .select('*')
+          .eq('parent_product_id', data.id)
+          .order('sku')
+        setChildPieces((kids || []) as Product[])
+      } else {
+        setChildPieces([])
+      }
 
       if (data?.category) {
         const { data: relatedData } = await supabase
@@ -72,6 +96,7 @@ export default function ProductContent() {
           .select('*')
           .eq('category', data.category)
           .neq('id', id)
+          .is('parent_product_id', null)
           .in('stock_status', ['in_stock', 'made_to_order', 'sold'])
           .limit(3)
         setRelated(relatedData || [])
@@ -95,6 +120,21 @@ export default function ProductContent() {
       stock_status: product.stock_status,
       shipping: product.metadata?.shipping,
       is_digital: product.is_digital,
+    })
+  }
+
+  const handleAddChildToCart = (piece: Product) => {
+    if (piece.stock_status !== 'in_stock') return
+    addItem({
+      id: piece.id,
+      name: piece.name,
+      price: piece.price,
+      quantity: 1,
+      image_url: piece.image_url,
+      category: piece.category,
+      stock_status: piece.stock_status,
+      shipping: piece.metadata?.shipping,
+      is_digital: piece.is_digital,
     })
   }
 
@@ -137,6 +177,11 @@ export default function ProductContent() {
       </div>
     )
   }
+
+  const highlightChildId = searchParams.get('child')
+  const isWoodParentWithPieces =
+    product.category === 'wood' && !product.parent_product_id && childPieces.length > 0
+  const inStockPieces = childPieces.filter((c) => c.stock_status === 'in_stock')
 
   const FALLBACK_IMAGE = '/placeholder-product.svg'
   const imageUrls = (product.metadata?.images?.length
@@ -239,23 +284,96 @@ export default function ProductContent() {
 
         <div>
           <h1 className="font-heading text-3xl md:text-4xl font-bold mb-4 text-white">{product.name}</h1>
-          <p className="text-3xl font-bold mb-6 text-brand-orange">{formatPrice(product.price)}</p>
+          {!isWoodParentWithPieces ? (
+            <p className="text-3xl font-bold mb-6 text-brand-orange">{formatPrice(product.price)}</p>
+          ) : (
+            <p className="text-lg font-medium mb-6 text-zinc-400">
+              {inStockPieces.length > 0
+                ? `${inStockPieces.length} piece(s) available — choose below`
+                : 'Out of stock — check back soon'}
+            </p>
+          )}
 
           <div className="mb-6">
-            {product.stock_status === 'in_stock' && (
+            {!isWoodParentWithPieces && product.stock_status === 'in_stock' && (
               <span className="px-3 py-1 bg-green-900/50 text-green-400 text-sm font-medium rounded">In Stock</span>
             )}
-            {product.stock_status === 'made_to_order' && (
+            {!isWoodParentWithPieces && product.stock_status === 'made_to_order' && (
               <span className="px-3 py-1 bg-brand-orange/20 text-brand-orange text-sm font-medium rounded">Made to Order</span>
             )}
-            {product.stock_status === 'sold' && (
+            {!isWoodParentWithPieces && product.stock_status === 'sold' && (
               <span className="px-3 py-1 bg-red-900/50 text-red-400 text-sm font-medium rounded">Sold</span>
+            )}
+            {isWoodParentWithPieces && inStockPieces.length > 0 && (
+              <span className="px-3 py-1 bg-green-900/50 text-green-400 text-sm font-medium rounded">In Stock</span>
             )}
           </div>
 
           <p className="text-zinc-300 mb-8 leading-relaxed">{product.description}</p>
 
-          {product.stock_status !== 'sold' ? (
+          {isWoodParentWithPieces && (
+            <div className="mb-10 space-y-4">
+              <h2 className="font-heading text-xl font-semibold text-white">Available pieces</h2>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {childPieces.map((piece) => {
+                  const sold = piece.stock_status === 'sold'
+                  const canBuy = piece.stock_status === 'in_stock'
+                  const hi = highlightChildId === piece.id
+                  return (
+                    <div
+                      key={piece.id}
+                      className={`rounded-lg border p-4 flex gap-4 ${
+                        sold ? 'opacity-60 border-brand-dark-border' : 'border-brand-dark-border bg-brand-dark-card'
+                      } ${hi ? 'ring-2 ring-brand-orange' : ''}`}
+                    >
+                      <div className="relative w-24 h-24 shrink-0 rounded overflow-hidden bg-brand-dark">
+                        <Image
+                          src={piece.image_url || FALLBACK_IMAGE}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          sizes="96px"
+                        />
+                        {sold && (
+                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                            <span className="text-xs font-bold text-white">SOLD</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-mono text-sm text-brand-orange">{piece.sku || '—'}</p>
+                        {piece.dimensions && <p className="text-xs text-zinc-500">{piece.dimensions}</p>}
+                        <p className="text-lg font-bold text-brand-orange mt-1">{formatPrice(piece.price)}</p>
+                        <Button
+                          className="mt-2 w-full sm:w-auto"
+                          size="sm"
+                          disabled={!canBuy}
+                          onClick={() => handleAddChildToCart(piece)}
+                        >
+                          {sold ? 'Sold' : 'Add to cart'}
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {isWoodParentWithPieces && (
+            <div className="mb-8">
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={toggleWishlist}
+                className={inWishlist ? 'border-brand-orange text-brand-orange' : ''}
+              >
+                {inWishlist ? 'Saved listing to Wishlist' : 'Save listing to Wishlist'}
+              </Button>
+            </div>
+          )}
+
+          {!isWoodParentWithPieces && product.stock_status !== 'sold' && (
             <div className="flex flex-col sm:flex-row gap-3 mb-8">
               <Button onClick={handleAddToCart} size="lg" className="flex-1">
                 {product.stock_status === 'made_to_order' ? 'Order Now (3-4 week lead time)' : 'Add to Cart'}
@@ -269,7 +387,9 @@ export default function ProductContent() {
                 {inWishlist ? 'Saved to Wishlist' : 'Save to Wishlist'}
               </Button>
             </div>
-          ) : (
+          )}
+
+          {!isWoodParentWithPieces && product.stock_status === 'sold' && (
             <div className="mb-8">
               {notifySuccess ? (
                 <p className="text-green-400 text-sm mb-4">

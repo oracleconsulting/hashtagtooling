@@ -17,6 +17,7 @@ interface Product {
   image_url: string
   stock_status: 'in_stock' | 'made_to_order' | 'sold' | 'out_of_stock'
   subcategory?: string
+  parent_product_id?: string | null
   metadata?: any
 }
 
@@ -44,6 +45,8 @@ function ShopContentInner() {
   const [selectedCategory, setSelectedCategory] = useState(categoryParam)
   const [selectedWoodSub, setSelectedWoodSub] = useState<string>('all')
   const [products, setProducts] = useState<Product[]>([])
+  const [woodPieceCounts, setWoodPieceCounts] = useState<Record<string, number>>({})
+  const [woodInventoryParentIds, setWoodInventoryParentIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -66,7 +69,33 @@ function ShopContentInner() {
         .order('created_at', { ascending: false })
 
       if (dbError) throw dbError
-      setProducts(data || [])
+      const list = (data || []) as Product[]
+      const parentsOnly = list.filter((p) => !p.parent_product_id)
+      const woodParentIds = parentsOnly.filter((p) => p.category === 'wood').map((p) => p.id)
+      const counts: Record<string, number> = {}
+      for (const wid of woodParentIds) counts[wid] = 0
+      const invParents = new Set<string>()
+      if (woodParentIds.length > 0) {
+        const { data: anyKids } = await supabase
+          .from('products')
+          .select('parent_product_id')
+          .in('parent_product_id', woodParentIds)
+        for (const row of anyKids || []) {
+          invParents.add((row as { parent_product_id: string }).parent_product_id)
+        }
+        const { data: kids } = await supabase
+          .from('products')
+          .select('parent_product_id')
+          .in('parent_product_id', woodParentIds)
+          .eq('stock_status', 'in_stock')
+        for (const row of kids || []) {
+          const pid = (row as { parent_product_id: string }).parent_product_id
+          counts[pid] = (counts[pid] || 0) + 1
+        }
+      }
+      setWoodInventoryParentIds(invParents)
+      setWoodPieceCounts(counts)
+      setProducts(parentsOnly)
     } catch (err) {
       console.error('Error loading products:', err)
       setError('Unable to load products. Please try again later.')
@@ -148,8 +177,16 @@ function ShopContentInner() {
 
       {!loading && !error && filteredProducts.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProducts.map(product => (
-            <ProductCard key={product.id} {...product} />
+          {filteredProducts.map((product) => (
+            <ProductCard
+              key={product.id}
+              {...product}
+              parentListingPieceCount={
+                product.category === 'wood' && woodInventoryParentIds.has(product.id)
+                  ? woodPieceCounts[product.id]
+                  : undefined
+              }
+            />
           ))}
         </div>
       )}

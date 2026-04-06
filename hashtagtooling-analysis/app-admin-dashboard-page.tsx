@@ -32,6 +32,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({
     totalProducts: 0,
+    inventorySkus: 0,
     totalOrders: 0,
     totalRevenue: 0,
     pendingCommissions: 0,
@@ -62,8 +63,9 @@ export default function AdminDashboardPage() {
     try {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
-      const [productsRes, ordersCountRes, ordersRes, commissionsRes, inStockRes, ordersListRes, commissionsListRes, newsletterRes, newsletterWithVoucherRes, newsletterThisMonthRes, launchTotalRes, launchRedeemedRes, launchActiveRes, referralCodesRes, referralUsesRes, referralRewardsRes] = await Promise.all([
+      const [productsRes, inventorySkuRes, ordersCountRes, ordersRes, commissionsRes, inStockRes, ordersListRes, commissionsListRes, newsletterRes, newsletterWithVoucherRes, newsletterThisMonthRes, launchTotalRes, launchRedeemedRes, launchActiveRes, referralCodesRes, referralUsesRes, referralRewardsRes] = await Promise.all([
         supabase.from('products').select('id', { count: 'exact', head: true }),
+        supabase.from('products').select('id', { count: 'exact', head: true }).not('sku', 'is', null),
         supabase.from('orders').select('id', { count: 'exact', head: true }),
         supabase.from('orders').select('total_amount, status'),
         supabase.from('commissions').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -82,6 +84,7 @@ export default function AdminDashboardPage() {
       ])
 
       const totalProducts = productsRes.count ?? 0
+      const inventorySkus = inventorySkuRes.count ?? 0
       const totalOrders = ordersCountRes.count ?? 0
       const orders = ordersRes.data ?? []
       const totalRevenue = orders
@@ -93,6 +96,7 @@ export default function AdminDashboardPage() {
       const referralRewardsCount = referralRewardsRes.data?.length ?? 0
       setStats({
         totalProducts,
+        inventorySkus,
         totalOrders,
         totalRevenue,
         pendingCommissions,
@@ -137,6 +141,9 @@ export default function AdminDashboardPage() {
           <Link href="/admin/products">
             <Button variant="outline" size="sm">Products</Button>
           </Link>
+          <Link href="/admin/inventory">
+            <Button variant="outline" size="sm">Inventory</Button>
+          </Link>
           <Link href="/admin/adoptions">
             <Button variant="outline" size="sm">Adoptions</Button>
           </Link>
@@ -170,6 +177,7 @@ export default function AdminDashboardPage() {
           <CardContent className="p-6">
             <p className="text-3xl font-bold text-brand-orange">{stats.totalProducts}</p>
             <p className="text-zinc-400 text-sm mt-1">Total Products</p>
+            <p className="text-zinc-500 text-xs mt-1">{stats.inventorySkus} with SKU (inventory)</p>
           </CardContent>
         </Card>
         <Card className="bg-brand-dark-card border border-brand-dark-border">

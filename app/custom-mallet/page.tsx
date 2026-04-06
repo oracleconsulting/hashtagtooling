@@ -38,6 +38,13 @@ interface TransitionMaterial {
   mallet_handle_premium: number
 }
 
+interface MaterialStylePricingRow {
+  material_id: string
+  base_price_id: string
+  position: 'head' | 'handle'
+  premium: number
+}
+
 export default function CustomMalletPage() {
   const addItem = useCart(state => state.addItem)
   
@@ -45,7 +52,8 @@ export default function CustomMalletPage() {
   const [malletStyles, setMalletStyles] = useState<BasePrice[]>([])
   const [woods, setWoods] = useState<Material[]>([])
   const [transitions, setTransitions] = useState<TransitionMaterial[]>([])
-  
+  const [stylePricing, setStylePricing] = useState<MaterialStylePricingRow[]>([])
+
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null)
   const [selectedHeadWood, setSelectedHeadWood] = useState<string | null>(null)
   const [selectedHandleWood, setSelectedHandleWood] = useState<string | null>(null)
@@ -90,10 +98,17 @@ export default function CustomMalletPage() {
         .order('mallet_head_premium')
       
       if (transError) throw transError
-      
+
+      const { data: mspData, error: mspError } = await supabase
+        .from('material_style_pricing')
+        .select('material_id, base_price_id, position, premium')
+
+      if (mspError) throw mspError
+
       setMalletStyles(styles || [])
       setWoods(woodData || [])
       setTransitions(transData || [])
+      setStylePricing((mspData || []) as MaterialStylePricingRow[])
       
       // Set default selections
       if (styles && styles.length > 0) setSelectedStyle(styles[0].id)
@@ -110,6 +125,24 @@ export default function CustomMalletPage() {
     }
   }
 
+  const premiumForWood = (
+    woodId: string | null,
+    basePriceId: string | null,
+    position: 'head' | 'handle'
+  ) => {
+    if (!woodId || !basePriceId) return 0
+    const row = stylePricing.find(
+      (sp) =>
+        sp.material_id === woodId &&
+        sp.base_price_id === basePriceId &&
+        sp.position === position
+    )
+    if (row) return Number(row.premium) || 0
+    const wood = woods.find((w) => w.id === woodId)
+    if (!wood) return 0
+    return position === 'head' ? wood.mallet_head_premium : wood.mallet_handle_premium
+  }
+
   const calculatePrice = () => {
     const style = malletStyles.find(s => s.id === selectedStyle)
     const headWood = woods.find(w => w.id === selectedHeadWood)
@@ -119,9 +152,9 @@ export default function CustomMalletPage() {
     if (!style) return 0
     
     let total = style.base_price
-    if (headWood) total += headWood.mallet_head_premium
-    if (handleWood) total += handleWood.mallet_handle_premium
-    if (transition) total += transition.mallet_head_premium // Using head premium for transition
+    total += premiumForWood(selectedHeadWood, selectedStyle, 'head')
+    total += premiumForWood(selectedHandleWood, selectedStyle, 'handle')
+    if (transition) total += transition.mallet_head_premium
     
     return total
   }

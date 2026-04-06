@@ -18,6 +18,7 @@ interface Material {
   mallet_head_premium: number
   mallet_handle_premium: number
   awl_handle_premium: number
+  coin_premium?: number
   available: boolean
   grain_image_url?: string | null
   tap_audio_url?: string | null
@@ -38,6 +39,25 @@ interface BasePrice {
   style_name: string
   base_price: number
   description: string
+}
+
+interface MaterialStylePricingRow {
+  id?: string
+  material_id: string
+  base_price_id: string
+  position: 'head' | 'handle'
+  premium: number
+}
+
+function styleAbbreviation(styleName: string): string {
+  const words = styleName.trim().split(/\s+/).filter((w) => w.length > 0)
+  if (words.length === 0) return '?'
+  if (words.length === 1) return words[0].slice(0, 3).toUpperCase()
+  return words
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 6)
 }
 
 export default function MaterialsAdminPage() {
@@ -68,6 +88,19 @@ export default function MaterialsAdminPage() {
     description: '',
   })
 
+  const [materialStylePricing, setMaterialStylePricing] = useState<MaterialStylePricingRow[]>([])
+  const [expandedPricingMaterialId, setExpandedPricingMaterialId] = useState<string | null>(null)
+  const [pricingForm, setPricingForm] = useState<Record<string, string>>({})
+  const [savingPricing, setSavingPricing] = useState(false)
+  const [showAddTransition, setShowAddTransition] = useState(false)
+  const [newTransition, setNewTransition] = useState({
+    name: '',
+    color_hex: '#888888',
+    mallet_head_premium: 0,
+    awl_handle_premium: 0,
+    coin_premium: 0,
+  })
+
   useEffect(() => {
     const isAuthenticated = sessionStorage.getItem('admin_auth')
     if (!isAuthenticated) {
@@ -80,16 +113,19 @@ export default function MaterialsAdminPage() {
 
   const loadData = async () => {
     try {
-      const [materialsRes, basePricesRes] = await Promise.all([
+      const [materialsRes, basePricesRes, mspRes] = await Promise.all([
         supabase.from('materials').select('*').order('category').order('name'),
-        supabase.from('base_prices').select('*').order('product_type').order('style_name')
+        supabase.from('base_prices').select('*').order('product_type').order('style_name'),
+        supabase.from('material_style_pricing').select('id, material_id, base_price_id, position, premium'),
       ])
 
       if (materialsRes.error) throw materialsRes.error
       if (basePricesRes.error) throw basePricesRes.error
+      if (mspRes.error) throw mspRes.error
 
       setMaterials(materialsRes.data || [])
       setBasePrices(basePricesRes.data || [])
+      setMaterialStylePricing((mspRes.data || []) as MaterialStylePricingRow[])
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
@@ -97,10 +133,40 @@ export default function MaterialsAdminPage() {
     }
   }
 
+  const seedStylePricingForWood = async (materialId: string, malletStyles: BasePrice[]) => {
+    const rows: { material_id: string; base_price_id: string; position: 'head' | 'handle'; premium: number }[] = []
+    for (const bp of malletStyles) {
+      rows.push(
+        { material_id: materialId, base_price_id: bp.id, position: 'head', premium: 0 },
+        { material_id: materialId, base_price_id: bp.id, position: 'handle', premium: 0 }
+      )
+    }
+    if (rows.length === 0) return
+    const { error } = await supabase.from('material_style_pricing').insert(rows)
+    if (error) console.error('Seed style pricing:', error)
+  }
+
   const addMaterial = async () => {
     try {
-      const { error } = await supabase.from('materials').insert([newMaterial])
+      const insertPayload =
+        newMaterial.category === 'wood'
+          ? {
+              name: newMaterial.name,
+              category: 'wood',
+              color_hex: newMaterial.color_hex,
+              mallet_head_premium: 0,
+              mallet_handle_premium: 0,
+              awl_handle_premium: newMaterial.awl_handle_premium,
+            }
+          : newMaterial
+
+      const { data: inserted, error } = await supabase.from('materials').insert([insertPayload]).select('id').single()
       if (error) throw error
+
+      if (inserted?.id && newMaterial.category === 'wood') {
+        const malletStyles = basePrices.filter((b) => b.product_type === 'mallet')
+        await seedStylePricingForWood(inserted.id, malletStyles)
+      }
 
       setShowAddMaterial(false)
       setNewMaterial({
@@ -115,6 +181,78 @@ export default function MaterialsAdminPage() {
     } catch (error) {
       console.error('Error adding material:', error)
       alert('Failed to add material')
+    }
+  }
+
+  const addTransitionMaterial = async () => {
+    if (!newTransition.name.trim()) return
+    try {
+      const { error } = await supabase.from('materials').insert([
+        {
+          name: newTransition.name.trim(),
+          category: 'transition',
+          color_hex: newTransition.color_hex,
+          mallet_head_premium: newTransition.mallet_head_premium,
+          mallet_handle_premium: 0,
+          awl_handle_premium: newTransition.awl_handle_premium,
+          coin_premium: newTransition.coin_premium,
+          available: true,
+        },
+      ])
+      if (error) throw error
+      setShowAddTransition(false)
+      setNewTransition({ name: '', color_hex: '#888888', mallet_head_premium: 0, awl_handle_premium: 0, coin_premium: 0 })
+      loadData()
+    } catch (e) {
+      console.error(e)
+      alert('Failed to add transition material')
+    }
+  }
+
+  const openPricingGrid = (materialId: string) => {
+    const malletStyles = basePrices.filter((b) => b.product_type === 'mallet')
+    const next: Record<string, string> = {}
+    for (const bp of malletStyles) {
+      for (const pos of ['head', 'handle'] as const) {
+        const key = `${materialId}|${bp.id}|${pos}`
+        const found = materialStylePricing.find(
+          (r) => r.material_id === materialId && r.base_price_id === bp.id && r.position === pos
+        )
+        next[key] = String(found?.premium ?? 0)
+      }
+    }
+    setPricingForm(next)
+    setExpandedPricingMaterialId(materialId)
+  }
+
+  const savePricingGrid = async (materialId: string) => {
+    setSavingPricing(true)
+    try {
+      const malletStyles = basePrices.filter((b) => b.product_type === 'mallet')
+      const rows: { material_id: string; base_price_id: string; position: 'head' | 'handle'; premium: number }[] = []
+      for (const bp of malletStyles) {
+        for (const pos of ['head', 'handle'] as const) {
+          const key = `${materialId}|${bp.id}|${pos}`
+          const v = parseFloat(pricingForm[key] || '0')
+          rows.push({
+            material_id: materialId,
+            base_price_id: bp.id,
+            position: pos,
+            premium: Number.isFinite(v) ? v : 0,
+          })
+        }
+      }
+      const { error } = await supabase.from('material_style_pricing').upsert(rows, {
+        onConflict: 'material_id,base_price_id,position',
+      })
+      if (error) throw error
+      setExpandedPricingMaterialId(null)
+      loadData()
+    } catch (e) {
+      console.error(e)
+      alert('Failed to save pricing')
+    } finally {
+      setSavingPricing(false)
     }
   }
 
@@ -232,24 +370,31 @@ export default function MaterialsAdminPage() {
 
   const updateMaterial = async (material: Material) => {
     try {
-      const { error } = await supabase
-        .from('materials')
-        .update({
-          mallet_head_premium: material.mallet_head_premium,
-          mallet_handle_premium: material.mallet_handle_premium,
-          awl_handle_premium: material.awl_handle_premium,
-          available: material.available,
-          tap_audio_description: material.tap_audio_description ?? null,
-          janka_hardness: material.janka_hardness ?? null,
-          specific_gravity: material.specific_gravity ?? null,
-          origin: material.origin ?? null,
-          grain_description: material.grain_description ?? null,
-          grain_type: material.grain_type ?? null,
-          texture: material.texture ?? null,
-          durability: material.durability ?? null,
-          color_description: material.color_description ?? null,
-        })
-        .eq('id', material.id)
+      const baseUpdate: Record<string, unknown> = {
+        awl_handle_premium: material.awl_handle_premium,
+        available: material.available,
+        tap_audio_description: material.tap_audio_description ?? null,
+        janka_hardness: material.janka_hardness ?? null,
+        specific_gravity: material.specific_gravity ?? null,
+        origin: material.origin ?? null,
+        grain_description: material.grain_description ?? null,
+        grain_type: material.grain_type ?? null,
+        texture: material.texture ?? null,
+        durability: material.durability ?? null,
+        color_description: material.color_description ?? null,
+      }
+      if (material.category === 'wood') {
+        // Mallet premiums live in material_style_pricing
+      } else if (material.category === 'transition') {
+        baseUpdate.mallet_head_premium = material.mallet_head_premium
+        baseUpdate.mallet_handle_premium = material.mallet_handle_premium
+        baseUpdate.coin_premium = material.coin_premium ?? 0
+      } else {
+        baseUpdate.mallet_head_premium = material.mallet_head_premium
+        baseUpdate.mallet_handle_premium = material.mallet_handle_premium
+      }
+
+      const { error } = await supabase.from('materials').update(baseUpdate).eq('id', material.id)
 
       if (error) throw error
 
@@ -493,8 +638,7 @@ export default function MaterialsAdminPage() {
                 <tr className="border-b">
                   <th className="text-left p-2">Material</th>
                   <th className="text-center p-2">Grain</th>
-                  <th className="text-right p-2">Mallet Head</th>
-                  <th className="text-right p-2">Mallet Handle</th>
+                  <th className="text-center p-2">Mallet (per style)</th>
                   <th className="text-right p-2">Awl Handle</th>
                   <th className="text-center p-2">Available</th>
                   <th className="text-center p-2">Actions</th>
@@ -538,29 +682,8 @@ export default function MaterialsAdminPage() {
                             </label>
                           )}
                         </td>
-                        <td className="p-2">
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={editingMaterial.mallet_head_premium}
-                            onChange={(e) => setEditingMaterial({
-                              ...editingMaterial,
-                              mallet_head_premium: parseFloat(e.target.value)
-                            })}
-                            className="w-24 text-right"
-                          />
-                        </td>
-                        <td className="p-2">
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={editingMaterial.mallet_handle_premium}
-                            onChange={(e) => setEditingMaterial({
-                              ...editingMaterial,
-                              mallet_handle_premium: parseFloat(e.target.value)
-                            })}
-                            className="w-24 text-right"
-                          />
+                        <td className="p-2 text-center text-sm text-zinc-500">
+                          Use &quot;Edit pricing&quot; below
                         </td>
                         <td className="p-2">
                           <Input
@@ -616,11 +739,19 @@ export default function MaterialsAdminPage() {
                             <label htmlFor={`grain-${mat.id}`} className="cursor-pointer w-12 h-12 rounded border border-dashed flex items-center justify-center"><Upload className="h-5 w-5 text-zinc-500" /></label>
                           )}
                         </td>
-                        <td className="p-2 text-right">
-                          {mat.mallet_head_premium === 0 ? '—' : `+£${mat.mallet_head_premium.toFixed(2)}`}
-                        </td>
-                        <td className="p-2 text-right">
-                          {mat.mallet_handle_premium === 0 ? '—' : `+£${mat.mallet_handle_premium.toFixed(2)}`}
+                        <td className="p-2 text-center">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={expandedPricingMaterialId === mat.id ? 'default' : 'outline'}
+                            onClick={() =>
+                              expandedPricingMaterialId === mat.id
+                                ? setExpandedPricingMaterialId(null)
+                                : openPricingGrid(mat.id)
+                            }
+                          >
+                            {expandedPricingMaterialId === mat.id ? 'Close grid' : 'Edit pricing'}
+                          </Button>
                         </td>
                         <td className="p-2 text-right">
                           {mat.awl_handle_premium === 0 ? '—' : `+£${mat.awl_handle_premium.toFixed(2)}`}
@@ -641,9 +772,69 @@ export default function MaterialsAdminPage() {
                       </>
                     )}
                   </tr>
+                  {expandedPricingMaterialId === mat.id && (
+                    <tr>
+                      <td colSpan={6} className="p-4 bg-zinc-100 dark:bg-zinc-900 border-b">
+                        <div className="space-y-3 overflow-x-auto">
+                          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                            Premiums by mallet style (£) — HEAD and HANDLE rows
+                          </p>
+                          <div className="inline-block min-w-full">
+                            <table className="w-full text-xs border-collapse">
+                              <thead>
+                                <tr>
+                                  <th className="border p-2 text-left bg-zinc-200 dark:bg-zinc-800">Position</th>
+                                  {malletBasePrices.map((bp) => (
+                                    <th
+                                      key={bp.id}
+                                      className="border p-2 text-center bg-zinc-200 dark:bg-zinc-800 min-w-[4rem]"
+                                      title={bp.style_name}
+                                    >
+                                      {styleAbbreviation(bp.style_name)}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(['head', 'handle'] as const).map((pos) => (
+                                  <tr key={pos}>
+                                    <td className="border p-2 font-medium capitalize bg-zinc-50 dark:bg-zinc-900/50">
+                                      {pos}
+                                    </td>
+                                    {malletBasePrices.map((bp) => {
+                                      const key = `${mat.id}|${bp.id}|${pos}`
+                                      return (
+                                        <td key={key} className="border p-1">
+                                          <Input
+                                            type="number"
+                                            step="0.01"
+                                            className="w-full h-8 text-right text-xs px-1"
+                                            value={pricingForm[key] ?? '0'}
+                                            onChange={(e) =>
+                                              setPricingForm((prev) => ({
+                                                ...prev,
+                                                [key]: e.target.value,
+                                              }))
+                                            }
+                                          />
+                                        </td>
+                                      )
+                                    })}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          <Button type="button" size="sm" disabled={savingPricing} onClick={() => savePricingGrid(mat.id)}>
+                            {savingPricing ? 'Saving…' : 'Save all mallet premiums'}
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                   {editingMaterial?.id === mat.id && (
                     <tr>
-                      <td colSpan={7} className="p-4 bg-zinc-100 dark:bg-zinc-900 border-b">
+                      <td colSpan={6} className="p-4 bg-zinc-100 dark:bg-zinc-900 border-b">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                           <div>
                             <label className="block font-medium mb-1">Janka Hardness</label>
@@ -766,20 +957,24 @@ export default function MaterialsAdminPage() {
                   value={newMaterial.color_hex}
                   onChange={(e) => setNewMaterial({ ...newMaterial, color_hex: e.target.value })}
                 />
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="Mallet head premium"
-                  value={newMaterial.mallet_head_premium || ''}
-                  onChange={(e) => setNewMaterial({ ...newMaterial, mallet_head_premium: parseFloat(e.target.value) || 0 })}
-                />
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="Mallet handle premium"
-                  value={newMaterial.mallet_handle_premium || ''}
-                  onChange={(e) => setNewMaterial({ ...newMaterial, mallet_handle_premium: parseFloat(e.target.value) || 0 })}
-                />
+                {newMaterial.category === 'transition' && (
+                  <>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Mallet transition premium"
+                      value={newMaterial.mallet_head_premium || ''}
+                      onChange={(e) => setNewMaterial({ ...newMaterial, mallet_head_premium: parseFloat(e.target.value) || 0 })}
+                    />
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Mallet handle (unused)"
+                      value={newMaterial.mallet_handle_premium || ''}
+                      onChange={(e) => setNewMaterial({ ...newMaterial, mallet_handle_premium: parseFloat(e.target.value) || 0 })}
+                    />
+                  </>
+                )}
                 <Input
                   type="number"
                   step="0.01"
@@ -787,6 +982,11 @@ export default function MaterialsAdminPage() {
                   value={newMaterial.awl_handle_premium || ''}
                   onChange={(e) => setNewMaterial({ ...newMaterial, awl_handle_premium: parseFloat(e.target.value) || 0 })}
                 />
+                {newMaterial.category === 'wood' && (
+                  <p className="col-span-2 text-sm text-zinc-500">
+                    After adding, use &quot;Edit pricing&quot; in the table to set premiums per mallet style.
+                  </p>
+                )}
               </div>
               <div className="flex gap-2 mt-3">
                 <Button onClick={addMaterial}>Add Material</Button>
@@ -797,29 +997,88 @@ export default function MaterialsAdminPage() {
         </CardContent>
       </Card>
 
-      {/* Transition Materials */}
+      {/* Transition & Coin Materials — fixed pricing */}
       <Card>
         <CardHeader>
-          <CardTitle>Transition Materials</CardTitle>
+          <div className="flex justify-between items-center flex-wrap gap-2">
+            <div>
+              <CardTitle>Transition &amp; coin materials</CardTitle>
+              <p className="text-sm text-zinc-500 font-normal mt-1">
+                Fixed pricing (same regardless of mallet size or style). Mallet column is the transition piece; awl is ferrule; coin is EDC coin premium.
+              </p>
+            </div>
+            <Button size="sm" onClick={() => setShowAddTransition(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add transition
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
+          {showAddTransition && (
+            <div className="mb-6 p-4 border rounded bg-zinc-50 dark:bg-zinc-900/50 space-y-3">
+              <h4 className="font-semibold">New transition material</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Input placeholder="Name" value={newTransition.name} onChange={(e) => setNewTransition({ ...newTransition, name: e.target.value })} />
+                <Input type="color" value={newTransition.color_hex} onChange={(e) => setNewTransition({ ...newTransition, color_hex: e.target.value })} />
+                <Input type="number" step="0.01" placeholder="Mallet (£)" value={newTransition.mallet_head_premium || ''} onChange={(e) => setNewTransition({ ...newTransition, mallet_head_premium: parseFloat(e.target.value) || 0 })} />
+                <Input type="number" step="0.01" placeholder="Awl ferrule (£)" value={newTransition.awl_handle_premium || ''} onChange={(e) => setNewTransition({ ...newTransition, awl_handle_premium: parseFloat(e.target.value) || 0 })} />
+                <Input type="number" step="0.01" placeholder="Coin (£)" value={newTransition.coin_premium || ''} onChange={(e) => setNewTransition({ ...newTransition, coin_premium: parseFloat(e.target.value) || 0 })} />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={addTransitionMaterial}>Add</Button>
+                <Button variant="outline" onClick={() => setShowAddTransition(false)}>Cancel</Button>
+              </div>
+            </div>
+          )}
           <div className="space-y-2">
-            {transitionMaterials.map(mat => (
-              <div key={mat.id} className="flex items-center gap-4 p-3 border rounded">
-                <div
-                  className="w-8 h-8 rounded border"
-                  style={{ backgroundColor: mat.color_hex }}
-                />
-                <span className="font-medium flex-1">{mat.name}</span>
-                <span className="text-sm text-zinc-600">
-                  Premium: £{mat.mallet_head_premium.toFixed(2)}
-                </span>
-                <Button size="sm" variant="outline" onClick={() => setEditingMaterial(mat)}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => deleteMaterial(mat.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+            {transitionMaterials.map((mat) => (
+              <div key={mat.id} className="flex flex-wrap items-center gap-4 p-3 border rounded">
+                <div className="w-8 h-8 rounded border shrink-0" style={{ backgroundColor: mat.color_hex }} />
+                <span className="font-medium flex-1 min-w-[120px]">{mat.name}</span>
+                {editingMaterial?.id === mat.id ? (
+                  <>
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <label className="text-xs text-zinc-500">Mallet</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        className="w-24 h-9"
+                        value={editingMaterial.mallet_head_premium}
+                        onChange={(e) => setEditingMaterial({ ...editingMaterial, mallet_head_premium: parseFloat(e.target.value) || 0 })}
+                      />
+                      <label className="text-xs text-zinc-500">Awl</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        className="w-24 h-9"
+                        value={editingMaterial.awl_handle_premium}
+                        onChange={(e) => setEditingMaterial({ ...editingMaterial, awl_handle_premium: parseFloat(e.target.value) || 0 })}
+                      />
+                      <label className="text-xs text-zinc-500">Coin</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        className="w-24 h-9"
+                        value={editingMaterial.coin_premium ?? 0}
+                        onChange={(e) => setEditingMaterial({ ...editingMaterial, coin_premium: parseFloat(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <Button size="sm" onClick={() => updateMaterial(editingMaterial)}>Save</Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditingMaterial(null)}>Cancel</Button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm text-zinc-600">Mallet £{mat.mallet_head_premium.toFixed(2)}</span>
+                    <span className="text-sm text-zinc-600">Awl £{mat.awl_handle_premium.toFixed(2)}</span>
+                    <span className="text-sm text-zinc-600">Coin £{(mat.coin_premium ?? 0).toFixed(2)}</span>
+                    <Button size="sm" variant="outline" onClick={() => setEditingMaterial({ ...mat, coin_premium: mat.coin_premium ?? 0 })}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => deleteMaterial(mat.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
               </div>
             ))}
           </div>

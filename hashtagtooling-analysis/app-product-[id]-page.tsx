@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
+import { Suspense } from 'react'
 import ProductContent from './ProductContent'
+import { ProductDetailSkeleton } from '@/components/ProductDetailSkeleton'
 import { ProductJsonLd } from '@/components/ProductJsonLd'
 import { BreadcrumbJsonLd } from '@/components/BreadcrumbJsonLd'
 
@@ -94,7 +96,9 @@ export default async function ProductPage({ params }: Props) {
         url={`https://hashtag.guru/product/${id}`}
         availability={availability}
       />
-      <ProductContent />
+      <Suspense fallback={<ProductDetailSkeleton />}>
+        <ProductContent />
+      </Suspense>
     </>
   )
 }

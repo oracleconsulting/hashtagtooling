@@ -19,6 +19,8 @@ interface ProductCardProps {
   stock_status: 'in_stock' | 'made_to_order' | 'sold' | 'out_of_stock'
   subcategory?: string
   is_digital?: boolean
+  /** When set (wood parent listings), in-stock child piece count from inventory */
+  parentListingPieceCount?: number
   metadata?: {
     shipping?: { uk: number; europe: number; world: number }
     species?: string
@@ -34,7 +36,19 @@ const WOOD_SUBCATEGORY_LABELS: Record<string, string> = {
 
 const FALLBACK_IMAGE = '/placeholder-product.svg'
 
-export function ProductCard({ id, name, description, price, image_url, category, stock_status, subcategory, is_digital, metadata }: ProductCardProps) {
+export function ProductCard({
+  id,
+  name,
+  description,
+  price,
+  image_url,
+  category,
+  stock_status,
+  subcategory,
+  is_digital,
+  parentListingPieceCount,
+  metadata,
+}: ProductCardProps) {
   const safeImageUrl = image_url || FALLBACK_IMAGE
   const addItem = useCart((state) => state.addItem)
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlist()
@@ -116,9 +130,18 @@ export function ProductCard({ id, name, description, price, image_url, category,
             </span>
           )}
         </div>
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
           <h3 className="font-semibold text-lg text-white">{name}</h3>
-          {stockBadge()}
+          <div className="flex items-center gap-2 flex-wrap">
+            {category === 'wood' && parentListingPieceCount !== undefined && (
+              <span className="px-2 py-1 bg-zinc-800 text-zinc-300 text-xs font-medium rounded">
+                {parentListingPieceCount > 0
+                  ? `${parentListingPieceCount} piece${parentListingPieceCount === 1 ? '' : 's'} available`
+                  : 'Out of stock'}
+              </span>
+            )}
+            {stockBadge()}
+          </div>
         </div>
         {category === 'wood' && metadata?.species && (
           <p className="text-sm text-zinc-400 mb-1">{metadata.species}</p>
@@ -128,7 +151,20 @@ export function ProductCard({ id, name, description, price, image_url, category,
         {is_digital && <p className="text-xs text-zinc-500 mt-1">Instant delivery</p>}
       </CardContent>
       <CardFooter className="p-4 pt-0">
-        {stock_status === 'sold' ? (
+        {category === 'wood' && parentListingPieceCount !== undefined ? (
+          parentListingPieceCount > 0 ? (
+            <Link
+              href={`/product/${id}`}
+              className="inline-flex items-center justify-center rounded-md font-medium bg-brand-orange text-brand-dark hover:opacity-90 w-full h-10 px-4 py-2"
+            >
+              Choose a piece
+            </Link>
+          ) : (
+            <Button disabled className="w-full opacity-60 cursor-not-allowed">
+              Out of stock
+            </Button>
+          )
+        ) : stock_status === 'sold' ? (
           <Link
             href={`/product/${id}`}
             className="inline-flex items-center justify-center rounded-md font-medium border border-brand-orange text-brand-orange bg-transparent hover:bg-brand-orange hover:text-brand-dark w-full h-10 px-4 py-2"

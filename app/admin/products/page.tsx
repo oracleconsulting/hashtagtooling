@@ -116,6 +116,11 @@ export default function AdminProductsPage() {
               Materials & Pricing
             </Button>
           </Link>
+          <Link href="/admin/inventory">
+            <Button size="lg" variant="outline">
+              Inventory
+            </Button>
+          </Link>
           <Link href="/admin/orders">
             <Button size="lg" variant="outline">
               Orders
