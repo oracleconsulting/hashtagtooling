@@ -32,11 +32,21 @@ interface Props {
   params: Promise<{ id: string }>
 }
 
+async function resolveProductHeroImage(
+  imageUrl: string | null,
+  materialId: string | null | undefined
+): Promise<string | null> {
+  if (imageUrl) return imageUrl
+  if (!materialId) return null
+  const { data: mat } = await supabase.from('materials').select('grain_image_url').eq('id', materialId).maybeSingle()
+  return mat?.grain_image_url ?? null
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const { data: product } = await supabase
     .from('products')
-    .select('name, description, price, image_url, stock_status')
+    .select('name, description, price, image_url, stock_status, material_id')
     .eq('id', id)
     .single()
 
@@ -44,7 +54,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return { title: 'Product Not Found' }
   }
 
-  const ogImage = product.image_url || PLACEHOLDER_IMAGE
+  const hero = await resolveProductHeroImage(product.image_url, product.material_id)
+  const ogImage = hero || PLACEHOLDER_IMAGE
 
   return {
     title: product.name,
@@ -68,11 +79,13 @@ export default async function ProductPage({ params }: Props) {
   const { id } = await params
   const { data: product } = await supabase
     .from('products')
-    .select('name, description, price, image_url, stock_status')
+    .select('name, description, price, image_url, stock_status, material_id')
     .eq('id', id)
     .single()
 
   if (!product) return notFound()
+
+  const jsonLdImage = (await resolveProductHeroImage(product.image_url, product.material_id)) || PLACEHOLDER_IMAGE
 
   const availability =
     product.stock_status === 'in_stock'
@@ -92,7 +105,7 @@ export default async function ProductPage({ params }: Props) {
         name={product.name}
         description={product.description || ''}
         price={product.price ?? 0}
-        image={product.image_url || PLACEHOLDER_IMAGE}
+        image={jsonLdImage}
         url={`https://hashtag.guru/product/${id}`}
         availability={availability}
       />

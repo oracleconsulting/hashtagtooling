@@ -23,6 +23,7 @@ interface Product {
   category: string
   image_url: string
   stock_status: string
+  material_id?: string | null
   parent_product_id?: string | null
   sku?: string | null
   dimensions?: string | null
@@ -57,6 +58,7 @@ export default function ProductContent() {
   const [notifySubmitting, setNotifySubmitting] = useState(false)
   const [notifySuccess, setNotifySuccess] = useState(false)
   const [childPieces, setChildPieces] = useState<Product[]>([])
+  const [materialGrainUrl, setMaterialGrainUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (id) loadProduct()
@@ -64,6 +66,7 @@ export default function ProductContent() {
 
   const loadProduct = async () => {
     try {
+      setMaterialGrainUrl(null)
       const { data, error } = await supabase
         .from('products')
         .select('*')
@@ -78,6 +81,15 @@ export default function ProductContent() {
       }
 
       setProduct(data)
+
+      if (data?.material_id) {
+        const { data: mat } = await supabase
+          .from('materials')
+          .select('grain_image_url')
+          .eq('id', data.material_id)
+          .maybeSingle()
+        setMaterialGrainUrl(mat?.grain_image_url ?? null)
+      }
 
       if (data?.category === 'wood' && !data.parent_product_id) {
         const { data: kids } = await supabase
@@ -184,12 +196,21 @@ export default function ProductContent() {
   const inStockPieces = childPieces.filter((c) => c.stock_status === 'in_stock')
 
   const FALLBACK_IMAGE = '/placeholder-product.svg'
+  const displayImageUrl = product.image_url || materialGrainUrl || ''
   const imageUrls = (product.metadata?.images?.length
     ? product.metadata.images
-    : [product.image_url]
-  ).filter(Boolean) as string[]
+    : [displayImageUrl].filter(Boolean)
+  ) as string[]
   if (imageUrls.length === 0) imageUrls.push(FALLBACK_IMAGE)
-  const heroImage = product.image_url || imageUrls[0] || FALLBACK_IMAGE
+  const heroImage = imageUrls[0] || FALLBACK_IMAGE
+
+  const pieceCardImage = (piece: Product) => {
+    const meta = piece.metadata as { images?: string[] } | undefined
+    if (piece.image_url) return piece.image_url
+    if (meta?.images?.[0]) return meta.images[0]
+    if (materialGrainUrl) return materialGrainUrl
+    return FALLBACK_IMAGE
+  }
   const hasVideo = Boolean(product.metadata?.video)
   const allMedia = hasVideo
     ? [{ type: 'video' as const, url: product.metadata!.video! }, ...imageUrls.map((url) => ({ type: 'image' as const, url }))]
@@ -328,7 +349,7 @@ export default function ProductContent() {
                     >
                       <div className="relative w-24 h-24 shrink-0 rounded overflow-hidden bg-brand-dark">
                         <Image
-                          src={piece.image_url || FALLBACK_IMAGE}
+                          src={pieceCardImage(piece)}
                           alt=""
                           fill
                           className="object-cover"
