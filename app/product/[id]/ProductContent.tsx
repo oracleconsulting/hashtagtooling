@@ -58,6 +58,10 @@ export default function ProductContent() {
   const [notifySuccess, setNotifySuccess] = useState(false)
   const [childPieces, setChildPieces] = useState<Product[]>([])
   const [materialGrainUrl, setMaterialGrainUrl] = useState<string | null>(null)
+  const [expandedPieceId, setExpandedPieceId] = useState<string | null>(null)
+  const [pieceLightboxOpen, setPieceLightboxOpen] = useState(false)
+  const [pieceLightboxImages, setPieceLightboxImages] = useState<string[]>([])
+  const [pieceLightboxIndex, setPieceLightboxIndex] = useState(0)
 
   useEffect(() => {
     if (id) loadProduct()
@@ -218,10 +222,6 @@ export default function ProductContent() {
     return []
   }
 
-  const [expandedPieceId, setExpandedPieceId] = useState<string | null>(null)
-  const [pieceLightboxOpen, setPieceLightboxOpen] = useState(false)
-  const [pieceLightboxImages, setPieceLightboxImages] = useState<string[]>([])
-  const [pieceLightboxIndex, setPieceLightboxIndex] = useState(0)
   const hasVideo = Boolean(product.metadata?.video)
   const allMedia = hasVideo
     ? [{ type: 'video' as const, url: product.metadata!.video! }, ...imageUrls.map((url) => ({ type: 'image' as const, url }))]

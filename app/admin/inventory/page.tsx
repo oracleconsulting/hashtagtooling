@@ -1277,10 +1277,16 @@ export default function AdminInventoryPage() {
                                     <p className="text-xs text-zinc-500 mb-2">Current images</p>
                                     <div className="flex gap-2 flex-wrap">
                                       {editGallery.length > 0 ? editGallery.map((url, i) => (
-                                        <div key={`edit-g-${i}`} className="relative">
+                                        <div key={`edit-g-${i}`} className="relative group">
                                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                                          <img src={url} alt="" className="w-20 h-20 rounded object-cover border border-brand-dark-border" />
+                                          <img
+                                            src={url}
+                                            alt=""
+                                            className="w-20 h-20 rounded object-cover border border-brand-dark-border"
+                                            onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.2' }}
+                                          />
                                           {i === 0 && <span className="absolute top-0.5 left-0.5 text-[10px] bg-brand-orange text-black px-1 rounded">Main</span>}
+                                          <p className="text-[9px] text-zinc-600 max-w-[80px] truncate mt-0.5" title={url}>{url.split('/').pop()}</p>
                                         </div>
                                       )) : editGrainFallback ? (
                                         <div className="relative">
