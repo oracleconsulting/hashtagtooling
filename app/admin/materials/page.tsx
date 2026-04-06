@@ -144,6 +144,25 @@ type LoadDataResult = {
   mspRows: MaterialStylePricingRow[]
 }
 
+/** PostgREST defaults to a max row cap (~1000); unbounded selects truncate. Page until exhausted. */
+const MSP_PAGE_SIZE = 1000
+
+async function fetchAllMaterialStylePricingRows(): Promise<MaterialStylePricingRow[]> {
+  const all: MaterialStylePricingRow[] = []
+  for (let from = 0; ; from += MSP_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('material_style_pricing')
+      .select('id, material_id, base_price_id, position, premium')
+      .order('id')
+      .range(from, from + MSP_PAGE_SIZE - 1)
+    if (error) throw error
+    const chunk = (data || []) as MaterialStylePricingRow[]
+    all.push(...chunk)
+    if (chunk.length < MSP_PAGE_SIZE) break
+  }
+  return all
+}
+
 function stockTotal(mat: Material): number {
   return (mat.stock_heads ?? 0) + (mat.stock_handles ?? 0) + (mat.stock_awl_handles ?? 0) + (mat.stock_square_scales ?? 0)
 }
@@ -230,19 +249,17 @@ export default function MaterialsAdminPage() {
 
   const loadData = async (): Promise<LoadDataResult | undefined> => {
     try {
-      const [materialsRes, basePricesRes, mspRes] = await Promise.all([
+      const [materialsRes, basePricesRes] = await Promise.all([
         supabase.from('materials').select('*').order('category').order('name'),
         supabase.from('base_prices').select('*').order('product_type').order('style_name'),
-        supabase.from('material_style_pricing').select('id, material_id, base_price_id, position, premium'),
       ])
 
       if (materialsRes.error) throw materialsRes.error
       if (basePricesRes.error) throw basePricesRes.error
-      if (mspRes.error) throw mspRes.error
 
       const mats = (materialsRes.data || []) as Material[]
       const bp = (basePricesRes.data || []) as BasePrice[]
-      const mspRows = (mspRes.data || []) as MaterialStylePricingRow[]
+      const mspRows = await fetchAllMaterialStylePricingRows()
 
       setMaterials(mats)
       setBasePrices(bp)
