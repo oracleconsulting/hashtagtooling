@@ -96,6 +96,47 @@ function premiumFormKey(materialId: string, basePriceId: string, position: Style
   return `${materialId}|${basePriceId}|${position}`
 }
 
+/** Key→input string map for one material from MSP rows (open grid + after save rehydrate). */
+function buildPricingFormSliceForMaterial(
+  materialId: string,
+  mspRows: MaterialStylePricingRow[],
+  allBasePrices: BasePrice[]
+): Record<string, string> {
+  const malletStyles = allBasePrices.filter((b) => b.product_type === 'mallet')
+  const awlStyles = allBasePrices.filter((b) => b.product_type === 'awl')
+  const squareStyles = allBasePrices.filter((b) => b.product_type === 'square')
+  const next: Record<string, string> = {}
+
+  const findPrem = (bpId: string, position: StylePricingPosition) => {
+    const row = mspRows.find(
+      (r) => r.material_id === materialId && r.base_price_id === bpId && r.position === position
+    )
+    const p = row?.premium
+    if (p === null || p === undefined) return '0'
+    const n = typeof p === 'number' ? p : Number.parseFloat(String(p))
+    return Number.isFinite(n) ? String(n) : '0'
+  }
+
+  for (const bp of malletStyles) {
+    for (const pos of ['head', 'handle'] as const) {
+      next[premiumFormKey(materialId, bp.id, pos)] = findPrem(bp.id, pos)
+    }
+  }
+  for (const bp of awlStyles) {
+    next[premiumFormKey(materialId, bp.id, 'awl_handle')] = findPrem(bp.id, 'awl_handle')
+  }
+  for (const bp of squareStyles) {
+    next[premiumFormKey(materialId, bp.id, 'square_scale')] = findPrem(bp.id, 'square_scale')
+  }
+  return next
+}
+
+type LoadDataResult = {
+  materials: Material[]
+  basePrices: BasePrice[]
+  mspRows: MaterialStylePricingRow[]
+}
+
 function stockTotal(mat: Material): number {
   return (mat.stock_heads ?? 0) + (mat.stock_handles ?? 0) + (mat.stock_awl_handles ?? 0) + (mat.stock_square_scales ?? 0)
 }
@@ -180,7 +221,7 @@ export default function MaterialsAdminPage() {
     loadData()
   }, [router])
 
-  const loadData = async () => {
+  const loadData = async (): Promise<LoadDataResult | undefined> => {
     try {
       const [materialsRes, basePricesRes, mspRes] = await Promise.all([
         supabase.from('materials').select('*').order('category').order('name'),
@@ -192,11 +233,18 @@ export default function MaterialsAdminPage() {
       if (basePricesRes.error) throw basePricesRes.error
       if (mspRes.error) throw mspRes.error
 
-      setMaterials(materialsRes.data || [])
-      setBasePrices(basePricesRes.data || [])
-      setMaterialStylePricing((mspRes.data || []) as MaterialStylePricingRow[])
+      const mats = (materialsRes.data || []) as Material[]
+      const bp = (basePricesRes.data || []) as BasePrice[]
+      const mspRows = (mspRes.data || []) as MaterialStylePricingRow[]
+
+      setMaterials(mats)
+      setBasePrices(bp)
+      setMaterialStylePricing(mspRows)
+
+      return { materials: mats, basePrices: bp, mspRows }
     } catch (error) {
       console.error('Error loading data:', error)
+      return undefined
     } finally {
       setLoading(false)
     }
@@ -309,34 +357,10 @@ export default function MaterialsAdminPage() {
         },
       }))
     }
-    const malletStyles = basePrices.filter((b) => b.product_type === 'mallet')
-    const awlStyles = basePrices.filter((b) => b.product_type === 'awl')
-    const squareStyles = basePrices.filter((b) => b.product_type === 'square')
-    const next: Record<string, string> = {}
-    for (const bp of malletStyles) {
-      for (const pos of ['head', 'handle'] as const) {
-        const key = premiumFormKey(materialId, bp.id, pos)
-        const found = materialStylePricing.find(
-          (r) => r.material_id === materialId && r.base_price_id === bp.id && r.position === pos
-        )
-        next[key] = String(found?.premium ?? 0)
-      }
-    }
-    for (const bp of awlStyles) {
-      const key = premiumFormKey(materialId, bp.id, 'awl_handle')
-      const found = materialStylePricing.find(
-        (r) => r.material_id === materialId && r.base_price_id === bp.id && r.position === 'awl_handle'
-      )
-      next[key] = String(found?.premium ?? 0)
-    }
-    for (const bp of squareStyles) {
-      const key = premiumFormKey(materialId, bp.id, 'square_scale')
-      const found = materialStylePricing.find(
-        (r) => r.material_id === materialId && r.base_price_id === bp.id && r.position === 'square_scale'
-      )
-      next[key] = String(found?.premium ?? 0)
-    }
-    setPricingForm(next)
+    setPricingForm((prev) => ({
+      ...prev,
+      ...buildPricingFormSliceForMaterial(materialId, materialStylePricing, basePrices),
+    }))
     setExpandedPricingMaterialId(materialId)
   }
 
@@ -379,7 +403,7 @@ export default function MaterialsAdminPage() {
         ignoreDuplicates: false,
         defaultToNull: false,
       })
-      .select('id')
+      .select('id, material_id, base_price_id, position, premium')
 
     if (error) {
       console.error(`[MSP ${section}] error:`, error)
@@ -412,7 +436,13 @@ export default function MaterialsAdminPage() {
       if (!ok) return
       const stockOk = await applyMaterialStockDraft(materialId)
       if (!stockOk) return
-      await loadData()
+      const fresh = await loadData()
+      if (fresh) {
+        setPricingForm((prev) => ({
+          ...prev,
+          ...buildPricingFormSliceForMaterial(materialId, fresh.mspRows, fresh.basePrices),
+        }))
+      }
       alert('Saved successfully')
     } catch (e) {
       console.error(e)
@@ -442,7 +472,13 @@ export default function MaterialsAdminPage() {
       if (!ok) return
       const stockOk = await applyMaterialStockDraft(materialId)
       if (!stockOk) return
-      await loadData()
+      const fresh = await loadData()
+      if (fresh) {
+        setPricingForm((prev) => ({
+          ...prev,
+          ...buildPricingFormSliceForMaterial(materialId, fresh.mspRows, fresh.basePrices),
+        }))
+      }
       alert('Saved successfully')
     } catch (e) {
       console.error(e)
@@ -472,7 +508,13 @@ export default function MaterialsAdminPage() {
       if (!ok) return
       const stockOk = await applyMaterialStockDraft(materialId)
       if (!stockOk) return
-      await loadData()
+      const fresh = await loadData()
+      if (fresh) {
+        setPricingForm((prev) => ({
+          ...prev,
+          ...buildPricingFormSliceForMaterial(materialId, fresh.mspRows, fresh.basePrices),
+        }))
+      }
       alert('Saved successfully')
     } catch (e) {
       console.error(e)
