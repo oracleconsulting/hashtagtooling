@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { supabase } from '@/lib/supabase'
-import { Loader2, Plus, Trash2, Printer, Package } from 'lucide-react'
+import { Loader2, Plus, Trash2, Printer, Package, X } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
 import { compressImage } from '@/lib/image-utils'
 
@@ -31,7 +31,15 @@ interface ProductRow {
   material_species: string | null
   piece_notes: string | null
   sku_label_printed: boolean | null
+  material_id?: string | null
+  material_ids?: string[] | null
   metadata?: Record<string, unknown> | null
+}
+
+interface WoodMaterialOption {
+  id: string
+  name: string
+  color_hex: string
 }
 
 const TAB_LABELS: { id: WoodTab; label: string }[] = [
@@ -44,43 +52,98 @@ const TAB_LABELS: { id: WoodTab; label: string }[] = [
   { id: 'other', label: 'Other' },
 ]
 
+const KNOWN_SUBS = ['slab', 'blank', 'offcut', 'pen_blank', 'sample_pack', 'adopt', 'other']
+
 function tabMatchesParent(tab: WoodTab, sub: string | null): boolean {
   if (tab === 'all') return true
-  if (tab === 'other') return !sub || !['slab', 'offcut', 'pen_blank', 'sample_pack', 'adopt'].includes(sub)
+  if (tab === 'other') return !sub || !KNOWN_SUBS.includes(sub)
+  if (tab === 'slab') return sub === 'slab' || sub === 'blank'
   return sub === tab
+}
+
+function isMultiSpeciesSubcategory(sub: string): boolean {
+  return sub === 'offcut' || sub === 'pen_blank' || sub === 'sample_pack'
+}
+
+function isSingleSpeciesRequired(sub: string): boolean {
+  return sub === 'blank' || sub === 'slab' || sub === 'adopt'
 }
 
 export default function AdminInventoryPage() {
   const router = useRouter()
+  const speciesMenuRef = useRef<HTMLDivElement>(null)
+
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<WoodTab>('all')
   const [parents, setParents] = useState<ProductRow[]>([])
   const [childrenByParent, setChildrenByParent] = useState<Record<string, ProductRow[]>>({})
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
+  const [woodMaterials, setWoodMaterials] = useState<WoodMaterialOption[]>([])
+  const [basePricesForSeed, setBasePricesForSeed] = useState<{ id: string; product_type: string }[]>([])
+
   const [showAddParent, setShowAddParent] = useState(false)
   const [parentForm, setParentForm] = useState({
     name: '',
-    subcategory: 'offcut' as string,
+    subcategory: 'offcut',
     description: '',
     material_species: '',
+    material_id: null as string | null,
+    material_ids: [] as string[],
+    speciesQuery: '',
+    speciesMenuOpen: false,
+    showAddSpeciesForm: false,
+    newSpeciesName: '',
+    newSpeciesColor: '#6B4423',
   })
   const [parentImageFile, setParentImageFile] = useState<File | null>(null)
   const [savingParent, setSavingParent] = useState(false)
+  const [savingNewSpecies, setSavingNewSpecies] = useState(false)
 
-  const [childForms, setChildForms] = useState<Record<string, {
-    open: boolean
-    prefix: string
-    sku: string
-    dimensions: string
-    price: string
-    cost_price: string
-    notes: string
-    file: File | null
-    saving: boolean
-  }>>({})
+  const [childForms, setChildForms] = useState<
+    Record<
+      string,
+      {
+        open: boolean
+        prefix: string
+        sku: string
+        dimensions: string
+        price: string
+        cost_price: string
+        notes: string
+        file: File | null
+        saving: boolean
+      }
+    >
+  >({})
 
   const [selectedSkus, setSelectedSkus] = useState<Set<string>>(new Set())
+
+  const resetParentForm = useCallback(() => {
+    setParentForm({
+      name: '',
+      subcategory: 'offcut',
+      description: '',
+      material_species: '',
+      material_id: null,
+      material_ids: [],
+      speciesQuery: '',
+      speciesMenuOpen: false,
+      showAddSpeciesForm: false,
+      newSpeciesName: '',
+      newSpeciesColor: '#6B4423',
+    })
+    setParentImageFile(null)
+  }, [])
+
+  const loadWoodMaterials = useCallback(async () => {
+    const [{ data: mats, error: e1 }, { data: bp, error: e2 }] = await Promise.all([
+      supabase.from('materials').select('id, name, color_hex').eq('category', 'wood').order('name'),
+      supabase.from('base_prices').select('id, product_type'),
+    ])
+    if (!e1 && mats) setWoodMaterials(mats as WoodMaterialOption[])
+    if (!e2 && bp) setBasePricesForSeed(bp)
+  }, [])
 
   useEffect(() => {
     const ok = sessionStorage.getItem('admin_auth')
@@ -88,8 +151,19 @@ export default function AdminInventoryPage() {
       router.push('/admin')
       return
     }
+    loadWoodMaterials()
     load()
-  }, [router])
+  }, [router, loadWoodMaterials])
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (!speciesMenuRef.current?.contains(e.target as Node)) {
+        setParentForm((p) => ({ ...p, speciesMenuOpen: false }))
+      }
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
 
   const load = async () => {
     setLoading(true)
@@ -103,11 +177,7 @@ export default function AdminInventoryPage() {
 
       if (e1) throw e1
 
-      const { data: kids, error: e2 } = await supabase
-        .from('products')
-        .select('*')
-        .not('parent_product_id', 'is', null)
-        .order('sku')
+      const { data: kids, error: e2 } = await supabase.from('products').select('*').not('parent_product_id', 'is', null).order('sku')
 
       if (e2) throw e2
 
@@ -125,6 +195,148 @@ export default function AdminInventoryPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const filteredMaterials = useMemo(() => {
+    const q = parentForm.speciesQuery.trim().toLowerCase()
+    if (!q) return woodMaterials
+    return woodMaterials.filter((m) => m.name.toLowerCase().includes(q))
+  }, [woodMaterials, parentForm.speciesQuery])
+
+  const multiMode = isMultiSpeciesSubcategory(parentForm.subcategory)
+
+  const seedStylePricingForNewWood = async (materialId: string) => {
+    const mallet = basePricesForSeed.filter((b) => b.product_type === 'mallet')
+    const awl = basePricesForSeed.filter((b) => b.product_type === 'awl')
+    const square = basePricesForSeed.filter((b) => b.product_type === 'square')
+    const rows: { material_id: string; base_price_id: string; position: string; premium: number }[] = []
+    for (const bp of mallet) {
+      rows.push(
+        { material_id: materialId, base_price_id: bp.id, position: 'head', premium: 0 },
+        { material_id: materialId, base_price_id: bp.id, position: 'handle', premium: 0 }
+      )
+    }
+    for (const bp of awl) {
+      rows.push({ material_id: materialId, base_price_id: bp.id, position: 'awl_handle', premium: 0 })
+    }
+    for (const bp of square) {
+      rows.push({ material_id: materialId, base_price_id: bp.id, position: 'square_scale', premium: 0 })
+    }
+    if (rows.length === 0) return
+    const { error } = await supabase.from('material_style_pricing').insert(rows)
+    if (error) console.error('Seed style pricing:', error)
+  }
+
+  const createAndSelectSpecies = async () => {
+    const name = parentForm.newSpeciesName.trim()
+    if (!name) {
+      alert('Enter a species name')
+      return
+    }
+    setSavingNewSpecies(true)
+    try {
+      const { data: inserted, error } = await supabase
+        .from('materials')
+        .insert({
+          name,
+          category: 'wood',
+          color_hex: parentForm.newSpeciesColor,
+          mallet_head_premium: 0,
+          mallet_handle_premium: 0,
+          awl_handle_premium: 0,
+          available: true,
+          available_mallet_head: true,
+          available_mallet_handle: true,
+          available_awl_handle: true,
+          available_square_scale: true,
+        })
+        .select('id, name, color_hex')
+        .single()
+
+      if (error) throw error
+      if (!inserted) throw new Error('No row returned')
+
+      await seedStylePricingForNewWood(inserted.id)
+
+      const opt: WoodMaterialOption = {
+        id: inserted.id,
+        name: inserted.name,
+        color_hex: inserted.color_hex,
+      }
+      setWoodMaterials((prev) => [...prev, opt].sort((a, b) => a.name.localeCompare(b.name)))
+
+      const sub = parentForm.subcategory
+      const isMulti = sub === 'offcut' || sub === 'pen_blank' || sub === 'sample_pack'
+
+      if (isMulti) {
+        setParentForm((p) => {
+          const nextIds = p.material_ids.includes(opt.id) ? p.material_ids : [...p.material_ids, opt.id]
+          const names = nextIds.map((id) => (id === opt.id ? opt.name : woodMaterials.find((w) => w.id === id)?.name)).filter(Boolean) as string[]
+          return {
+            ...p,
+            material_ids: nextIds,
+            material_species: names.join(', '),
+            showAddSpeciesForm: false,
+            newSpeciesName: '',
+            speciesQuery: '',
+          }
+        })
+      } else {
+        setParentForm((p) => ({
+          ...p,
+          material_id: opt.id,
+          material_species: opt.name,
+          name: p.name.trim() ? p.name : opt.name,
+          showAddSpeciesForm: false,
+          newSpeciesName: '',
+          speciesMenuOpen: false,
+          speciesQuery: opt.name,
+        }))
+      }
+    } catch (e: unknown) {
+      console.error(e)
+      alert(e instanceof Error ? e.message : 'Failed to create species')
+    } finally {
+      setSavingNewSpecies(false)
+    }
+  }
+
+  const selectSingleMaterial = (m: WoodMaterialOption) => {
+    setParentForm((p) => ({
+      ...p,
+      material_id: m.id,
+      material_species: m.name,
+      name: p.name.trim() ? p.name : m.name,
+      speciesQuery: m.name,
+      speciesMenuOpen: false,
+    }))
+  }
+
+  const toggleMultiMaterial = (m: WoodMaterialOption) => {
+    setParentForm((p) => {
+      const has = p.material_ids.includes(m.id)
+      const nextIds = has ? p.material_ids.filter((id) => id !== m.id) : [...p.material_ids, m.id]
+      const names = nextIds
+        .map((id) => woodMaterials.find((w) => w.id === id)?.name)
+        .filter(Boolean) as string[]
+      return {
+        ...p,
+        material_ids: nextIds,
+        material_species: names.join(', '),
+        speciesQuery: '',
+        speciesMenuOpen: false,
+      }
+    })
+  }
+
+  const removeMultiChip = (id: string) => {
+    setParentForm((p) => {
+      const nextIds = p.material_ids.filter((x) => x !== id)
+      const names = nextIds
+        .map((mid) => woodMaterials.find((w) => w.id === mid)?.name)
+        .filter(Boolean) as string[]
+      return { ...p, material_ids: nextIds, material_species: names.join(', ') }
+    })
   }
 
   const filteredParents = parents.filter((p) => tabMatchesParent(tab, p.subcategory))
@@ -200,6 +412,7 @@ export default function AdminInventoryPage() {
       }
 
       const cost = parseFloat(f.cost_price)
+      const mids = parent.material_ids && parent.material_ids.length > 0 ? parent.material_ids : []
       const { error } = await supabase.from('products').insert({
         name: `${parent.name} — ${f.sku}`,
         description: parent.description || '',
@@ -213,6 +426,8 @@ export default function AdminInventoryPage() {
         dimensions: f.dimensions.trim() || null,
         cost_price: Number.isFinite(cost) ? cost : null,
         material_species: parent.material_species || parent.name,
+        material_id: parent.material_id ?? null,
+        material_ids: mids,
         piece_notes: f.notes.trim() || null,
         sku_label_printed: false,
         metadata: parent.metadata || {},
@@ -244,6 +459,19 @@ export default function AdminInventoryPage() {
 
   const saveParent = async () => {
     if (!parentForm.name.trim()) return
+
+    if (multiMode) {
+      if (parentForm.material_ids.length === 0) {
+        alert('Select at least one species for this listing type')
+        return
+      }
+    } else if (isSingleSpeciesRequired(parentForm.subcategory)) {
+      if (!parentForm.material_id) {
+        alert('Select a species from the materials list')
+        return
+      }
+    }
+
     setSavingParent(true)
     try {
       let imageUrl = 'https://placehold.co/600x400/666/white?text=Wood+listing'
@@ -264,6 +492,12 @@ export default function AdminInventoryPage() {
         imageUrl = pub.publicUrl
       }
 
+      const speciesLabel =
+        parentForm.material_species.trim() ||
+        (multiMode
+          ? parentForm.material_ids.map((id) => woodMaterials.find((m) => m.id === id)?.name).filter(Boolean).join(', ')
+          : parentForm.name.trim())
+
       const { error } = await supabase.from('products').insert({
         name: parentForm.name.trim(),
         description: parentForm.description.trim() || ' ',
@@ -273,14 +507,15 @@ export default function AdminInventoryPage() {
         image_url: imageUrl,
         stock_status: 'in_stock',
         parent_product_id: null,
-        material_species: parentForm.material_species.trim() || parentForm.name.trim(),
-        metadata: { species: parentForm.material_species.trim() || parentForm.name.trim() },
+        material_species: speciesLabel || parentForm.name.trim(),
+        material_id: multiMode ? null : parentForm.material_id,
+        material_ids: multiMode ? parentForm.material_ids : [],
+        metadata: { species: speciesLabel },
       })
 
       if (error) throw error
       setShowAddParent(false)
-      setParentForm({ name: '', subcategory: 'offcut', description: '', material_species: '' })
-      setParentImageFile(null)
+      resetParentForm()
       load()
     } catch (e) {
       console.error(e)
@@ -319,6 +554,11 @@ export default function AdminInventoryPage() {
     window.open(`/admin/inventory/labels?skus=${encodeURIComponent(skus.join(','))}`, '_blank')
   }
 
+  const noSpeciesMatch =
+    parentForm.speciesQuery.trim().length > 0 &&
+    filteredMaterials.length === 0 &&
+    !parentForm.showAddSpeciesForm
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-12 flex justify-center">
@@ -336,16 +576,26 @@ export default function AdminInventoryPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/admin/dashboard">
-            <Button variant="outline" size="sm">Dashboard</Button>
+            <Button variant="outline" size="sm">
+              Dashboard
+            </Button>
           </Link>
           <Link href="/admin/products">
-            <Button variant="outline" size="sm">Products</Button>
+            <Button variant="outline" size="sm">
+              Products
+            </Button>
           </Link>
           <Button size="sm" onClick={printLabels}>
             <Printer className="mr-2 h-4 w-4" />
             Print labels
           </Button>
-          <Button size="sm" onClick={() => setShowAddParent(true)}>
+          <Button
+            size="sm"
+            onClick={() => {
+              resetParentForm()
+              setShowAddParent(true)
+            }}
+          >
             <Plus className="mr-2 h-4 w-4" />
             Add parent listing
           </Button>
@@ -373,29 +623,135 @@ export default function AdminInventoryPage() {
             <CardTitle className="text-white">New parent listing</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Input
-              placeholder="Species / listing name (e.g. Verawood)"
-              value={parentForm.name}
-              onChange={(e) => setParentForm({ ...parentForm, name: e.target.value })}
-              className="bg-brand-dark border-brand-dark-border text-white"
-            />
-            <Input
-              placeholder="Material species (short, for SKU prefix)"
-              value={parentForm.material_species}
-              onChange={(e) => setParentForm({ ...parentForm, material_species: e.target.value })}
-              className="bg-brand-dark border-brand-dark-border text-white"
-            />
-            <select
-              className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
-              value={parentForm.subcategory}
-              onChange={(e) => setParentForm({ ...parentForm, subcategory: e.target.value })}
-            >
-              <option value="offcut">Offcut / blank</option>
-              <option value="slab">Slab / board</option>
-              <option value="pen_blank">Pen blank</option>
-              <option value="sample_pack">Sample pack</option>
-              <option value="adopt">Adopt a blank</option>
-            </select>
+            <div>
+              <label className="text-xs text-zinc-500 block mb-1">Listing name</label>
+              <Input
+                placeholder={multiMode ? 'e.g. Mixed Exotic Pen Blanks — 10 Pack' : 'e.g. Verawood — Figured'}
+                value={parentForm.name}
+                onChange={(e) => setParentForm({ ...parentForm, name: e.target.value })}
+                className="bg-brand-dark border-brand-dark-border text-white"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-zinc-500 block mb-1">Subcategory</label>
+              <select
+                className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
+                value={parentForm.subcategory}
+                onChange={(e) =>
+                  setParentForm((p) => ({
+                    ...p,
+                    subcategory: e.target.value,
+                    material_id: null,
+                    material_ids: [],
+                    material_species: '',
+                    speciesQuery: '',
+                  }))
+                }
+              >
+                <option value="blank">Timber / general blank</option>
+                <option value="slab">Slab / board</option>
+                <option value="offcut">Offcuts</option>
+                <option value="pen_blank">Pen blanks</option>
+                <option value="sample_pack">Sample pack</option>
+                <option value="adopt">Adopt a blank</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div ref={speciesMenuRef} className="relative space-y-2">
+              <label className="text-xs text-zinc-500 block mb-1">
+                {multiMode ? 'Species (multi-select)' : 'Species (materials database)'}
+              </label>
+
+              {multiMode && parentForm.material_ids.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {parentForm.material_ids.map((id) => {
+                    const m = woodMaterials.find((w) => w.id === id)
+                    if (!m) return null
+                    return (
+                      <span
+                        key={id}
+                        className="inline-flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full border border-brand-dark-border bg-brand-dark text-xs text-white"
+                      >
+                        <span className="w-4 h-4 rounded-full border border-zinc-600 shrink-0" style={{ backgroundColor: m.color_hex }} />
+                        {m.name}
+                        <button type="button" className="p-0.5 hover:text-brand-orange" onClick={() => removeMultiChip(id)} aria-label={`Remove ${m.name}`}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
+
+              <Input
+                placeholder="Type to search species…"
+                value={parentForm.speciesQuery}
+                onChange={(e) => setParentForm((p) => ({ ...p, speciesQuery: e.target.value, speciesMenuOpen: true }))}
+                onFocus={() => setParentForm((p) => ({ ...p, speciesMenuOpen: true }))}
+                className="bg-brand-dark border-brand-dark-border text-white"
+                autoComplete="off"
+              />
+
+              {parentForm.speciesMenuOpen && (
+                <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-md border border-brand-dark-border bg-zinc-900 shadow-lg">
+                  {filteredMaterials.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm text-white hover:bg-brand-orange/20 flex items-center gap-2"
+                      onClick={() => (multiMode ? toggleMultiMaterial(m) : selectSingleMaterial(m))}
+                    >
+                      <span className="w-5 h-5 rounded-full border border-zinc-600 shrink-0" style={{ backgroundColor: m.color_hex }} />
+                      {m.name}
+                      {multiMode && parentForm.material_ids.includes(m.id) ? ' ✓' : ''}
+                    </button>
+                  ))}
+                  {filteredMaterials.length === 0 && (
+                    <p className="px-3 py-2 text-xs text-zinc-500">No species match. Add new below.</p>
+                  )}
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm text-brand-orange border-t border-brand-dark-border hover:bg-brand-orange/10"
+                    onClick={() => setParentForm((p) => ({ ...p, showAddSpeciesForm: true, speciesMenuOpen: false }))}
+                  >
+                    + Add new species…
+                  </button>
+                </div>
+              )}
+
+              {(parentForm.showAddSpeciesForm || noSpeciesMatch) && (
+                <div className="p-3 rounded border border-brand-orange/40 bg-brand-dark space-y-2">
+                  <p className="text-xs text-zinc-400">New wood species</p>
+                  <Input
+                    placeholder="Species name"
+                    value={parentForm.newSpeciesName}
+                    onChange={(e) => setParentForm((p) => ({ ...p, newSpeciesName: e.target.value }))}
+                    className="bg-zinc-900 border-brand-dark-border text-white"
+                  />
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-zinc-500">Colour</label>
+                    <input
+                      type="color"
+                      value={parentForm.newSpeciesColor}
+                      onChange={(e) => setParentForm((p) => ({ ...p, newSpeciesColor: e.target.value }))}
+                      className="h-9 w-14 rounded border border-brand-dark-border bg-transparent cursor-pointer"
+                    />
+                  </div>
+                  <Button type="button" size="sm" disabled={savingNewSpecies} onClick={createAndSelectSpecies}>
+                    {savingNewSpecies ? 'Creating…' : 'Create & select'}
+                  </Button>
+                </div>
+              )}
+
+              {!multiMode && parentForm.material_id && (
+                <p className="text-xs text-zinc-500">
+                  Linked: {woodMaterials.find((w) => w.id === parentForm.material_id)?.name || parentForm.material_species}
+                </p>
+              )}
+            </div>
+
             <Textarea
               placeholder="Public description"
               value={parentForm.description}
@@ -403,25 +759,26 @@ export default function AdminInventoryPage() {
               className="bg-brand-dark border-brand-dark-border text-white"
               rows={3}
             />
-            <input
-              type="file"
-              accept="image/*"
-              className="text-sm text-zinc-400"
-              onChange={(e) => setParentImageFile(e.target.files?.[0] || null)}
-            />
+            <input type="file" accept="image/*" className="text-sm text-zinc-400" onChange={(e) => setParentImageFile(e.target.files?.[0] || null)} />
             <div className="flex gap-2">
               <Button disabled={savingParent} onClick={saveParent}>
                 {savingParent ? 'Saving…' : 'Create listing'}
               </Button>
-              <Button variant="outline" onClick={() => setShowAddParent(false)}>Cancel</Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowAddParent(false)
+                  resetParentForm()
+                }}
+              >
+                Cancel
+              </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {filteredParents.length === 0 && (
-        <p className="text-zinc-500">No parent listings in this tab yet.</p>
-      )}
+      {filteredParents.length === 0 && <p className="text-zinc-500">No parent listings in this tab yet.</p>}
 
       {filteredParents.map((parent) => {
         const kids = childrenByParent[parent.id] || []
@@ -441,7 +798,10 @@ export default function AdminInventoryPage() {
                 </div>
                 <div>
                   <CardTitle className="text-white text-lg">{parent.name}</CardTitle>
-                  <p className="text-zinc-500 text-sm">{parent.subcategory || 'wood'} · {kids.length} piece(s)</p>
+                  <p className="text-zinc-500 text-sm">
+                    {parent.subcategory || 'wood'} · {kids.length} piece(s)
+                    {parent.material_species ? ` · ${parent.material_species}` : ''}
+                  </p>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -479,17 +839,13 @@ export default function AdminInventoryPage() {
                       <Input
                         placeholder="SKU"
                         value={cf.sku}
-                        onChange={(e) =>
-                          setChildForms((p) => ({ ...p, [parent.id]: { ...cf, sku: e.target.value } }))
-                        }
+                        onChange={(e) => setChildForms((p) => ({ ...p, [parent.id]: { ...cf, sku: e.target.value } }))}
                         className="bg-brand-dark border-brand-dark-border text-white"
                       />
                       <Input
                         placeholder="Dimensions (e.g. 85×85×520mm)"
                         value={cf.dimensions}
-                        onChange={(e) =>
-                          setChildForms((p) => ({ ...p, [parent.id]: { ...cf, dimensions: e.target.value } }))
-                        }
+                        onChange={(e) => setChildForms((p) => ({ ...p, [parent.id]: { ...cf, dimensions: e.target.value } }))}
                         className="bg-brand-dark border-brand-dark-border text-white"
                       />
                       <Input
@@ -497,9 +853,7 @@ export default function AdminInventoryPage() {
                         type="number"
                         step="0.01"
                         value={cf.price}
-                        onChange={(e) =>
-                          setChildForms((p) => ({ ...p, [parent.id]: { ...cf, price: e.target.value } }))
-                        }
+                        onChange={(e) => setChildForms((p) => ({ ...p, [parent.id]: { ...cf, price: e.target.value } }))}
                         className="bg-brand-dark border-brand-dark-border text-white"
                       />
                       <Input
@@ -507,17 +861,13 @@ export default function AdminInventoryPage() {
                         type="number"
                         step="0.01"
                         value={cf.cost_price}
-                        onChange={(e) =>
-                          setChildForms((p) => ({ ...p, [parent.id]: { ...cf, cost_price: e.target.value } }))
-                        }
+                        onChange={(e) => setChildForms((p) => ({ ...p, [parent.id]: { ...cf, cost_price: e.target.value } }))}
                         className="bg-brand-dark border-brand-dark-border text-white"
                       />
                       <Textarea
                         placeholder="Internal notes"
                         value={cf.notes}
-                        onChange={(e) =>
-                          setChildForms((p) => ({ ...p, [parent.id]: { ...cf, notes: e.target.value } }))
-                        }
+                        onChange={(e) => setChildForms((p) => ({ ...p, [parent.id]: { ...cf, notes: e.target.value } }))}
                         className="bg-brand-dark border-brand-dark-border text-white md:col-span-2"
                         rows={2}
                       />
@@ -597,9 +947,7 @@ export default function AdminInventoryPage() {
                           <td className="py-2 text-white font-mono">{k.sku || '—'}</td>
                           <td className="py-2">
                             <div className="relative w-12 h-12 rounded overflow-hidden bg-brand-dark">
-                              {k.image_url && (
-                                <Image src={k.image_url} alt="" fill className="object-cover" sizes="48px" />
-                              )}
+                              {k.image_url && <Image src={k.image_url} alt="" fill className="object-cover" sizes="48px" />}
                             </div>
                           </td>
                           <td className="py-2 text-zinc-300 max-w-[140px] truncate">{k.dimensions || '—'}</td>
