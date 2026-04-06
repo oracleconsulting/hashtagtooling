@@ -33,6 +33,8 @@ export default async function GalleryPage() {
       .from('products')
       .select('id, name, description, image_url, category, created_at, metadata')
       .eq('stock_status', 'sold')
+      .not('image_url', 'is', null)
+      .neq('image_url', '')
       .order('created_at', { ascending: true }),
     supabase
       .from('products')

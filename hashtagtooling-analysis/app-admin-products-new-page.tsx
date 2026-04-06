@@ -341,6 +341,7 @@ export default function NewProductPage() {
                     value={formData.stock_status}
                     onChange={(e) => setFormData({ ...formData, stock_status: e.target.value })}
                   >
+                    <option value="draft">Draft (hidden from site)</option>
                     <option value="in_stock">In Stock</option>
                     <option value="made_to_order">Made to Order</option>
                     <option value="out_of_stock">Out of Stock</option>

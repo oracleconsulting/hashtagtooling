@@ -354,6 +354,28 @@ export default function EditProductPage() {
     }
   }
 
+  const [markingSold, setMarkingSold] = useState(false)
+
+  const handleMarkAsSold = async () => {
+    if (!confirm('Mark this product as sold? This will update the stock status immediately.')) return
+    setMarkingSold(true)
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ stock_status: 'sold' })
+        .eq('id', id)
+      if (error) throw error
+      setFormData((prev) => ({ ...prev, stock_status: 'sold' }))
+      setOriginalStockStatus('sold')
+      alert('Marked as sold.')
+    } catch (err) {
+      console.error('Error marking as sold:', err)
+      alert('Failed to update — please try again.')
+    } finally {
+      setMarkingSold(false)
+    }
+  }
+
   if (pageLoading) {
     return (
       <div className="container mx-auto px-4 py-12 flex items-center justify-center min-h-[400px]">
@@ -367,9 +389,21 @@ export default function EditProductPage() {
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="font-heading text-4xl font-bold text-brand-orange">Edit Product</h1>
-          <Button variant="outline" onClick={() => router.back()}>
-            Cancel
-          </Button>
+          <div className="flex gap-3">
+            {formData.stock_status !== 'sold' && (
+              <Button
+                variant="outline"
+                onClick={handleMarkAsSold}
+                disabled={markingSold}
+                className="border-red-600 text-red-400 hover:bg-red-600 hover:text-white"
+              >
+                {markingSold ? 'Updating…' : 'Mark as Sold'}
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => router.back()}>
+              Cancel
+            </Button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -424,6 +458,7 @@ export default function EditProductPage() {
                     value={formData.stock_status}
                     onChange={(e) => setFormData({ ...formData, stock_status: e.target.value })}
                   >
+                    <option value="draft">Draft (hidden from site)</option>
                     <option value="in_stock">In Stock</option>
                     <option value="made_to_order">Made to Order</option>
                     <option value="out_of_stock">Out of Stock</option>
