@@ -57,7 +57,8 @@ interface MaterialStylePricingRow {
   material_id: string
   base_price_id: string
   position: StylePricingPosition
-  premium: number
+  /** PostgREST may return numeric columns as strings */
+  premium: number | string
 }
 
 function styleAbbreviation(styleName: string): string {
@@ -92,8 +93,8 @@ function squareAbbreviation(styleName: string): string {
   return num ? `${num} ${ti ? 'Ti' : 'TS'}` : styleAbbreviation(styleName)
 }
 
-function premiumFormKey(materialId: string, basePriceId: string, position: StylePricingPosition) {
-  return `${materialId}|${basePriceId}|${position}`
+function pricingKey(materialId: string, basePriceId: string, position: StylePricingPosition | string) {
+  return `${materialId}_${basePriceId}_${position}`
 }
 
 /** Key→input string map for one material from MSP rows (open grid + after save rehydrate). */
@@ -107,26 +108,32 @@ function buildPricingFormSliceForMaterial(
   const squareStyles = allBasePrices.filter((b) => b.product_type === 'square')
   const next: Record<string, string> = {}
 
+  const mid = String(materialId)
   const findPrem = (bpId: string, position: StylePricingPosition) => {
-    const row = mspRows.find(
-      (r) => r.material_id === materialId && r.base_price_id === bpId && r.position === position
-    )
+    const bid = String(bpId)
+    const pos = String(position)
+    const row = mspRows.find((r) => {
+      const rm = String(r.material_id)
+      const rb = String(r.base_price_id)
+      const rp = String(r.position)
+      return rm === mid && rb === bid && rp === pos
+    })
     const p = row?.premium
     if (p === null || p === undefined) return '0'
-    const n = typeof p === 'number' ? p : Number.parseFloat(String(p))
+    const n = typeof p === 'number' ? p : Number.parseFloat(String(p).replace(/,/g, ''))
     return Number.isFinite(n) ? String(n) : '0'
   }
 
   for (const bp of malletStyles) {
     for (const pos of ['head', 'handle'] as const) {
-      next[premiumFormKey(materialId, bp.id, pos)] = findPrem(bp.id, pos)
+      next[pricingKey(materialId, bp.id, pos)] = findPrem(bp.id, pos)
     }
   }
   for (const bp of awlStyles) {
-    next[premiumFormKey(materialId, bp.id, 'awl_handle')] = findPrem(bp.id, 'awl_handle')
+    next[pricingKey(materialId, bp.id, 'awl_handle')] = findPrem(bp.id, 'awl_handle')
   }
   for (const bp of squareStyles) {
-    next[premiumFormKey(materialId, bp.id, 'square_scale')] = findPrem(bp.id, 'square_scale')
+    next[pricingKey(materialId, bp.id, 'square_scale')] = findPrem(bp.id, 'square_scale')
   }
   return next
 }
@@ -421,7 +428,7 @@ export default function MaterialsAdminPage() {
       const rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number }[] = []
       for (const bp of malletStyles) {
         for (const pos of ['head', 'handle'] as const) {
-          const key = premiumFormKey(materialId, bp.id, pos)
+          const key = pricingKey(materialId, bp.id, pos)
           const raw = pricingForm[key]
           const v = parseFloat(raw === undefined || raw === '' ? '0' : String(raw))
           rows.push({
@@ -458,7 +465,7 @@ export default function MaterialsAdminPage() {
       const awlStyles = basePrices.filter((b) => b.product_type === 'awl')
       const rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number }[] = []
       for (const bp of awlStyles) {
-        const key = premiumFormKey(materialId, bp.id, 'awl_handle')
+        const key = pricingKey(materialId, bp.id, 'awl_handle')
         const raw = pricingForm[key]
         const v = parseFloat(raw === undefined || raw === '' ? '0' : String(raw))
         rows.push({
@@ -494,7 +501,7 @@ export default function MaterialsAdminPage() {
       const squareStyles = basePrices.filter((b) => b.product_type === 'square')
       const rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number }[] = []
       for (const bp of squareStyles) {
-        const key = premiumFormKey(materialId, bp.id, 'square_scale')
+        const key = pricingKey(materialId, bp.id, 'square_scale')
         const raw = pricingForm[key]
         const v = parseFloat(raw === undefined || raw === '' ? '0' : String(raw))
         rows.push({
@@ -638,13 +645,28 @@ export default function MaterialsAdminPage() {
   const uploadTapAudio = async (materialId: string, file: File) => {
     setUploadingTapAudioId(materialId)
     try {
-      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'mp3'
-      const allowed = ['mp3', 'wav', 'm4a', 'ogg']
+      const allowed = ['mp3', 'wav', 'm4a', 'ogg', 'mp4', 'aac', 'x-m4a']
+      let fileExt = file.name.includes('.') ? (file.name.split('.').pop()?.toLowerCase() ?? '') : ''
+      const mime = file.type.toLowerCase()
+      const mimeAudioOk =
+        mime.startsWith('audio/') ||
+        mime === 'video/mp4'
+
       if (!allowed.includes(fileExt)) {
-        alert('Please upload MP3, WAV, M4A, or OGG audio.')
-        setUploadingTapAudioId(null)
-        return
+        if (mimeAudioOk) {
+          if (mime === 'audio/mp4' || mime === 'audio/x-m4a' || mime === 'video/mp4') fileExt = 'm4a'
+          else if (mime === 'audio/aac') fileExt = 'aac'
+          else if (mime === 'audio/mpeg') fileExt = 'mp3'
+          else if (mime.includes('wav')) fileExt = 'wav'
+          else if (mime.includes('ogg')) fileExt = 'ogg'
+          else fileExt = 'm4a'
+        } else {
+          alert('Please upload MP3, WAV, M4A, OGG, AAC, or similar audio.')
+          setUploadingTapAudioId(null)
+          return
+        }
       }
+
       const filePath = `audio/${materialId}-${Date.now()}.${fileExt}`
       const { error: uploadError } = await supabase.storage.from('tap-audio').upload(filePath, file, { upsert: true })
       if (uploadError) throw uploadError
@@ -1367,7 +1389,7 @@ export default function MaterialsAdminPage() {
                                           {pos}
                                         </td>
                                         {malletBasePrices.map((bp) => {
-                                          const key = premiumFormKey(mat.id, bp.id, pos)
+                                          const key = pricingKey(mat.id, bp.id, pos)
                                           return (
                                             <td key={key} className="border border-zinc-700 p-1 bg-zinc-900/50">
                                               <Input
@@ -1451,7 +1473,7 @@ export default function MaterialsAdminPage() {
                                     <tr>
                                       <td className="border border-zinc-700 p-2 font-medium bg-zinc-900/80 text-zinc-200">Premium</td>
                                       {awlBasePrices.map((bp) => {
-                                        const key = premiumFormKey(mat.id, bp.id, 'awl_handle')
+                                        const key = pricingKey(mat.id, bp.id, 'awl_handle')
                                         return (
                                           <td key={key} className="border border-zinc-700 p-1 bg-zinc-900/50">
                                             <Input
@@ -1534,7 +1556,7 @@ export default function MaterialsAdminPage() {
                                     <tr>
                                       <td className="border border-zinc-700 p-2 font-medium bg-zinc-900/80 text-zinc-200">Premium</td>
                                       {squareBasePrices.map((bp) => {
-                                        const key = premiumFormKey(mat.id, bp.id, 'square_scale')
+                                        const key = pricingKey(mat.id, bp.id, 'square_scale')
                                         return (
                                           <td key={key} className="border border-zinc-700 p-1 bg-zinc-900/50">
                                             <Input
@@ -1630,7 +1652,7 @@ export default function MaterialsAdminPage() {
                             <label className="block font-medium mb-2 text-zinc-300">Tap Test Audio</label>
                             <input
                               type="file"
-                              accept="audio/mp3,audio/wav,audio/m4a,audio/ogg"
+                              accept="audio/*,.m4a,.mp3,.wav,.ogg,.aac,.mp4,.x-m4a"
                               className="hidden"
                               id={`tap-audio-${editingMaterial.id}`}
                               onChange={(e) => { if (e.target.files?.[0]) uploadTapAudio(editingMaterial.id, e.target.files[0]) }}
