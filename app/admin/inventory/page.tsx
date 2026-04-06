@@ -713,7 +713,7 @@ export default function AdminInventoryPage() {
   }
 
   const startEditPiece = (piece: ProductRow) => {
-    setExpandedPieceId(null)
+    setExpandedPieceId(piece.id)
     setEditingPieceId(piece.id)
     setEditPieceForm({
       dimensions: piece.dimensions || '',
@@ -1266,10 +1266,32 @@ export default function AdminInventoryPage() {
                         const galleryUrls = getPieceGalleryUrls(k)
 
                         if (editingPieceId === k.id) {
+                          const editGallery = getPieceGalleryUrls(k)
+                          const editGrainFallback = !k.image_url && parent.materials?.grain_image_url
                           return (
                             <tr key={k.id} className="border-b border-brand-dark-border/60 bg-zinc-900/40">
                               <td colSpan={9} className="p-4">
                                 <p className="text-sm text-zinc-400 mb-3">Edit piece {k.sku || k.id}</p>
+                                {(editGallery.length > 0 || editGrainFallback) && (
+                                  <div className="mb-4">
+                                    <p className="text-xs text-zinc-500 mb-2">Current images</p>
+                                    <div className="flex gap-2 flex-wrap">
+                                      {editGallery.length > 0 ? editGallery.map((url, i) => (
+                                        <div key={`edit-g-${i}`} className="relative">
+                                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                                          <img src={url} alt="" className="w-20 h-20 rounded object-cover border border-brand-dark-border" />
+                                          {i === 0 && <span className="absolute top-0.5 left-0.5 text-[10px] bg-brand-orange text-black px-1 rounded">Main</span>}
+                                        </div>
+                                      )) : editGrainFallback ? (
+                                        <div className="relative">
+                                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                                          <img src={parent.materials!.grain_image_url!} alt="" className="w-20 h-20 rounded object-cover border border-brand-dark-border opacity-50" />
+                                          <span className="absolute top-0.5 left-0.5 text-[10px] bg-zinc-700 text-zinc-300 px-1 rounded">Grain</span>
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                )}
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                   <Input
                                     placeholder="Dimensions"

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { formatPrice } from '@/lib/utils'
@@ -211,6 +210,18 @@ export default function ProductContent() {
     if (materialGrainUrl) return materialGrainUrl
     return FALLBACK_IMAGE
   }
+  const pieceGalleryImages = (piece: Product): string[] => {
+    const meta = piece.metadata as { images?: string[] } | undefined
+    if (meta?.images?.length) return meta.images
+    if (piece.image_url) return [piece.image_url]
+    if (materialGrainUrl) return [materialGrainUrl]
+    return []
+  }
+
+  const [expandedPieceId, setExpandedPieceId] = useState<string | null>(null)
+  const [pieceLightboxOpen, setPieceLightboxOpen] = useState(false)
+  const [pieceLightboxImages, setPieceLightboxImages] = useState<string[]>([])
+  const [pieceLightboxIndex, setPieceLightboxIndex] = useState(0)
   const hasVideo = Boolean(product.metadata?.video)
   const allMedia = hasVideo
     ? [{ type: 'video' as const, url: product.metadata!.video! }, ...imageUrls.map((url) => ({ type: 'image' as const, url }))]
@@ -233,6 +244,13 @@ export default function ProductContent() {
           onClose={() => setLightboxOpen(false)}
         />
       )}
+      {pieceLightboxOpen && (
+        <ImageLightbox
+          images={pieceLightboxImages}
+          initialIndex={pieceLightboxIndex}
+          onClose={() => setPieceLightboxOpen(false)}
+        />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-6">
         <div>
@@ -253,12 +271,12 @@ export default function ProductContent() {
                 className="relative w-full h-full block cursor-zoom-in"
                 onClick={() => { setLightboxIndex(lightboxInitialIndex); setLightboxOpen(true) }}
               >
-                <Image
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
                   src={allMedia[selectedImage].url}
                   alt={`${product.name} — handcrafted by #TOOLING`}
-                  fill
-                  className="object-cover"
-                  priority
+                  className="absolute inset-0 w-full h-full object-cover"
+                  onError={(e) => { (e.target as HTMLImageElement).src = FALLBACK_IMAGE }}
                 />
               </button>
             )}
@@ -281,18 +299,19 @@ export default function ProductContent() {
                 >
                   {item.type === 'video' ? (
                     <>
-                      <Image
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
                         src={heroImage}
                         alt={`${product.name} — video`}
-                        fill
-                        className="object-cover"
+                        className="absolute inset-0 w-full h-full object-cover"
                       />
                       <div className="absolute inset-0 flex items-center justify-center bg-black/40">
                         <span className="text-2xl text-white drop-shadow">▶</span>
                       </div>
                     </>
                   ) : (
-                    <Image src={item.url} alt={`${product.name} — image ${index}`} fill className="object-cover" />
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={item.url} alt={`${product.name} — image ${index}`} className="absolute inset-0 w-full h-full object-cover" />
                   )}
                 </button>
               ))}
@@ -335,45 +354,94 @@ export default function ProductContent() {
           {isWoodParentWithPieces && (
             <div className="mb-10 space-y-4">
               <h2 className="font-heading text-xl font-semibold text-white">Available pieces</h2>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4">
                 {childPieces.map((piece) => {
                   const sold = piece.stock_status === 'sold'
                   const canBuy = piece.stock_status === 'in_stock'
                   const hi = highlightChildId === piece.id
+                  const isExpanded = expandedPieceId === piece.id
+                  const gallery = pieceGalleryImages(piece)
                   return (
                     <div
                       key={piece.id}
-                      className={`rounded-lg border p-4 flex gap-4 ${
+                      className={`rounded-lg border ${
                         sold ? 'opacity-60 border-brand-dark-border' : 'border-brand-dark-border bg-brand-dark-card'
                       } ${hi ? 'ring-2 ring-brand-orange' : ''}`}
                     >
-                      <div className="relative w-24 h-24 shrink-0 rounded overflow-hidden bg-brand-dark">
-                        <Image
-                          src={pieceCardImage(piece)}
-                          alt=""
-                          fill
-                          className="object-cover"
-                          sizes="96px"
-                        />
-                        {sold && (
-                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                            <span className="text-xs font-bold text-white">SOLD</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-mono text-sm text-brand-orange">{piece.sku || '—'}</p>
-                        {piece.dimensions && <p className="text-xs text-zinc-500">{piece.dimensions}</p>}
-                        <p className="text-lg font-bold text-brand-orange mt-1">{formatPrice(piece.price)}</p>
-                        <Button
-                          className="mt-2 w-full sm:w-auto"
-                          size="sm"
-                          disabled={!canBuy}
-                          onClick={() => handleAddChildToCart(piece)}
+                      <div className="p-4 flex gap-4">
+                        <button
+                          type="button"
+                          className="relative w-24 h-24 shrink-0 rounded overflow-hidden bg-brand-dark cursor-pointer"
+                          onClick={() => {
+                            if (gallery.length > 0) {
+                              setPieceLightboxImages(gallery)
+                              setPieceLightboxIndex(0)
+                              setPieceLightboxOpen(true)
+                            }
+                          }}
                         >
-                          {sold ? 'Sold' : 'Add to cart'}
-                        </Button>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={pieceCardImage(piece)}
+                            alt=""
+                            className="absolute inset-0 w-full h-full object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).src = FALLBACK_IMAGE }}
+                          />
+                          {sold && (
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                              <span className="text-xs font-bold text-white">SOLD</span>
+                            </div>
+                          )}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-mono text-sm text-brand-orange">{piece.sku || '—'}</p>
+                            <button
+                              type="button"
+                              className="text-xs text-zinc-500 hover:text-brand-orange transition-colors"
+                              onClick={() => setExpandedPieceId(isExpanded ? null : piece.id)}
+                            >
+                              {isExpanded ? 'Hide details' : 'View details'}
+                            </button>
+                          </div>
+                          {piece.dimensions && <p className="text-xs text-zinc-500">{piece.dimensions}</p>}
+                          <p className="text-lg font-bold text-brand-orange mt-1">{formatPrice(piece.price)}</p>
+                          <Button
+                            className="mt-2 w-full sm:w-auto"
+                            size="sm"
+                            disabled={!canBuy}
+                            onClick={() => handleAddChildToCart(piece)}
+                          >
+                            {sold ? 'Sold' : 'Add to cart'}
+                          </Button>
+                        </div>
                       </div>
+                      {isExpanded && (
+                        <div className="border-t border-brand-dark-border/60 p-4">
+                          {gallery.length > 0 && (
+                            <div className="flex gap-3 overflow-x-auto pb-3">
+                              {gallery.map((url, i) => (
+                                <button
+                                  key={`${piece.id}-${i}`}
+                                  type="button"
+                                  className="relative w-28 h-28 flex-shrink-0 rounded overflow-hidden bg-brand-dark border border-brand-dark-border cursor-zoom-in"
+                                  onClick={() => {
+                                    setPieceLightboxImages(gallery)
+                                    setPieceLightboxIndex(i)
+                                    setPieceLightboxOpen(true)
+                                  }}
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = FALLBACK_IMAGE }} />
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {piece.description && piece.description !== product.description && (
+                            <p className="text-sm text-zinc-400 mt-2">{piece.description}</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
