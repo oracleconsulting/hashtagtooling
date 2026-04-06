@@ -122,6 +122,23 @@ function ShopContentInner() {
           counts[pid] = (counts[pid] || 0) + 1
         }
       }
+      const isReal = (url: string | null | undefined) => url && !url.includes('placehold.co')
+      const needGrain = parentsOnly.filter((p) => p.material_id && !isReal(p.image_url))
+      if (needGrain.length > 0) {
+        const matIds = [...new Set(needGrain.map((p) => p.material_id!).filter(Boolean))]
+        const { data: mats } = await supabase
+          .from('materials')
+          .select('id, grain_image_url')
+          .in('id', matIds)
+        const grainMap = new Map((mats || []).map((m: { id: string; grain_image_url: string | null }) => [m.id, m.grain_image_url]))
+        for (const p of parentsOnly) {
+          if (p.material_id && !isReal(p.image_url)) {
+            const grain = grainMap.get(p.material_id)
+            if (grain) p.image_url = grain
+          }
+        }
+      }
+
       setWoodInventoryParentIds(invParents)
       setWoodPieceCounts(counts)
       setProducts(parentsOnly)

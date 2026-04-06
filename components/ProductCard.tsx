@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { useCart } from '@/lib/store'
 import { useWishlist } from '@/lib/wishlist-store'
 import { formatPrice } from '@/lib/utils'
-import Image from 'next/image'
 import Link from 'next/link'
 import { Heart } from 'lucide-react'
 
@@ -49,7 +48,8 @@ export function ProductCard({
   parentListingPieceCount,
   metadata,
 }: ProductCardProps) {
-  const safeImageUrl = image_url || FALLBACK_IMAGE
+  const isReal = (url: string | null | undefined) => url && !url.includes('placehold.co')
+  const safeImageUrl = (isReal(image_url) ? image_url : null) || FALLBACK_IMAGE
   const addItem = useCart((state) => state.addItem)
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlist()
   const inWishlist = isInWishlist(id)
@@ -93,12 +93,14 @@ export function ProductCard({
     <Card className="overflow-hidden hover:border-brand-orange transition-all group">
       <Link href={`/product/${id}`}>
         <div className="relative h-64 bg-brand-dark-card">
-          <Image
+          <img
             src={safeImageUrl}
             alt={`${name} — exotic wood tool by #TOOLING`}
-            fill
-            className="object-cover group-hover:scale-105 transition-transform duration-300"
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={(e) => {
+              const el = e.target as HTMLImageElement
+              if (el.src !== FALLBACK_IMAGE) el.src = FALLBACK_IMAGE
+            }}
           />
           <button
             type="button"
