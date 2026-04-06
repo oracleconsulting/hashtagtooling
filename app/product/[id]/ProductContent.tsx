@@ -199,25 +199,33 @@ export default function ProductContent() {
   const inStockPieces = childPieces.filter((c) => c.stock_status === 'in_stock')
 
   const FALLBACK_IMAGE = '/placeholder-product.svg'
-  const displayImageUrl = product.image_url || materialGrainUrl || ''
+  const isReal = (url: string | null | undefined) => url && !url.includes('placehold.co')
+
+  const realProductImage = isReal(product.image_url) ? product.image_url : null
+  const displayImageUrl = realProductImage || materialGrainUrl || ''
   const imageUrls = (product.metadata?.images?.length
-    ? product.metadata.images
+    ? (product.metadata.images as string[]).filter(isReal)
     : [displayImageUrl].filter(Boolean)
   ) as string[]
+  if (materialGrainUrl && !imageUrls.includes(materialGrainUrl) && imageUrls.length === 0) {
+    imageUrls.push(materialGrainUrl)
+  }
   if (imageUrls.length === 0) imageUrls.push(FALLBACK_IMAGE)
   const heroImage = imageUrls[0] || FALLBACK_IMAGE
 
   const pieceCardImage = (piece: Product) => {
     const meta = piece.metadata as { images?: string[] } | undefined
-    if (piece.image_url) return piece.image_url
-    if (meta?.images?.[0]) return meta.images[0]
+    const realPieceImages = (meta?.images || []).filter(isReal) as string[]
+    if (isReal(piece.image_url)) return piece.image_url!
+    if (realPieceImages[0]) return realPieceImages[0]
     if (materialGrainUrl) return materialGrainUrl
     return FALLBACK_IMAGE
   }
   const pieceGalleryImages = (piece: Product): string[] => {
     const meta = piece.metadata as { images?: string[] } | undefined
-    if (meta?.images?.length) return meta.images
-    if (piece.image_url) return [piece.image_url]
+    const realPieceImages = (meta?.images || []).filter(isReal) as string[]
+    if (realPieceImages.length > 0) return realPieceImages
+    if (isReal(piece.image_url)) return [piece.image_url!]
     if (materialGrainUrl) return [materialGrainUrl]
     return []
   }
@@ -276,7 +284,11 @@ export default function ProductContent() {
                   src={allMedia[selectedImage].url}
                   alt={`${product.name} — handcrafted by #TOOLING`}
                   className="absolute inset-0 w-full h-full object-cover"
-                  onError={(e) => { (e.target as HTMLImageElement).src = FALLBACK_IMAGE }}
+                  onError={(e) => {
+                    const el = e.target as HTMLImageElement
+                    const fallback = materialGrainUrl && el.src !== materialGrainUrl ? materialGrainUrl : FALLBACK_IMAGE
+                    if (el.src !== fallback) el.src = fallback
+                  }}
                 />
               </button>
             )}
@@ -385,7 +397,11 @@ export default function ProductContent() {
                             src={pieceCardImage(piece)}
                             alt=""
                             className="absolute inset-0 w-full h-full object-cover"
-                            onError={(e) => { (e.target as HTMLImageElement).src = FALLBACK_IMAGE }}
+                            onError={(e) => {
+                              const el = e.target as HTMLImageElement
+                              const fb = materialGrainUrl && el.src !== materialGrainUrl ? materialGrainUrl : FALLBACK_IMAGE
+                              if (el.src !== fb) el.src = fb
+                            }}
                           />
                           {sold && (
                             <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
@@ -432,7 +448,16 @@ export default function ProductContent() {
                                   }}
                                 >
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = FALLBACK_IMAGE }} />
+                                  <img
+                                    src={url}
+                                    alt=""
+                                    className="absolute inset-0 w-full h-full object-cover"
+                                    onError={(e) => {
+                                      const el = e.target as HTMLImageElement
+                                      const fb = materialGrainUrl && el.src !== materialGrainUrl ? materialGrainUrl : FALLBACK_IMAGE
+                                      if (el.src !== fb) el.src = fb
+                                    }}
+                                  />
                                 </button>
                               ))}
                             </div>

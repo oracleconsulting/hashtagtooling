@@ -45,23 +45,27 @@ interface WoodMaterialOption {
   grain_image_url?: string | null
 }
 
+function isRealImage(url: string | null | undefined): url is string {
+  return Boolean(url && !url.includes('placehold.co'))
+}
+
 function getPieceGalleryUrls(k: ProductRow): string[] {
   const meta = k.metadata as { images?: string[] } | null | undefined
-  if (meta?.images && meta.images.length > 0) return [...meta.images]
-  if (k.image_url) return [k.image_url]
+  if (meta?.images && meta.images.length > 0) return meta.images.filter(isRealImage)
+  if (isRealImage(k.image_url)) return [k.image_url]
   return []
 }
 
 function thumbSrcForPiece(k: ProductRow, parent: ProductRow): string | null {
-  if (k.image_url) return k.image_url
+  if (isRealImage(k.image_url)) return k.image_url
   if (parent.materials?.grain_image_url) return parent.materials.grain_image_url
   return null
 }
 
 function extraImageBadgeCount(k: ProductRow): number {
   const meta = k.metadata as { images?: string[] } | undefined
-  if (meta?.images && meta.images.length > 1) return meta.images.length - 1
-  return 0
+  const real = meta?.images?.filter(isRealImage) || []
+  return real.length > 1 ? real.length - 1 : 0
 }
 
 async function uploadInventoryProductImages(
