@@ -35,11 +35,6 @@ interface Material {
   available_mallet_handle?: boolean
   available_awl_handle?: boolean
   available_square_scale?: boolean
-  stock_heads?: number
-  stock_handles?: number
-  stock_awl_handles?: number
-  stock_square_scales?: number
-  stock_alert_threshold?: number
   description?: string | null
   uses_description?: string | null
   gallery_images?: string[] | null
@@ -63,6 +58,7 @@ interface MaterialStylePricingRow {
   position: StylePricingPosition
   /** PostgREST may return numeric columns as strings */
   premium: number | string
+  stock?: number | string
 }
 
 function styleAbbreviation(styleName: string): string {
@@ -113,31 +109,33 @@ function buildPricingFormSliceForMaterial(
   const next: Record<string, string> = {}
 
   const mid = String(materialId)
-  const findPrem = (bpId: string, position: StylePricingPosition) => {
+  const findRow = (bpId: string, position: StylePricingPosition) => {
     const bid = String(bpId)
     const pos = String(position)
-    const row = mspRows.find((r) => {
-      const rm = String(r.material_id)
-      const rb = String(r.base_price_id)
-      const rp = String(r.position)
-      return rm === mid && rb === bid && rp === pos
-    })
-    const p = row?.premium
-    if (p === null || p === undefined) return '0'
-    const n = typeof p === 'number' ? p : Number.parseFloat(String(p).replace(/,/g, ''))
-    return Number.isFinite(n) ? String(n) : '0'
+    return mspRows.find((r) => String(r.material_id) === mid && String(r.base_price_id) === bid && String(r.position) === pos)
+  }
+  const numVal = (v: number | string | null | undefined, fallback = '0') => {
+    if (v === null || v === undefined) return fallback
+    const n = typeof v === 'number' ? v : Number.parseFloat(String(v).replace(/,/g, ''))
+    return Number.isFinite(n) ? String(n) : fallback
   }
 
   for (const bp of malletStyles) {
     for (const pos of ['head', 'handle'] as const) {
-      next[pricingKey(materialId, bp.id, pos)] = findPrem(bp.id, pos)
+      const row = findRow(bp.id, pos)
+      next[pricingKey(materialId, bp.id, pos)] = numVal(row?.premium)
+      next[pricingKey(materialId, bp.id, pos) + '_stock'] = numVal(row?.stock)
     }
   }
   for (const bp of awlStyles) {
-    next[pricingKey(materialId, bp.id, 'awl_handle')] = findPrem(bp.id, 'awl_handle')
+    const row = findRow(bp.id, 'awl_handle')
+    next[pricingKey(materialId, bp.id, 'awl_handle')] = numVal(row?.premium)
+    next[pricingKey(materialId, bp.id, 'awl_handle') + '_stock'] = numVal(row?.stock)
   }
   for (const bp of squareStyles) {
-    next[pricingKey(materialId, bp.id, 'square_scale')] = findPrem(bp.id, 'square_scale')
+    const row = findRow(bp.id, 'square_scale')
+    next[pricingKey(materialId, bp.id, 'square_scale')] = numVal(row?.premium)
+    next[pricingKey(materialId, bp.id, 'square_scale') + '_stock'] = numVal(row?.stock)
   }
   return next
 }
@@ -156,7 +154,7 @@ async function fetchAllMaterialStylePricingRows(): Promise<MaterialStylePricingR
   for (let from = 0; ; from += MSP_PAGE_SIZE) {
     const { data, error } = await supabase
       .from('material_style_pricing')
-      .select('id, material_id, base_price_id, position, premium')
+      .select('id, material_id, base_price_id, position, premium, stock')
       .order('id')
       .range(from, from + MSP_PAGE_SIZE - 1)
     if (error) throw error
@@ -167,20 +165,22 @@ async function fetchAllMaterialStylePricingRows(): Promise<MaterialStylePricingR
   return all
 }
 
-function stockTotal(mat: Material): number {
-  return (mat.stock_heads ?? 0) + (mat.stock_handles ?? 0) + (mat.stock_awl_handles ?? 0) + (mat.stock_square_scales ?? 0)
-}
-
-function stockTotalColorClass(mat: Material): string {
-  const total = stockTotal(mat)
-  const t = mat.stock_alert_threshold ?? 3
-  if (total > t) return 'text-emerald-400 font-medium tabular-nums'
-  if (total === t) return 'text-amber-400 font-medium tabular-nums'
-  return 'text-red-400 font-medium tabular-nums'
-}
-
-function stockBreakdownTitle(mat: Material): string {
-  return `Heads: ${mat.stock_heads ?? 0}, Handles: ${mat.stock_handles ?? 0}, Awl: ${mat.stock_awl_handles ?? 0}, Scale: ${mat.stock_square_scales ?? 0}`
+function mspStockIndicator(
+  matId: string,
+  mspRows: MaterialStylePricingRow[]
+): { color: 'red' | 'orange' | 'green'; tooltip: string } {
+  const rows = mspRows.filter((r) => String(r.material_id) === String(matId))
+  if (rows.length === 0) return { color: 'green', tooltip: 'No pricing rows' }
+  let zeroCount = 0
+  let oneCount = 0
+  for (const r of rows) {
+    const s = typeof r.stock === 'number' ? r.stock : Number.parseInt(String(r.stock ?? '0'), 10)
+    if (s === 0) zeroCount++
+    else if (s === 1) oneCount++
+  }
+  if (zeroCount > 0) return { color: 'red', tooltip: `${zeroCount} out of stock, ${oneCount} low` }
+  if (oneCount > 0) return { color: 'orange', tooltip: `${oneCount} at threshold (1)` }
+  return { color: 'green', tooltip: 'All stocked' }
 }
 
 const inputDarkClass = 'bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500'
@@ -223,14 +223,6 @@ export default function MaterialsAdminPage() {
   const [expandedPricingMaterialId, setExpandedPricingMaterialId] = useState<string | null>(null)
   const [pricingForm, setPricingForm] = useState<Record<string, string>>({})
   const [savingPricingSection, setSavingPricingSection] = useState<null | 'mallet' | 'awl' | 'square'>(null)
-  type StockDraft = {
-    stock_heads: string
-    stock_handles: string
-    stock_awl_handles: string
-    stock_square_scales: string
-    stock_alert_threshold: string
-  }
-  const [stockDraftByMaterial, setStockDraftByMaterial] = useState<Record<string, StockDraft>>({})
   const [lowStockBannerDismissed, setLowStockBannerDismissed] = useState(false)
   const [showAddTransition, setShowAddTransition] = useState(false)
   const [newTransition, setNewTransition] = useState({
@@ -372,19 +364,6 @@ export default function MaterialsAdminPage() {
   }
 
   const openPricingGrid = (materialId: string) => {
-    const mat = materials.find((m) => m.id === materialId)
-    if (mat) {
-      setStockDraftByMaterial((prev) => ({
-        ...prev,
-        [materialId]: {
-          stock_heads: String(mat.stock_heads ?? 0),
-          stock_handles: String(mat.stock_handles ?? 0),
-          stock_awl_handles: String(mat.stock_awl_handles ?? 0),
-          stock_square_scales: String(mat.stock_square_scales ?? 0),
-          stock_alert_threshold: String(mat.stock_alert_threshold ?? 3),
-        },
-      }))
-    }
     setPricingForm((prev) => ({
       ...prev,
       ...buildPricingFormSliceForMaterial(materialId, materialStylePricing, basePrices),
@@ -392,36 +371,16 @@ export default function MaterialsAdminPage() {
     setExpandedPricingMaterialId(materialId)
   }
 
-  const applyMaterialStockDraft = async (materialId: string) => {
-    const d = stockDraftByMaterial[materialId]
-    if (!d) return true
-    const { error } = await supabase
-      .from('materials')
-      .update({
-        stock_heads: parseInt(d.stock_heads, 10) || 0,
-        stock_handles: parseInt(d.stock_handles, 10) || 0,
-        stock_awl_handles: parseInt(d.stock_awl_handles, 10) || 0,
-        stock_square_scales: parseInt(d.stock_square_scales, 10) || 0,
-        stock_alert_threshold: parseInt(d.stock_alert_threshold, 10) || 3,
-      })
-      .eq('id', materialId)
-    if (error) {
-      console.error('[Stock] update error:', error)
-      alert(`Stock levels not saved: ${error.message}`)
-      return false
-    }
-    return true
-  }
-
   const persistMspUpsert = async (
     section: 'mallet' | 'awl' | 'square',
-    rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number }[]
+    rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number; stock: number }[]
   ) => {
     const normalized = rows.map((r) => ({
       material_id: r.material_id,
       base_price_id: r.base_price_id,
       position: r.position,
       premium: Math.round((Number.isFinite(r.premium) ? r.premium : 0) * 100) / 100,
+      stock: Number.isFinite(r.stock) ? r.stock : 0,
     }))
     console.log(`[MSP ${section}] upsert`, { count: normalized.length, sample: normalized[0] })
     const { data, error } = await supabase
@@ -431,7 +390,7 @@ export default function MaterialsAdminPage() {
         ignoreDuplicates: false,
         defaultToNull: false,
       })
-      .select('id, material_id, base_price_id, position, premium')
+      .select('id, material_id, base_price_id, position, premium, stock')
 
     if (error) {
       console.error(`[MSP ${section}] error:`, error)
@@ -446,24 +405,25 @@ export default function MaterialsAdminPage() {
     setSavingPricingSection('mallet')
     try {
       const malletStyles = basePrices.filter((b) => b.product_type === 'mallet')
-      const rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number }[] = []
+      const rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number; stock: number }[] = []
       for (const bp of malletStyles) {
         for (const pos of ['head', 'handle'] as const) {
           const key = pricingKey(materialId, bp.id, pos)
           const raw = pricingForm[key]
           const v = parseFloat(raw === undefined || raw === '' ? '0' : String(raw))
+          const stockRaw = pricingForm[key + '_stock']
+          const sv = parseInt(stockRaw === undefined || stockRaw === '' ? '0' : String(stockRaw), 10)
           rows.push({
             material_id: materialId,
             base_price_id: bp.id,
             position: pos,
             premium: Number.isFinite(v) ? v : 0,
+            stock: Number.isFinite(sv) ? sv : 0,
           })
         }
       }
       const ok = await persistMspUpsert('mallet', rows)
       if (!ok) return
-      const stockOk = await applyMaterialStockDraft(materialId)
-      if (!stockOk) return
       const fresh = await loadData()
       if (fresh) {
         setPricingForm((prev) => ({
@@ -484,22 +444,23 @@ export default function MaterialsAdminPage() {
     setSavingPricingSection('awl')
     try {
       const awlStyles = basePrices.filter((b) => b.product_type === 'awl')
-      const rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number }[] = []
+      const rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number; stock: number }[] = []
       for (const bp of awlStyles) {
         const key = pricingKey(materialId, bp.id, 'awl_handle')
         const raw = pricingForm[key]
         const v = parseFloat(raw === undefined || raw === '' ? '0' : String(raw))
+        const stockRaw = pricingForm[key + '_stock']
+        const sv = parseInt(stockRaw === undefined || stockRaw === '' ? '0' : String(stockRaw), 10)
         rows.push({
           material_id: materialId,
           base_price_id: bp.id,
           position: 'awl_handle',
           premium: Number.isFinite(v) ? v : 0,
+          stock: Number.isFinite(sv) ? sv : 0,
         })
       }
       const ok = await persistMspUpsert('awl', rows)
       if (!ok) return
-      const stockOk = await applyMaterialStockDraft(materialId)
-      if (!stockOk) return
       const fresh = await loadData()
       if (fresh) {
         setPricingForm((prev) => ({
@@ -520,22 +481,23 @@ export default function MaterialsAdminPage() {
     setSavingPricingSection('square')
     try {
       const squareStyles = basePrices.filter((b) => b.product_type === 'square')
-      const rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number }[] = []
+      const rows: { material_id: string; base_price_id: string; position: StylePricingPosition; premium: number; stock: number }[] = []
       for (const bp of squareStyles) {
         const key = pricingKey(materialId, bp.id, 'square_scale')
         const raw = pricingForm[key]
         const v = parseFloat(raw === undefined || raw === '' ? '0' : String(raw))
+        const stockRaw = pricingForm[key + '_stock']
+        const sv = parseInt(stockRaw === undefined || stockRaw === '' ? '0' : String(stockRaw), 10)
         rows.push({
           material_id: materialId,
           base_price_id: bp.id,
           position: 'square_scale',
           premium: Number.isFinite(v) ? v : 0,
+          stock: Number.isFinite(sv) ? sv : 0,
         })
       }
       const ok = await persistMspUpsert('square', rows)
       if (!ok) return
-      const stockOk = await applyMaterialStockDraft(materialId)
-      if (!stockOk) return
       const fresh = await loadData()
       if (fresh) {
         setPricingForm((prev) => ({
@@ -807,24 +769,36 @@ export default function MaterialsAdminPage() {
   const squareBasePrices = basePrices.filter((bp) => bp.product_type === 'square')
 
   const lowStockWarnings = useMemo(() => {
-    const out: { material: Material; app: string; count: number; threshold: number }[] = []
-    for (const m of woodMaterials) {
-      const t = m.stock_alert_threshold ?? 3
-      if (m.available_mallet_head !== false && (m.stock_heads ?? 0) <= t) {
-        out.push({ material: m, app: 'Mallet head', count: m.stock_heads ?? 0, threshold: t })
-      }
-      if (m.available_mallet_handle !== false && (m.stock_handles ?? 0) <= t) {
-        out.push({ material: m, app: 'Mallet handle', count: m.stock_handles ?? 0, threshold: t })
-      }
-      if (m.available_awl_handle !== false && (m.stock_awl_handles ?? 0) <= t) {
-        out.push({ material: m, app: 'Awl handle', count: m.stock_awl_handles ?? 0, threshold: t })
-      }
-      if (m.available_square_scale !== false && (m.stock_square_scales ?? 0) <= t) {
-        out.push({ material: m, app: 'Square scale', count: m.stock_square_scales ?? 0, threshold: t })
-      }
+    const posLabel: Record<string, string> = { head: 'Head', handle: 'Handle', awl_handle: 'Awl', square_scale: 'Scale' }
+    const posAvailField: Record<string, keyof Material> = {
+      head: 'available_mallet_head',
+      handle: 'available_mallet_handle',
+      awl_handle: 'available_awl_handle',
+      square_scale: 'available_square_scale',
+    }
+    const bpMap = new Map(basePrices.map((bp) => [bp.id, bp]))
+    const matMap = new Map(woodMaterials.map((m) => [m.id, m]))
+
+    const out: { material: Material; label: string; count: number }[] = []
+    for (const row of materialStylePricing) {
+      const mat = matMap.get(row.material_id)
+      if (!mat) continue
+      const avail = posAvailField[row.position]
+      if (avail && mat[avail] === false) continue
+      const s = typeof row.stock === 'number' ? row.stock : Number.parseInt(String(row.stock ?? '0'), 10)
+      if (s > 1) continue
+      const bp = bpMap.get(row.base_price_id)
+      const styleName = bp
+        ? bp.product_type === 'mallet'
+          ? styleAbbreviation(bp.style_name)
+          : bp.product_type === 'awl'
+            ? awlAbbreviation(bp.style_name)
+            : squareAbbreviation(bp.style_name)
+        : '?'
+      out.push({ material: mat, label: `${styleName} ${posLabel[row.position] ?? row.position}`, count: s })
     }
     return out.sort((a, b) => a.count - b.count || a.material.name.localeCompare(b.material.name))
-  }, [woodMaterials])
+  }, [woodMaterials, materialStylePricing, basePrices])
 
   if (loading) return <div className="container mx-auto px-4 py-12">Loading...</div>
 
@@ -851,11 +825,17 @@ export default function MaterialsAdminPage() {
           <div className="flex gap-3">
             <AlertTriangle className="h-5 w-5 shrink-0 text-amber-400 mt-0.5" aria-hidden />
             <div className="min-w-0 flex-1 space-y-1">
-              {lowStockWarnings.map((w, i) => (
-                <p key={`${w.material.id}-${w.app}-${i}`}>
-                  Low stock warning: {w.material.name} — {w.app} ({w.count} remaining)
-                </p>
-              ))}
+              {(() => {
+                const grouped = new Map<string, { name: string; items: string[] }>()
+                for (const w of lowStockWarnings) {
+                  const existing = grouped.get(w.material.id) || { name: w.material.name, items: [] }
+                  existing.items.push(`${w.label} (${w.count})`)
+                  grouped.set(w.material.id, existing)
+                }
+                return Array.from(grouped.entries()).map(([id, g]) => (
+                  <p key={id}>Low stock: {g.name} — {g.items.join(', ')}</p>
+                ))
+              })()}
             </div>
             <button
               type="button"
@@ -1080,23 +1060,16 @@ export default function MaterialsAdminPage() {
                   <th className="text-center p-2 text-zinc-300 w-14" title="Awl handle">Awl</th>
                   <th className="text-center p-2 text-zinc-300 w-14" title="Engineering square scale">Scale</th>
                   <th className="text-center p-2 text-zinc-300 w-14" title="Master on/off — hides from ENTIRE site (library, builders, shop)">Live</th>
-                  <th className="text-center p-2 text-zinc-300 w-16" title="Total stock (heads + handles + awl + scale)">
-                    Stock
+                  <th className="text-center p-2 text-zinc-300 w-10" title="Stock status across all style/position combos">
+                    Stk
                   </th>
                   <th className="text-center p-2 text-zinc-300">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {woodMaterials.map((mat) => {
-                  const stockDraft =
-                    stockDraftByMaterial[mat.id] ?? {
-                      stock_heads: String(mat.stock_heads ?? 0),
-                      stock_handles: String(mat.stock_handles ?? 0),
-                      stock_awl_handles: String(mat.stock_awl_handles ?? 0),
-                      stock_square_scales: String(mat.stock_square_scales ?? 0),
-                      stock_alert_threshold: String(mat.stock_alert_threshold ?? 3),
-                    }
-                  const stockThr = parseInt(stockDraft.stock_alert_threshold, 10) || 3
+                  const stockInd = mspStockIndicator(mat.id, materialStylePricing)
+                  const dotColor = stockInd.color === 'red' ? 'bg-red-500' : stockInd.color === 'orange' ? 'bg-orange-400' : 'bg-emerald-400'
                   return (
                   <Fragment key={mat.id}>
                   <tr className="border-b">
@@ -1193,11 +1166,8 @@ export default function MaterialsAdminPage() {
                             className="accent-brand-orange"
                           />
                         </td>
-                        <td
-                          className={`p-2 text-center text-sm ${stockTotalColorClass(mat)}`}
-                          title={stockBreakdownTitle(mat)}
-                        >
-                          {stockTotal(mat)}
+                        <td className="p-2 text-center" title={stockInd.tooltip}>
+                          <span className={`inline-block w-3 h-3 rounded-full ${dotColor}`} />
                         </td>
                         <td className="p-2">
                           <div className="flex gap-2 justify-center">
@@ -1298,11 +1268,8 @@ export default function MaterialsAdminPage() {
                             className="accent-brand-orange"
                           />
                         </td>
-                        <td
-                          className={`p-2 text-center text-sm ${stockTotalColorClass(mat)}`}
-                          title={stockBreakdownTitle(mat)}
-                        >
-                          {stockTotal(mat)}
+                        <td className="p-2 text-center" title={stockInd.tooltip}>
+                          <span className={`inline-block w-3 h-3 rounded-full ${dotColor}`} />
                         </td>
                         <td className="p-2">
                           <div className="flex gap-2 justify-center">
@@ -1321,89 +1288,31 @@ export default function MaterialsAdminPage() {
                     <tr>
                       <td colSpan={10} className="p-4 border-b border-zinc-800 bg-brand-dark-card bg-zinc-900/95">
                         <div className="space-y-8 overflow-x-auto text-zinc-200">
-                          <div className="flex flex-wrap items-end gap-4 text-xs border-b border-zinc-700/80 pb-3">
-                            <div>
-                              <label className="block text-zinc-400 mb-1">Stock alert threshold</label>
-                              <Input
-                                type="number"
-                                min={0}
-                                className={`w-20 h-8 text-xs ${inputDarkClass}`}
-                                value={stockDraft.stock_alert_threshold}
-                                onChange={(e) =>
-                                  setStockDraftByMaterial((prev) => ({
-                                    ...prev,
-                                    [mat.id]: { ...stockDraft, stock_alert_threshold: e.target.value },
-                                  }))
-                                }
-                              />
-                            </div>
-                          </div>
                           {((mat.available_mallet_head ?? true) || (mat.available_mallet_handle ?? true)) && malletBasePrices.length > 0 && (
                             <div className="space-y-3">
-                              <div className="flex flex-wrap items-end gap-4 text-xs">
-                                <div>
-                                  <label className="block text-zinc-400 mb-1">Head stock</label>
-                                  <div className="flex items-center gap-1">
-                                    <Input
-                                      type="number"
-                                      min={0}
-                                      className={`w-20 h-8 text-xs ${inputDarkClass} ${
-                                        (parseInt(stockDraft.stock_heads, 10) || 0) <= stockThr ? 'text-red-400 border-red-700' : ''
-                                      }`}
-                                      value={stockDraft.stock_heads}
-                                      onChange={(e) =>
-                                        setStockDraftByMaterial((prev) => ({
-                                          ...prev,
-                                          [mat.id]: { ...stockDraft, stock_heads: e.target.value },
-                                        }))
-                                      }
-                                    />
-                                    {(parseInt(stockDraft.stock_heads, 10) || 0) <= stockThr && (
-                                      <span title="At or below threshold" className="inline-flex">
-                                      <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" aria-hidden />
-                                    </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div>
-                                  <label className="block text-zinc-400 mb-1">Handle stock</label>
-                                  <div className="flex items-center gap-1">
-                                    <Input
-                                      type="number"
-                                      min={0}
-                                      className={`w-20 h-8 text-xs ${inputDarkClass} ${
-                                        (parseInt(stockDraft.stock_handles, 10) || 0) <= stockThr ? 'text-red-400 border-red-700' : ''
-                                      }`}
-                                      value={stockDraft.stock_handles}
-                                      onChange={(e) =>
-                                        setStockDraftByMaterial((prev) => ({
-                                          ...prev,
-                                          [mat.id]: { ...stockDraft, stock_handles: e.target.value },
-                                        }))
-                                      }
-                                    />
-                                    {(parseInt(stockDraft.stock_handles, 10) || 0) <= stockThr && (
-                                      <span title="At or below threshold" className="inline-flex">
-                                      <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" aria-hidden />
-                                    </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                              <p className="text-sm font-medium text-zinc-200">Mallet premiums (£)</p>
+                              <p className="text-sm font-medium text-zinc-200">Mallet — stock &amp; premiums</p>
                               <div className="inline-block min-w-full">
-                                <table className="w-full text-xs border-collapse border border-zinc-700">
+                                <table className="text-xs border-collapse border border-zinc-700">
                                   <thead>
                                     <tr>
-                                      <th className="border border-zinc-700 p-2 text-left bg-zinc-800 text-zinc-300">Position</th>
+                                      <th rowSpan={2} className="border border-zinc-700 p-2 text-left bg-zinc-800 text-zinc-300">Position</th>
                                       {malletBasePrices.map((bp) => (
                                         <th
                                           key={bp.id}
-                                          className="border border-zinc-700 p-2 text-center bg-zinc-800 text-zinc-300 min-w-[4rem]"
+                                          colSpan={2}
+                                          className="border border-zinc-700 p-1.5 text-center bg-zinc-800 text-zinc-300"
                                           title={bp.style_name}
                                         >
                                           {styleAbbreviation(bp.style_name)}
                                         </th>
+                                      ))}
+                                    </tr>
+                                    <tr>
+                                      {malletBasePrices.map((bp) => (
+                                        <Fragment key={bp.id}>
+                                          <th className="border border-zinc-700 px-1 py-0.5 text-center bg-zinc-800/60 text-zinc-400 w-14">Stk</th>
+                                          <th className="border border-zinc-700 px-1 py-0.5 text-center bg-zinc-800/60 text-zinc-400 w-20">£</th>
+                                        </Fragment>
                                       ))}
                                     </tr>
                                   </thead>
@@ -1415,21 +1324,30 @@ export default function MaterialsAdminPage() {
                                         </td>
                                         {malletBasePrices.map((bp) => {
                                           const key = pricingKey(mat.id, bp.id, pos)
+                                          const stockKey = key + '_stock'
+                                          const sv = parseInt(pricingForm[stockKey] ?? '0', 10)
+                                          const stockCls = sv === 0 ? 'bg-red-900/30 text-red-400' : sv === 1 ? 'bg-orange-900/30 text-orange-400' : ''
                                           return (
-                                            <td key={key} className="border border-zinc-700 p-1 bg-zinc-900/50">
-                                              <Input
-                                                type="number"
-                                                step="0.01"
-                                                className={`w-full h-8 text-right text-xs px-1 ${inputDarkClass}`}
-                                                value={pricingForm[key] ?? '0'}
-                                                onChange={(e) =>
-                                                  setPricingForm((prev) => ({
-                                                    ...prev,
-                                                    [key]: e.target.value,
-                                                  }))
-                                                }
-                                              />
-                                            </td>
+                                            <Fragment key={key}>
+                                              <td className={`border border-zinc-700 p-0.5 ${stockCls}`}>
+                                                <Input
+                                                  type="number"
+                                                  min={0}
+                                                  className={`w-14 h-8 text-center text-xs px-0.5 ${inputDarkClass} ${stockCls}`}
+                                                  value={pricingForm[stockKey] ?? '0'}
+                                                  onChange={(e) => setPricingForm((prev) => ({ ...prev, [stockKey]: e.target.value }))}
+                                                />
+                                              </td>
+                                              <td className="border border-zinc-700 p-0.5 bg-zinc-900/50">
+                                                <Input
+                                                  type="number"
+                                                  step="0.01"
+                                                  className={`w-20 h-8 text-right text-xs px-1 ${inputDarkClass}`}
+                                                  value={pricingForm[key] ?? '0'}
+                                                  onChange={(e) => setPricingForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                                                />
+                                              </td>
+                                            </Fragment>
                                           )
                                         })}
                                       </tr>
@@ -1451,46 +1369,29 @@ export default function MaterialsAdminPage() {
 
                           {(mat.available_awl_handle ?? true) && awlBasePrices.length > 0 && (
                             <div className="space-y-3">
-                              <div className="flex flex-wrap items-end gap-4 text-xs">
-                                <div>
-                                  <label className="block text-zinc-400 mb-1">Awl handle stock</label>
-                                  <div className="flex items-center gap-1">
-                                    <Input
-                                      type="number"
-                                      min={0}
-                                      className={`w-20 h-8 text-xs ${inputDarkClass} ${
-                                        (parseInt(stockDraft.stock_awl_handles, 10) || 0) <= stockThr ? 'text-red-400 border-red-700' : ''
-                                      }`}
-                                      value={stockDraft.stock_awl_handles}
-                                      onChange={(e) =>
-                                        setStockDraftByMaterial((prev) => ({
-                                          ...prev,
-                                          [mat.id]: { ...stockDraft, stock_awl_handles: e.target.value },
-                                        }))
-                                      }
-                                    />
-                                    {(parseInt(stockDraft.stock_awl_handles, 10) || 0) <= stockThr && (
-                                      <span title="At or below threshold" className="inline-flex">
-                                      <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" aria-hidden />
-                                    </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                              <p className="text-sm font-medium text-zinc-200">Awl handle premiums (£)</p>
+                              <p className="text-sm font-medium text-zinc-200">Awl — stock &amp; premiums</p>
                               <div className="inline-block min-w-full">
-                                <table className="w-full text-xs border-collapse border border-zinc-700">
+                                <table className="text-xs border-collapse border border-zinc-700">
                                   <thead>
                                     <tr>
-                                      <th className="border border-zinc-700 p-2 text-left bg-zinc-800 text-zinc-300">Style</th>
+                                      <th rowSpan={2} className="border border-zinc-700 p-2 text-left bg-zinc-800 text-zinc-300">Style</th>
                                       {awlBasePrices.map((bp) => (
                                         <th
                                           key={bp.id}
-                                          className="border border-zinc-700 p-2 text-center bg-zinc-800 text-zinc-300 min-w-[4rem]"
+                                          colSpan={2}
+                                          className="border border-zinc-700 p-1.5 text-center bg-zinc-800 text-zinc-300"
                                           title={bp.style_name}
                                         >
                                           {awlAbbreviation(bp.style_name)}
                                         </th>
+                                      ))}
+                                    </tr>
+                                    <tr>
+                                      {awlBasePrices.map((bp) => (
+                                        <Fragment key={bp.id}>
+                                          <th className="border border-zinc-700 px-1 py-0.5 text-center bg-zinc-800/60 text-zinc-400 w-14">Stk</th>
+                                          <th className="border border-zinc-700 px-1 py-0.5 text-center bg-zinc-800/60 text-zinc-400 w-20">£</th>
+                                        </Fragment>
                                       ))}
                                     </tr>
                                   </thead>
@@ -1499,21 +1400,30 @@ export default function MaterialsAdminPage() {
                                       <td className="border border-zinc-700 p-2 font-medium bg-zinc-900/80 text-zinc-200">Premium</td>
                                       {awlBasePrices.map((bp) => {
                                         const key = pricingKey(mat.id, bp.id, 'awl_handle')
+                                        const stockKey = key + '_stock'
+                                        const sv = parseInt(pricingForm[stockKey] ?? '0', 10)
+                                        const stockCls = sv === 0 ? 'bg-red-900/30 text-red-400' : sv === 1 ? 'bg-orange-900/30 text-orange-400' : ''
                                         return (
-                                          <td key={key} className="border border-zinc-700 p-1 bg-zinc-900/50">
-                                            <Input
-                                              type="number"
-                                              step="0.01"
-                                              className={`w-full h-8 text-right text-xs px-1 ${inputDarkClass}`}
-                                              value={pricingForm[key] ?? '0'}
-                                              onChange={(e) =>
-                                                setPricingForm((prev) => ({
-                                                  ...prev,
-                                                  [key]: e.target.value,
-                                                }))
-                                              }
-                                            />
-                                          </td>
+                                          <Fragment key={key}>
+                                            <td className={`border border-zinc-700 p-0.5 ${stockCls}`}>
+                                              <Input
+                                                type="number"
+                                                min={0}
+                                                className={`w-14 h-8 text-center text-xs px-0.5 ${inputDarkClass} ${stockCls}`}
+                                                value={pricingForm[stockKey] ?? '0'}
+                                                onChange={(e) => setPricingForm((prev) => ({ ...prev, [stockKey]: e.target.value }))}
+                                              />
+                                            </td>
+                                            <td className="border border-zinc-700 p-0.5 bg-zinc-900/50">
+                                              <Input
+                                                type="number"
+                                                step="0.01"
+                                                className={`w-20 h-8 text-right text-xs px-1 ${inputDarkClass}`}
+                                                value={pricingForm[key] ?? '0'}
+                                                onChange={(e) => setPricingForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                                              />
+                                            </td>
+                                          </Fragment>
                                         )
                                       })}
                                     </tr>
@@ -1534,46 +1444,29 @@ export default function MaterialsAdminPage() {
 
                           {(mat.available_square_scale ?? true) && squareBasePrices.length > 0 && (
                             <div className="space-y-3">
-                              <div className="flex flex-wrap items-end gap-4 text-xs">
-                                <div>
-                                  <label className="block text-zinc-400 mb-1">Scale stock</label>
-                                  <div className="flex items-center gap-1">
-                                    <Input
-                                      type="number"
-                                      min={0}
-                                      className={`w-20 h-8 text-xs ${inputDarkClass} ${
-                                        (parseInt(stockDraft.stock_square_scales, 10) || 0) <= stockThr ? 'text-red-400 border-red-700' : ''
-                                      }`}
-                                      value={stockDraft.stock_square_scales}
-                                      onChange={(e) =>
-                                        setStockDraftByMaterial((prev) => ({
-                                          ...prev,
-                                          [mat.id]: { ...stockDraft, stock_square_scales: e.target.value },
-                                        }))
-                                      }
-                                    />
-                                    {(parseInt(stockDraft.stock_square_scales, 10) || 0) <= stockThr && (
-                                      <span title="At or below threshold" className="inline-flex">
-                                      <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" aria-hidden />
-                                    </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                              <p className="text-sm font-medium text-zinc-200">Square scale premiums (£)</p>
+                              <p className="text-sm font-medium text-zinc-200">Square — stock &amp; premiums</p>
                               <div className="inline-block min-w-full">
-                                <table className="w-full text-xs border-collapse border border-zinc-700">
+                                <table className="text-xs border-collapse border border-zinc-700">
                                   <thead>
                                     <tr>
-                                      <th className="border border-zinc-700 p-2 text-left bg-zinc-800 text-zinc-300">Size</th>
+                                      <th rowSpan={2} className="border border-zinc-700 p-2 text-left bg-zinc-800 text-zinc-300">Size</th>
                                       {squareBasePrices.map((bp) => (
                                         <th
                                           key={bp.id}
-                                          className="border border-zinc-700 p-2 text-center bg-zinc-800 text-zinc-300 min-w-[3.5rem]"
+                                          colSpan={2}
+                                          className="border border-zinc-700 p-1.5 text-center bg-zinc-800 text-zinc-300"
                                           title={bp.style_name}
                                         >
                                           {squareAbbreviation(bp.style_name)}
                                         </th>
+                                      ))}
+                                    </tr>
+                                    <tr>
+                                      {squareBasePrices.map((bp) => (
+                                        <Fragment key={bp.id}>
+                                          <th className="border border-zinc-700 px-1 py-0.5 text-center bg-zinc-800/60 text-zinc-400 w-14">Stk</th>
+                                          <th className="border border-zinc-700 px-1 py-0.5 text-center bg-zinc-800/60 text-zinc-400 w-20">£</th>
+                                        </Fragment>
                                       ))}
                                     </tr>
                                   </thead>
@@ -1582,21 +1475,30 @@ export default function MaterialsAdminPage() {
                                       <td className="border border-zinc-700 p-2 font-medium bg-zinc-900/80 text-zinc-200">Premium</td>
                                       {squareBasePrices.map((bp) => {
                                         const key = pricingKey(mat.id, bp.id, 'square_scale')
+                                        const stockKey = key + '_stock'
+                                        const sv = parseInt(pricingForm[stockKey] ?? '0', 10)
+                                        const stockCls = sv === 0 ? 'bg-red-900/30 text-red-400' : sv === 1 ? 'bg-orange-900/30 text-orange-400' : ''
                                         return (
-                                          <td key={key} className="border border-zinc-700 p-1 bg-zinc-900/50">
-                                            <Input
-                                              type="number"
-                                              step="0.01"
-                                              className={`w-full h-8 text-right text-xs px-1 ${inputDarkClass}`}
-                                              value={pricingForm[key] ?? '0'}
-                                              onChange={(e) =>
-                                                setPricingForm((prev) => ({
-                                                  ...prev,
-                                                  [key]: e.target.value,
-                                                }))
-                                              }
-                                            />
-                                          </td>
+                                          <Fragment key={key}>
+                                            <td className={`border border-zinc-700 p-0.5 ${stockCls}`}>
+                                              <Input
+                                                type="number"
+                                                min={0}
+                                                className={`w-14 h-8 text-center text-xs px-0.5 ${inputDarkClass} ${stockCls}`}
+                                                value={pricingForm[stockKey] ?? '0'}
+                                                onChange={(e) => setPricingForm((prev) => ({ ...prev, [stockKey]: e.target.value }))}
+                                              />
+                                            </td>
+                                            <td className="border border-zinc-700 p-0.5 bg-zinc-900/50">
+                                              <Input
+                                                type="number"
+                                                step="0.01"
+                                                className={`w-20 h-8 text-right text-xs px-1 ${inputDarkClass}`}
+                                                value={pricingForm[key] ?? '0'}
+                                                onChange={(e) => setPricingForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                                              />
+                                            </td>
+                                          </Fragment>
                                         )
                                       })}
                                     </tr>
