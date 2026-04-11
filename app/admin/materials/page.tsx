@@ -93,6 +93,12 @@ function squareAbbreviation(styleName: string): string {
   return num ? `${num} ${ti ? 'Ti' : 'TS'}` : styleAbbreviation(styleName)
 }
 
+/** Blank group for mallet styles: SCM & TCM → "CM", SDM & TDM → "DM", SJM & TJM → "JM" */
+function malletBlankGroup(styleName: string): string {
+  const abbr = styleAbbreviation(styleName)
+  return abbr.length > 1 ? abbr.slice(1) : abbr
+}
+
 function pricingKey(materialId: string, basePriceId: string, position: StylePricingPosition | string) {
   return `${materialId}_${basePriceId}_${position}`
 }
@@ -363,10 +369,37 @@ export default function MaterialsAdminPage() {
     }
   }
 
+  const normalizeMalletStock = (slice: Record<string, string>, materialId: string) => {
+    const groups = new Map<string, BasePrice[]>()
+    for (const bp of malletBasePrices) {
+      const g = malletBlankGroup(bp.style_name)
+      const arr = groups.get(g) || []
+      arr.push(bp)
+      groups.set(g, arr)
+    }
+    const result = { ...slice }
+    for (const [, bps] of groups) {
+      if (bps.length < 2) continue
+      for (const pos of ['head', 'handle'] as const) {
+        let min = Infinity
+        for (const bp of bps) {
+          const v = Number.parseInt(result[pricingKey(materialId, bp.id, pos) + '_stock'] ?? '0', 10)
+          if (v < min) min = v
+        }
+        const val = String(min === Infinity ? 0 : min)
+        for (const bp of bps) {
+          result[pricingKey(materialId, bp.id, pos) + '_stock'] = val
+        }
+      }
+    }
+    return result
+  }
+
   const openPricingGrid = (materialId: string) => {
+    const slice = buildPricingFormSliceForMaterial(materialId, materialStylePricing, basePrices)
     setPricingForm((prev) => ({
       ...prev,
-      ...buildPricingFormSliceForMaterial(materialId, materialStylePricing, basePrices),
+      ...normalizeMalletStock(slice, materialId),
     }))
     setExpandedPricingMaterialId(materialId)
   }
@@ -426,10 +459,8 @@ export default function MaterialsAdminPage() {
       if (!ok) return
       const fresh = await loadData()
       if (fresh) {
-        setPricingForm((prev) => ({
-          ...prev,
-          ...buildPricingFormSliceForMaterial(materialId, fresh.mspRows, fresh.basePrices),
-        }))
+        const slice = buildPricingFormSliceForMaterial(materialId, fresh.mspRows, fresh.basePrices)
+        setPricingForm((prev) => ({ ...prev, ...normalizeMalletStock(slice, materialId) }))
       }
       alert('Saved successfully')
     } catch (e) {
@@ -463,10 +494,8 @@ export default function MaterialsAdminPage() {
       if (!ok) return
       const fresh = await loadData()
       if (fresh) {
-        setPricingForm((prev) => ({
-          ...prev,
-          ...buildPricingFormSliceForMaterial(materialId, fresh.mspRows, fresh.basePrices),
-        }))
+        const slice = buildPricingFormSliceForMaterial(materialId, fresh.mspRows, fresh.basePrices)
+        setPricingForm((prev) => ({ ...prev, ...normalizeMalletStock(slice, materialId) }))
       }
       alert('Saved successfully')
     } catch (e) {
@@ -500,10 +529,8 @@ export default function MaterialsAdminPage() {
       if (!ok) return
       const fresh = await loadData()
       if (fresh) {
-        setPricingForm((prev) => ({
-          ...prev,
-          ...buildPricingFormSliceForMaterial(materialId, fresh.mspRows, fresh.basePrices),
-        }))
+        const slice = buildPricingFormSliceForMaterial(materialId, fresh.mspRows, fresh.basePrices)
+        setPricingForm((prev) => ({ ...prev, ...normalizeMalletStock(slice, materialId) }))
       }
       alert('Saved successfully')
     } catch (e) {
@@ -768,6 +795,21 @@ export default function MaterialsAdminPage() {
   const awlBasePrices = basePrices.filter((bp) => bp.product_type === 'awl')
   const squareBasePrices = basePrices.filter((bp) => bp.product_type === 'square')
 
+  const malletStockPartners = useMemo(() => {
+    const groups = new Map<string, string[]>()
+    for (const bp of malletBasePrices) {
+      const g = malletBlankGroup(bp.style_name)
+      const arr = groups.get(g) || []
+      arr.push(bp.id)
+      groups.set(g, arr)
+    }
+    const partners = new Map<string, string[]>()
+    for (const [, ids] of groups) {
+      for (const id of ids) partners.set(id, ids.filter((x) => x !== id))
+    }
+    return partners
+  }, [malletBasePrices])
+
   const lowStockWarnings = useMemo(() => {
     const posLabel: Record<string, string> = { head: 'Head', handle: 'Handle', awl_handle: 'Awl', square_scale: 'Scale' }
     const posAvailField: Record<string, keyof Material> = {
@@ -779,6 +821,7 @@ export default function MaterialsAdminPage() {
     const bpMap = new Map(basePrices.map((bp) => [bp.id, bp]))
     const matMap = new Map(woodMaterials.map((m) => [m.id, m]))
 
+    const seenMalletBlank = new Set<string>()
     const out: { material: Material; label: string; count: number }[] = []
     for (const row of materialStylePricing) {
       const mat = matMap.get(row.material_id)
@@ -788,17 +831,24 @@ export default function MaterialsAdminPage() {
       const s = typeof row.stock === 'number' ? row.stock : Number.parseInt(String(row.stock ?? '0'), 10)
       if (s > 1) continue
       const bp = bpMap.get(row.base_price_id)
-      const styleName = bp
-        ? bp.product_type === 'mallet'
-          ? styleAbbreviation(bp.style_name)
-          : bp.product_type === 'awl'
-            ? awlAbbreviation(bp.style_name)
-            : squareAbbreviation(bp.style_name)
-        : '?'
-      out.push({ material: mat, label: `${styleName} ${posLabel[row.position] ?? row.position}`, count: s })
+      if (!bp) continue
+
+      if (bp.product_type === 'mallet') {
+        const blankKey = `${row.material_id}_${malletBlankGroup(bp.style_name)}_${row.position}`
+        if (seenMalletBlank.has(blankKey)) continue
+        seenMalletBlank.add(blankKey)
+        const group = malletBlankGroup(bp.style_name)
+        const groupAbbrs = malletBasePrices
+          .filter((b) => malletBlankGroup(b.style_name) === group)
+          .map((b) => styleAbbreviation(b.style_name))
+        out.push({ material: mat, label: `${groupAbbrs.join('/')} ${posLabel[row.position] ?? row.position}`, count: s })
+      } else {
+        const styleName = bp.product_type === 'awl' ? awlAbbreviation(bp.style_name) : squareAbbreviation(bp.style_name)
+        out.push({ material: mat, label: `${styleName} ${posLabel[row.position] ?? row.position}`, count: s })
+      }
     }
     return out.sort((a, b) => a.count - b.count || a.material.name.localeCompare(b.material.name))
-  }, [woodMaterials, materialStylePricing, basePrices])
+  }, [woodMaterials, materialStylePricing, basePrices, malletBasePrices])
 
   if (loading) return <div className="container mx-auto px-4 py-12">Loading...</div>
 
@@ -1291,6 +1341,7 @@ export default function MaterialsAdminPage() {
                           {((mat.available_mallet_head ?? true) || (mat.available_mallet_handle ?? true)) && malletBasePrices.length > 0 && (
                             <div className="space-y-3">
                               <p className="text-sm font-medium text-zinc-200">Mallet — stock &amp; premiums</p>
+                              <p className="text-xs text-zinc-500">Stock is shared per blank size: S + T variants mirror (SCM↔TCM, SDM↔TDM, SJM↔TJM)</p>
                               <div className="inline-block min-w-full">
                                 <table className="text-xs border-collapse border border-zinc-700">
                                   <thead>
@@ -1325,8 +1376,9 @@ export default function MaterialsAdminPage() {
                                         {malletBasePrices.map((bp) => {
                                           const key = pricingKey(mat.id, bp.id, pos)
                                           const stockKey = key + '_stock'
-                                          const sv = parseInt(pricingForm[stockKey] ?? '0', 10)
+                                          const sv = Number.parseInt(pricingForm[stockKey] ?? '0', 10)
                                           const stockCls = sv === 0 ? 'bg-red-900/30 text-red-400' : sv === 1 ? 'bg-orange-900/30 text-orange-400' : ''
+                                          const partners = malletStockPartners.get(bp.id) || []
                                           return (
                                             <Fragment key={key}>
                                               <td className={`border border-zinc-700 p-0.5 ${stockCls}`}>
@@ -1335,7 +1387,16 @@ export default function MaterialsAdminPage() {
                                                   min={0}
                                                   className={`w-14 h-8 text-center text-xs px-0.5 ${inputDarkClass} ${stockCls}`}
                                                   value={pricingForm[stockKey] ?? '0'}
-                                                  onChange={(e) => setPricingForm((prev) => ({ ...prev, [stockKey]: e.target.value }))}
+                                                  onChange={(e) => {
+                                                    const v = e.target.value
+                                                    setPricingForm((prev) => {
+                                                      const next = { ...prev, [stockKey]: v }
+                                                      for (const pid of partners) {
+                                                        next[pricingKey(mat.id, pid, pos) + '_stock'] = v
+                                                      }
+                                                      return next
+                                                    })
+                                                  }}
                                                 />
                                               </td>
                                               <td className="border border-zinc-700 p-0.5 bg-zinc-900/50">
