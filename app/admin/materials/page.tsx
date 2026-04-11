@@ -1100,20 +1100,20 @@ export default function MaterialsAdminPage() {
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead>
+              <thead className="sticky top-0 z-20">
                 <tr className="border-b border-zinc-700">
-                  <th className="text-left p-2 text-zinc-300">Material</th>
-                  <th className="text-center p-2 text-zinc-300">Grain</th>
-                  <th className="text-center p-2 text-zinc-300">Mallet (per style)</th>
-                  <th className="text-center p-2 text-zinc-300 w-14" title="Mallet head">Head</th>
-                  <th className="text-center p-2 text-zinc-300 w-14" title="Mallet handle">Handle</th>
-                  <th className="text-center p-2 text-zinc-300 w-14" title="Awl handle">Awl</th>
-                  <th className="text-center p-2 text-zinc-300 w-14" title="Engineering square scale">Scale</th>
-                  <th className="text-center p-2 text-zinc-300 w-14" title="Master on/off — hides from ENTIRE site (library, builders, shop)">Live</th>
-                  <th className="text-center p-2 text-zinc-300 w-10" title="Stock status across all style/position combos">
+                  <th className="text-left p-2 text-zinc-300 bg-zinc-950">Material</th>
+                  <th className="text-center p-2 text-zinc-300 bg-zinc-950">Grain</th>
+                  <th className="text-center p-2 text-zinc-300 bg-zinc-950">Mallet (per style)</th>
+                  <th className="text-center p-2 text-zinc-300 w-14 bg-zinc-950" title="Mallet head">Head</th>
+                  <th className="text-center p-2 text-zinc-300 w-14 bg-zinc-950" title="Mallet handle">Handle</th>
+                  <th className="text-center p-2 text-zinc-300 w-14 bg-zinc-950" title="Awl handle">Awl</th>
+                  <th className="text-center p-2 text-zinc-300 w-14 bg-zinc-950" title="Engineering square scale">Scale</th>
+                  <th className="text-center p-2 text-zinc-300 w-14 bg-zinc-950" title="Master on/off — hides from ENTIRE site (library, builders, shop)">Live</th>
+                  <th className="text-center p-2 text-zinc-300 w-10 bg-zinc-950" title="Stock status across all style/position combos">
                     Stk
                   </th>
-                  <th className="text-center p-2 text-zinc-300">Actions</th>
+                  <th className="text-center p-2 text-zinc-300 bg-zinc-950">Actions</th>
                 </tr>
               </thead>
               <tbody>
