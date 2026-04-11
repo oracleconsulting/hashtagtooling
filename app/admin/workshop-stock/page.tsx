@@ -291,10 +291,15 @@ function WorkshopStockInner() {
   const generateBatchSkus = async () => {
     const count = Number.parseInt(addForm.batchCount, 10) || 1
     if (!addForm.skuPrefix.trim()) return
+    const prefix = addForm.skuPrefix.trim().toUpperCase()
     const skus: string[] = []
     for (let i = 0; i < count; i++) {
-      const { data, error } = await supabase.rpc('generate_sku', { prefix_code: addForm.skuPrefix.trim().toUpperCase() })
-      if (error) { alert(error.message); return }
+      const { data, error } = await supabase.rpc('generate_sku', { prefix_code: prefix })
+      if (error) {
+        console.error('[workshop-stock] SKU generation error:', error)
+        alert(`SKU generation failed: ${error.message || JSON.stringify(error)}`)
+        return
+      }
       skus.push((data as string) || '')
     }
     return skus
@@ -335,7 +340,8 @@ function WorkshopStockInner() {
       setAddingFiles([])
       await loadAll()
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
+      console.error('[workshop-stock] save error:', e)
+      const msg = e instanceof Error ? e.message : (e as Record<string, unknown>)?.message || JSON.stringify(e)
       alert(`Failed to add: ${msg}`)
     } finally {
       setSaving(false)
@@ -347,7 +353,7 @@ function WorkshopStockInner() {
     setSaving(true)
     try {
       const skus = await generateBatchSkus()
-      if (!skus || skus.length === 0) return
+      if (!skus || skus.length === 0) { setSaving(false); return }
       const rows = skus.map((sku) => ({
         material_id: addForm.material_id,
         sku,
@@ -363,13 +369,15 @@ function WorkshopStockInner() {
         notes: addForm.notes || null,
         images: [],
       }))
+      console.log('[workshop-stock] inserting batch:', rows.length, 'rows, first:', rows[0])
       const { error } = await supabase.from('workshop_stock').insert(rows)
       if (error) throw error
       setShowAddForm(false)
       setAddForm(emptyAddForm())
       await loadAll()
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
+      console.error('[workshop-stock] batch add error:', e)
+      const msg = e instanceof Error ? e.message : (e as Record<string, unknown>)?.message || JSON.stringify(e)
       alert(`Batch add failed: ${msg}`)
     } finally {
       setSaving(false)
