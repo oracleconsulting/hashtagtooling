@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
-import { Plus, Pencil, Trash2, ArrowLeft, Upload, Loader2, AlertTriangle, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, ArrowLeft, Upload, Loader2, AlertTriangle, X, Package } from 'lucide-react'
 import { compressImage } from '@/lib/image-utils'
 
 interface Material {
@@ -866,6 +866,11 @@ export default function MaterialsAdminPage() {
             Products
           </Button>
         </Link>
+        <Link href="/admin/workshop-stock">
+          <Button variant="outline" size="sm">
+            Workshop Stock
+          </Button>
+        </Link>
       </div>
 
       <h1 className="text-4xl font-bold mb-8">Materials & Pricing</h1>
@@ -1323,6 +1328,11 @@ export default function MaterialsAdminPage() {
                         </td>
                         <td className="p-2">
                           <div className="flex gap-2 justify-center">
+                            <Link href={`/admin/workshop-stock?material=${mat.id}`}>
+                              <Button size="sm" variant="outline" title="Workshop stock for this species">
+                                <Package className="h-4 w-4" />
+                              </Button>
+                            </Link>
                             <Button size="sm" variant="outline" onClick={() => setEditingMaterial(mat)}>
                               <Pencil className="h-4 w-4" />
                             </Button>

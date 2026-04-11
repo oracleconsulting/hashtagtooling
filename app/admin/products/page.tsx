@@ -121,6 +121,11 @@ export default function AdminProductsPage() {
               Inventory
             </Button>
           </Link>
+          <Link href="/admin/workshop-stock">
+            <Button size="lg" variant="outline">
+              Workshop Stock
+            </Button>
+          </Link>
           <Link href="/admin/orders">
             <Button size="lg" variant="outline">
               Orders

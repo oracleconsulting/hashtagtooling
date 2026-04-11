@@ -907,6 +907,11 @@ export default function AdminInventoryPage() {
               Products
             </Button>
           </Link>
+          <Link href="/admin/workshop-stock">
+            <Button variant="outline" size="sm">
+              Workshop Stock
+            </Button>
+          </Link>
           <Button size="sm" onClick={printLabels}>
             <Printer className="mr-2 h-4 w-4" />
             Print labels

@@ -46,6 +46,9 @@ export default function AdminDashboardPage() {
     referralCodesGenerated: 0,
     referralUses: 0,
     referralRewardsGiven: 0,
+    workshopStockTotal: 0,
+    workshopStockAvailable: 0,
+    workshopStockReserved: 0,
   })
   const [recentOrders, setRecentOrders] = useState<Order[]>([])
   const [recentCommissions, setRecentCommissions] = useState<Commission[]>([])
@@ -63,7 +66,7 @@ export default function AdminDashboardPage() {
     try {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
-      const [productsRes, inventorySkuRes, ordersCountRes, ordersRes, commissionsRes, inStockRes, ordersListRes, commissionsListRes, newsletterRes, newsletterWithVoucherRes, newsletterThisMonthRes, launchTotalRes, launchRedeemedRes, launchActiveRes, referralCodesRes, referralUsesRes, referralRewardsRes] = await Promise.all([
+      const [productsRes, inventorySkuRes, ordersCountRes, ordersRes, commissionsRes, inStockRes, ordersListRes, commissionsListRes, newsletterRes, newsletterWithVoucherRes, newsletterThisMonthRes, launchTotalRes, launchRedeemedRes, launchActiveRes, referralCodesRes, referralUsesRes, referralRewardsRes, wsAllRes, wsAvailRes, wsReservedRes] = await Promise.all([
         supabase.from('products').select('id', { count: 'exact', head: true }),
         supabase.from('products').select('id', { count: 'exact', head: true }).not('sku', 'is', null),
         supabase.from('orders').select('id', { count: 'exact', head: true }),
@@ -81,6 +84,9 @@ export default function AdminDashboardPage() {
         supabase.from('referral_codes').select('id', { count: 'exact', head: true }),
         supabase.from('referral_uses').select('id', { count: 'exact', head: true }),
         supabase.from('referral_uses').select('id').eq('reward_generated', true),
+        supabase.from('workshop_stock').select('id', { count: 'exact', head: true }),
+        supabase.from('workshop_stock').select('id', { count: 'exact', head: true }).eq('status', 'available'),
+        supabase.from('workshop_stock').select('id', { count: 'exact', head: true }).eq('status', 'reserved'),
       ])
 
       const totalProducts = productsRes.count ?? 0
@@ -110,6 +116,9 @@ export default function AdminDashboardPage() {
         referralCodesGenerated: referralCodesRes.count ?? 0,
         referralUses: referralUsesRes.count ?? 0,
         referralRewardsGiven: referralRewardsCount,
+        workshopStockTotal: wsAllRes.count ?? 0,
+        workshopStockAvailable: wsAvailRes.count ?? 0,
+        workshopStockReserved: wsReservedRes.count ?? 0,
       })
       setRecentOrders((ordersListRes.data ?? []) as Order[])
       setRecentCommissions((commissionsListRes.data ?? []) as Commission[])
@@ -155,6 +164,9 @@ export default function AdminDashboardPage() {
           </Link>
           <Link href="/admin/materials">
             <Button variant="outline" size="sm">Materials</Button>
+          </Link>
+          <Link href="/admin/workshop-stock">
+            <Button variant="outline" size="sm">Workshop Stock</Button>
           </Link>
           <Link href="/admin/site-images">
             <Button variant="outline" size="sm">Site Images</Button>
@@ -220,6 +232,15 @@ export default function AdminDashboardPage() {
             <p className="text-zinc-500 text-xs">{stats.referralUses} uses, £{stats.referralRewardsGiven * 10} rewards given</p>
           </CardContent>
         </Card>
+        <Link href="/admin/workshop-stock">
+          <Card className="bg-brand-dark-card border border-brand-dark-border hover:border-brand-orange/50 transition-colors cursor-pointer">
+            <CardContent className="p-6">
+              <p className="text-3xl font-bold text-brand-orange">{stats.workshopStockTotal}</p>
+              <p className="text-zinc-400 text-sm mt-1">Workshop Stock</p>
+              <p className="text-zinc-500 text-xs">{stats.workshopStockAvailable} available · {stats.workshopStockReserved} reserved</p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
