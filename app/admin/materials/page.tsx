@@ -1097,8 +1097,8 @@ export default function MaterialsAdminPage() {
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
+        <CardContent className="p-0">
+          <div className="overflow-auto max-h-[calc(100vh-10rem)]">
             <table className="w-full">
               <thead className="sticky top-0 z-20">
                 <tr className="border-b border-zinc-700">
@@ -1726,7 +1726,7 @@ export default function MaterialsAdminPage() {
           </div>
 
           {showAddMaterial && (
-            <div className="mt-4 p-4 border border-zinc-700 rounded bg-brand-dark-card bg-zinc-900/80">
+            <div className="mx-6 mb-6 mt-4 p-4 border border-zinc-700 rounded bg-brand-dark-card bg-zinc-900/80">
               <h4 className="font-semibold mb-3 text-zinc-200">Add Material</h4>
               <div className="grid grid-cols-2 gap-3">
                 <Input
