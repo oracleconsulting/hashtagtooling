@@ -281,28 +281,32 @@ function WorkshopStockInner() {
 
   /* ─── add piece ──────────────────────────────────────────────────── */
 
-  const generateSku = async () => {
-    if (!addForm.skuPrefix.trim()) return
-    const { data, error } = await supabase.rpc('generate_sku', { prefix_code: addForm.skuPrefix.trim().toUpperCase() })
-    if (error) { alert(error.message); return }
-    setAddForm((f) => ({ ...f, sku: (data as string) || '' }))
+  const generateSequentialSkus = async (prefix: string, count: number): Promise<string[]> => {
+    const [wsRes, prodRes] = await Promise.all([
+      supabase.from('workshop_stock').select('sku').like('sku', `${prefix}-%`).order('sku', { ascending: false }).limit(1),
+      supabase.from('products').select('sku').like('sku', `${prefix}-%`).order('sku', { ascending: false }).limit(1),
+    ])
+    const parseNum = (sku: string) => { const m = sku.match(/-(\d+)$/); return m ? Number.parseInt(m[1], 10) : 0 }
+    let maxNum = 0
+    if (wsRes.data?.[0]?.sku) maxNum = Math.max(maxNum, parseNum(wsRes.data[0].sku as string))
+    if (prodRes.data?.[0]?.sku) maxNum = Math.max(maxNum, parseNum(prodRes.data[0].sku as string))
+
+    const skus = Array.from({ length: count }, (_, i) => `${prefix}-${String(maxNum + 1 + i).padStart(3, '0')}`)
+
+    await supabase.from('sku_sequences').upsert({ prefix, next_number: maxNum + count + 1 }, { onConflict: 'prefix' })
+    return skus
   }
 
-  const generateBatchSkus = async () => {
-    const count = Number.parseInt(addForm.batchCount, 10) || 1
+  const generateSku = async () => {
     if (!addForm.skuPrefix.trim()) return
     const prefix = addForm.skuPrefix.trim().toUpperCase()
-    const skus: string[] = []
-    for (let i = 0; i < count; i++) {
-      const { data, error } = await supabase.rpc('generate_sku', { prefix_code: prefix })
-      if (error) {
-        console.error('[workshop-stock] SKU generation error:', error)
-        alert(`SKU generation failed: ${error.message || JSON.stringify(error)}`)
-        return
-      }
-      skus.push((data as string) || '')
+    try {
+      const [sku] = await generateSequentialSkus(prefix, 1)
+      setAddForm((f) => ({ ...f, sku }))
+    } catch (e) {
+      console.error('[workshop-stock] SKU generation error:', e)
+      alert(`SKU generation failed: ${(e as Record<string, unknown>)?.message || JSON.stringify(e)}`)
     }
-    return skus
   }
 
   const savePiece = async () => {
@@ -349,11 +353,11 @@ function WorkshopStockInner() {
   }
 
   const saveBatch = async () => {
-    if (!addForm.material_id) { alert('Select a species'); return }
+    if (!addForm.material_id || !addForm.skuPrefix.trim()) { alert('Select a species and set a SKU prefix'); return }
     setSaving(true)
     try {
-      const skus = await generateBatchSkus()
-      if (!skus || skus.length === 0) { setSaving(false); return }
+      const count = Number.parseInt(addForm.batchCount, 10) || 1
+      const skus = await generateSequentialSkus(addForm.skuPrefix.trim().toUpperCase(), count)
       const rows = skus.map((sku) => ({
         material_id: addForm.material_id,
         sku,
