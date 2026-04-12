@@ -169,7 +169,7 @@ interface IntakeLineItem {
   notes: string
 }
 
-const INTAKE_LINES_TEMPLATE: Omit<IntakeLineItem, 'count' | 'dimensions' | 'drawer_number' | 'grade' | 'notes' | 'cutFor'>[] = [
+const INTAKE_LINES_TEMPLATE: Omit<IntakeLineItem, 'count' | 'dimensions' | 'drawer_number' | 'grade' | 'notes' | 'cutFor' | 'is_cut'>[] = [
   { positions: ['head', 'handle'], label: 'SJM / TJM blanks', tag: 'SJM/TJM', isMallet: true },
   { positions: ['head', 'handle'], label: 'SDM / TDM blanks', tag: 'SDM/TDM', isMallet: true },
   { positions: ['head', 'handle'], label: 'SCM / TCM blanks', tag: 'SCM/TCM', isMallet: true },
