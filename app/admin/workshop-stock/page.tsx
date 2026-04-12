@@ -136,6 +136,7 @@ async function uploadStockImages(stockId: string, files: File[]): Promise<{ urls
 interface IntakeLineItem {
   position: SuitableFor
   label: string
+  tag: string
   count: string
   dimensions: string
   drawer_number: string
@@ -143,8 +144,19 @@ interface IntakeLineItem {
   notes: string
 }
 
-function emptyLineItem(position: SuitableFor, label: string): IntakeLineItem {
-  return { position, label, count: '0', dimensions: '', drawer_number: '', grade: '', notes: '' }
+const INTAKE_LINES_TEMPLATE: Omit<IntakeLineItem, 'count' | 'dimensions' | 'drawer_number' | 'grade' | 'notes'>[] = [
+  { position: 'head',         label: 'SJM / TJM Heads',    tag: 'SJM/TJM head' },
+  { position: 'handle',       label: 'SJM / TJM Handles',  tag: 'SJM/TJM handle' },
+  { position: 'head',         label: 'SDM / TDM Heads',    tag: 'SDM/TDM head' },
+  { position: 'handle',       label: 'SDM / TDM Handles',  tag: 'SDM/TDM handle' },
+  { position: 'head',         label: 'SCM / TCM Heads',    tag: 'SCM/TCM head' },
+  { position: 'handle',       label: 'SCM / TCM Handles',  tag: 'SCM/TCM handle' },
+  { position: 'awl_handle',   label: 'Awl blanks',         tag: 'awl' },
+  { position: 'square_scale', label: 'Scale blanks',       tag: 'scale' },
+]
+
+function emptyLineItem(tpl: typeof INTAKE_LINES_TEMPLATE[number]): IntakeLineItem {
+  return { ...tpl, count: '0', dimensions: '', drawer_number: '', grade: '', notes: '' }
 }
 
 interface AddForm {
@@ -178,12 +190,7 @@ function emptyAddForm(materialId?: string, materialName?: string): AddForm {
     location_notes: '',
     notes: '',
     mode: 'intake',
-    lines: [
-      emptyLineItem('head', 'Head blanks'),
-      emptyLineItem('handle', 'Handle blanks'),
-      emptyLineItem('awl_handle', 'Awl blanks'),
-      emptyLineItem('square_scale', 'Scale blanks'),
-    ],
+    lines: INTAKE_LINES_TEMPLATE.map(emptyLineItem),
     dimensions: '',
     weight_grams: '',
     drawer_number: '',
@@ -438,7 +445,7 @@ function WorkshopStockInner() {
             location_notes: addForm.location_notes || null,
             suitable_for: [line.position],
             grade: line.grade || null,
-            notes: [addForm.notes, line.notes].filter(Boolean).join(' — ') || null,
+            notes: [line.tag, addForm.notes, line.notes].filter(Boolean).join(' — ') || null,
             images: [],
           })
         }
@@ -695,9 +702,10 @@ function WorkshopStockInner() {
                     <tbody>
                       {addForm.lines.map((line, idx) => {
                         const cnt = Number.parseInt(line.count, 10) || 0
+                        const isGroupBreak = idx === 6
                         return (
-                          <tr key={line.position} className={`border-t border-zinc-700/50 ${cnt > 0 ? 'bg-zinc-800/30' : ''}`}>
-                            <td className="px-3 py-2 font-medium text-zinc-200">{line.label}</td>
+                          <tr key={line.tag} className={`border-t ${isGroupBreak ? 'border-zinc-500' : 'border-zinc-700/50'} ${cnt > 0 ? 'bg-zinc-800/30' : ''}`}>
+                            <td className="px-3 py-2 font-medium text-zinc-200 whitespace-nowrap">{line.label}</td>
                             <td className="px-2 py-2">
                               <Input
                                 type="number"
