@@ -304,7 +304,7 @@ function WorkshopStockInner() {
       .map(([matId, pieces]) => ({
         material: materials.find((m) => m.id === matId),
         materialId: matId,
-        pieces,
+        pieces: pieces.sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true })),
       }))
       .filter((g) => g.material)
       .sort((a, b) => (a.material?.name || '').localeCompare(b.material?.name || ''))
