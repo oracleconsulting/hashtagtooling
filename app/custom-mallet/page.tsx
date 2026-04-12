@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useCart } from '@/lib/store'
 import { formatPrice } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
-import { Check, Loader2 } from 'lucide-react'
+import { Check, Loader2, AlertTriangle, Clock } from 'lucide-react'
 
 const MalletPreview3D = dynamic(() => import('@/components/MalletPreview3D').then((m) => m.MalletPreview3D), { ssr: false })
 
@@ -45,6 +45,7 @@ interface MaterialStylePricingRow {
   base_price_id: string
   position: 'head' | 'handle'
   premium: number
+  stock?: number
 }
 
 export default function CustomMalletPage() {
@@ -81,12 +82,11 @@ export default function CustomMalletPage() {
       
       if (stylesError) throw stylesError
       
-      // Load wood materials
+      // Load all wood materials (including unavailable so we can show sourcing warnings)
       const { data: woodData, error: woodError } = await supabase
         .from('materials')
         .select('*')
         .eq('category', 'wood')
-        .eq('available', true)
         .order('name')
       
       if (woodError) throw woodError
@@ -103,7 +103,7 @@ export default function CustomMalletPage() {
 
       const { data: mspData, error: mspError } = await supabase
         .from('material_style_pricing')
-        .select('material_id, base_price_id, position, premium')
+        .select('material_id, base_price_id, position, premium, stock')
 
       if (mspError) throw mspError
 
@@ -191,6 +191,7 @@ export default function CustomMalletPage() {
         handleWoodName: handleWood.name,
         transitionId: selectedTransition,
         transitionName: transition.name,
+        extendedLeadTime: extendedLeadTime || undefined,
       },
     })
 
@@ -198,17 +199,38 @@ export default function CustomMalletPage() {
     setTimeout(() => setAddedToCart(false), 3000)
   }
 
-  const woodsForHead = useMemo(
-    () => woods.filter((w) => w.available_mallet_head !== false),
-    [woods]
-  )
-  const woodsForHandle = useMemo(
-    () => woods.filter((w) => w.available_mallet_handle !== false),
-    [woods]
-  )
+  const stockForWood = (woodId: string, position: 'head' | 'handle'): number => {
+    if (!selectedStyle) return 0
+    const row = stylePricing.find(
+      (sp) => sp.material_id === woodId && sp.base_price_id === selectedStyle && sp.position === position
+    )
+    return row?.stock != null ? Number(row.stock) : 0
+  }
+
+  const woodsForHead = useMemo(() => {
+    const available = woods.filter((w) => w.available_mallet_head !== false)
+    const unavailable = woods.filter((w) => w.available_mallet_head === false)
+    return [...available, ...unavailable]
+  }, [woods])
+
+  const woodsForHandle = useMemo(() => {
+    const available = woods.filter((w) => w.available_mallet_handle !== false)
+    const unavailable = woods.filter((w) => w.available_mallet_handle === false)
+    return [...available, ...unavailable]
+  }, [woods])
 
   const headPremiumDisplay = premiumForWood(selectedHeadWood, selectedStyle, 'head')
   const handlePremiumDisplay = premiumForWood(selectedHandleWood, selectedStyle, 'handle')
+
+  const headWoodObj = woods.find(w => w.id === selectedHeadWood)
+  const handleWoodObj = woods.find(w => w.id === selectedHandleWood)
+  const headNeedsSourcing = selectedHeadWood
+    ? headWoodObj?.available_mallet_head === false || stockForWood(selectedHeadWood, 'head') === 0
+    : false
+  const handleNeedsSourcing = selectedHandleWood
+    ? handleWoodObj?.available_mallet_handle === false || stockForWood(selectedHandleWood, 'handle') === 0
+    : false
+  const extendedLeadTime = headNeedsSourcing || handleNeedsSourcing
 
   if (loading) {
     return (
@@ -289,31 +311,50 @@ export default function CustomMalletPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
-                  {woodsForHead.map(wood => (
-                    <button
-                      key={wood.id}
-                      onClick={() => setSelectedHeadWood(wood.id)}
-                      className={`p-3 rounded-lg border-2 transition-all ${
-                        selectedHeadWood === wood.id 
-                          ? 'border-brand-orange bg-brand-orange/10' 
-                          : 'border-brand-dark-border hover:border-zinc-500'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 text-left">
-                        {wood.grain_image_url ? (
-                          <img src={wood.grain_image_url} alt={wood.name} className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0 object-cover" />
-                        ) : (
-                          <div className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0" style={{ backgroundColor: wood.color_hex }} />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium block text-white">{wood.name}</span>
-                          {premiumForWood(wood.id, selectedStyle, 'head') > 0 && (
-                            <span className="text-xs text-zinc-400">{formatPrice(premiumForWood(wood.id, selectedStyle, 'head'))}</span>
+                  {woodsForHead.map(wood => {
+                    const isAvailable = wood.available_mallet_head !== false
+                    const stk = stockForWood(wood.id, 'head')
+                    const inStock = isAvailable && stk > 0
+                    const lowStock = isAvailable && stk === 1
+                    const outOfStock = isAvailable && stk === 0
+                    const discontinued = !isAvailable
+                    return (
+                      <button
+                        key={wood.id}
+                        onClick={() => setSelectedHeadWood(wood.id)}
+                        className={`p-3 rounded-lg border-2 transition-all ${
+                          selectedHeadWood === wood.id 
+                            ? 'border-brand-orange bg-brand-orange/10' 
+                            : discontinued
+                              ? 'border-zinc-800 opacity-60 hover:opacity-80 hover:border-zinc-600'
+                              : 'border-brand-dark-border hover:border-zinc-500'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 text-left">
+                          {wood.grain_image_url ? (
+                            <img src={wood.grain_image_url} alt={wood.name} className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0 object-cover" />
+                          ) : (
+                            <div className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0" style={{ backgroundColor: wood.color_hex }} />
                           )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-medium text-white">{wood.name}</span>
+                              {inStock && !lowStock && <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title={`${stk} in stock`} />}
+                              {lowStock && <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Low stock" />}
+                              {outOfStock && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" title="Out of stock" />}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-2">
+                              {premiumForWood(wood.id, selectedStyle, 'head') > 0 && (
+                                <span className="text-xs text-zinc-400">{formatPrice(premiumForWood(wood.id, selectedStyle, 'head'))}</span>
+                              )}
+                              {outOfStock && <span className="text-[10px] text-amber-400">+3-4 weeks</span>}
+                              {discontinued && <span className="text-[10px] text-zinc-500">May need sourcing</span>}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    )
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -325,31 +366,50 @@ export default function CustomMalletPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
-                  {woodsForHandle.map(wood => (
-                    <button
-                      key={wood.id}
-                      onClick={() => setSelectedHandleWood(wood.id)}
-                      className={`p-3 rounded-lg border-2 transition-all ${
-                        selectedHandleWood === wood.id 
-                          ? 'border-brand-orange bg-brand-orange/10' 
-                          : 'border-brand-dark-border hover:border-zinc-500'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 text-left">
-                        {wood.grain_image_url ? (
-                          <img src={wood.grain_image_url} alt={wood.name} className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0 object-cover" />
-                        ) : (
-                          <div className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0" style={{ backgroundColor: wood.color_hex }} />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium block text-white">{wood.name}</span>
-                          {premiumForWood(wood.id, selectedStyle, 'handle') > 0 && (
-                            <span className="text-xs text-zinc-400">{formatPrice(premiumForWood(wood.id, selectedStyle, 'handle'))}</span>
+                  {woodsForHandle.map(wood => {
+                    const isAvailable = wood.available_mallet_handle !== false
+                    const stk = stockForWood(wood.id, 'handle')
+                    const inStock = isAvailable && stk > 0
+                    const lowStock = isAvailable && stk === 1
+                    const outOfStock = isAvailable && stk === 0
+                    const discontinued = !isAvailable
+                    return (
+                      <button
+                        key={wood.id}
+                        onClick={() => setSelectedHandleWood(wood.id)}
+                        className={`p-3 rounded-lg border-2 transition-all ${
+                          selectedHandleWood === wood.id 
+                            ? 'border-brand-orange bg-brand-orange/10' 
+                            : discontinued
+                              ? 'border-zinc-800 opacity-60 hover:opacity-80 hover:border-zinc-600'
+                              : 'border-brand-dark-border hover:border-zinc-500'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 text-left">
+                          {wood.grain_image_url ? (
+                            <img src={wood.grain_image_url} alt={wood.name} className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0 object-cover" />
+                          ) : (
+                            <div className="w-6 h-6 rounded-full border border-zinc-600 flex-shrink-0" style={{ backgroundColor: wood.color_hex }} />
                           )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-medium text-white">{wood.name}</span>
+                              {inStock && !lowStock && <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title={`${stk} in stock`} />}
+                              {lowStock && <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Low stock" />}
+                              {outOfStock && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" title="Out of stock" />}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-2">
+                              {premiumForWood(wood.id, selectedStyle, 'handle') > 0 && (
+                                <span className="text-xs text-zinc-400">{formatPrice(premiumForWood(wood.id, selectedStyle, 'handle'))}</span>
+                              )}
+                              {outOfStock && <span className="text-[10px] text-amber-400">+3-4 weeks</span>}
+                              {discontinued && <span className="text-[10px] text-zinc-500">May need sourcing</span>}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    )
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -461,6 +521,23 @@ export default function CustomMalletPage() {
                     <span className="text-lg font-semibold">Total:</span>
                     <span className="text-2xl font-bold text-brand-orange">{formatPrice(calculatePrice())}</span>
                   </div>
+                  {extendedLeadTime && (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 mb-4">
+                      <div className="flex gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                        <div className="text-xs text-amber-200">
+                          <p className="font-semibold mb-1">Extended lead time</p>
+                          {headNeedsSourcing && headWoodObj && (
+                            <p>{headWoodObj.name} (head) {headWoodObj.available_mallet_head === false ? 'may no longer be available to source' : 'is currently out of stock and will need to be sourced'}</p>
+                          )}
+                          {handleNeedsSourcing && handleWoodObj && (
+                            <p>{handleWoodObj.name} (handle) {handleWoodObj.available_mallet_handle === false ? 'may no longer be available to source' : 'is currently out of stock and will need to be sourced'}</p>
+                          )}
+                          <p className="mt-1 text-amber-300/80">This will add approximately 3-4 weeks to the build time.</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <Button 
                     onClick={handleAddToCart} 
                     className="w-full"
@@ -475,8 +552,9 @@ export default function CustomMalletPage() {
                       'Add to Cart'
                     )}
                   </Button>
-                  <p className="text-xs text-zinc-500 text-center mt-3">
-                    Lead time: 3-4 weeks for custom orders
+                  <p className="text-xs text-zinc-500 text-center mt-3 flex items-center justify-center gap-1.5">
+                    <Clock className="h-3 w-3" />
+                    {extendedLeadTime ? 'Lead time: 6-8 weeks (includes sourcing)' : 'Lead time: 3-4 weeks for custom orders'}
                   </p>
                 </div>
               </CardContent>

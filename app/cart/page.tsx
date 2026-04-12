@@ -273,7 +273,12 @@ function CartContent() {
                     <p className="text-sm text-zinc-400 mb-2">{formatPrice(item.price)}</p>
 
                     {item.customConfig && (
-                      <p className="text-xs text-zinc-500">Custom configuration</p>
+                      <div>
+                        <p className="text-xs text-zinc-500">Custom configuration</p>
+                        {item.customConfig.extendedLeadTime && (
+                          <p className="text-xs text-amber-400 mt-1">⚠ Extended lead time: 6-8 weeks (wood sourcing required)</p>
+                        )}
+                      </div>
                     )}
 
                     <div className="flex items-center gap-1 mt-3">

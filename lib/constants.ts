@@ -52,6 +52,7 @@ export interface CustomMalletConfig {
   liner_material?: string
   liner_thickness?: string
   scale_thickness?: string
+  extendedLeadTime?: boolean
 }
 
 
