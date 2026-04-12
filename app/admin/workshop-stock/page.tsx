@@ -46,6 +46,7 @@ interface StockPiece {
   images: string[]
   grade: Grade | null
   notes: string | null
+  is_cut: boolean
   created_at: string
   updated_at: string
 }
@@ -164,6 +165,7 @@ interface IntakeLineItem {
   dimensions: string
   drawer_number: string
   grade: Grade | ''
+  is_cut: boolean
   notes: string
 }
 
@@ -176,7 +178,7 @@ const INTAKE_LINES_TEMPLATE: Omit<IntakeLineItem, 'count' | 'dimensions' | 'draw
 ]
 
 function emptyLineItem(tpl: typeof INTAKE_LINES_TEMPLATE[number]): IntakeLineItem {
-  return { ...tpl, cutFor: '', count: '0', dimensions: '', drawer_number: '', grade: '', notes: '' }
+  return { ...tpl, cutFor: '', count: '0', dimensions: '', drawer_number: '', grade: '', is_cut: false, notes: '' }
 }
 
 interface AddForm {
@@ -284,6 +286,7 @@ function WorkshopStockInner() {
     const available = stock.filter((s) => s.status === 'available').length
     const reserved = stock.filter((s) => s.status === 'reserved').length
     const inProgress = stock.filter((s) => s.status === 'in_progress').length
+    const uncut = stock.filter((s) => !s.is_cut && s.status === 'available').length
 
     const speciesCounts = new Map<string, number>()
     for (const s of stock) {
@@ -291,7 +294,7 @@ function WorkshopStockInner() {
     }
     const lowStockSpecies = materials.filter((m) => (speciesCounts.get(m.id) || 0) < 2 && speciesCounts.has(m.id))
 
-    return { total, available, reserved, inProgress, lowStockSpecies }
+    return { total, available, reserved, inProgress, uncut, lowStockSpecies }
   }, [stock, materials])
 
   /* ─── filtering ──────────────────────────────────────────────────── */
@@ -465,6 +468,7 @@ function WorkshopStockInner() {
             location_notes: addForm.location_notes || null,
             suitable_for: line.cutFor ? [line.cutFor] : line.positions,
             grade: line.grade || null,
+            is_cut: line.is_cut,
             notes: [line.cutFor ? `${line.tag} ${line.cutFor.charAt(0).toUpperCase() + line.cutFor.slice(1)}` : line.tag, addForm.notes, line.notes].filter(Boolean).join(' — ') || null,
             images: [],
           })
@@ -599,10 +603,11 @@ function WorkshopStockInner() {
       </div>
 
       {/* stats bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         {[
           { label: 'Total Pieces', value: stats.total, color: 'text-white' },
           { label: 'Available', value: stats.available, color: 'text-emerald-400' },
+          { label: 'Uncut', value: stats.uncut, color: 'text-rose-400' },
           { label: 'Reserved', value: stats.reserved, color: 'text-amber-400' },
           { label: 'In Progress', value: stats.inProgress, color: 'text-blue-400' },
         ].map((s) => (
@@ -714,6 +719,7 @@ function WorkshopStockInner() {
                         <th className="text-left px-3 py-2 w-[140px]">Type</th>
                         <th className="text-center px-3 py-2 w-[70px]">Qty</th>
                         <th className="text-center px-3 py-2 w-[100px]">Cut for</th>
+                        <th className="text-center px-3 py-2 w-[50px]">Cut</th>
                         <th className="text-left px-3 py-2">Dimensions</th>
                         <th className="text-left px-3 py-2 w-[100px]">Drawer</th>
                         <th className="text-center px-3 py-2 w-[70px]">Grade</th>
@@ -758,6 +764,18 @@ function WorkshopStockInner() {
                               ) : (
                                 <span className="text-zinc-600">—</span>
                               )}
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              <input
+                                type="checkbox"
+                                className="accent-emerald-500"
+                                checked={line.is_cut}
+                                onChange={() => setAddForm((f) => {
+                                  const lines = [...f.lines]
+                                  lines[idx] = { ...lines[idx], is_cut: !lines[idx].is_cut }
+                                  return { ...f, lines }
+                                })}
+                              />
                             </td>
                             <td className="px-2 py-2">
                               <Input
@@ -822,7 +840,7 @@ function WorkshopStockInner() {
                         <td className="px-3 py-2 text-center font-bold text-brand-orange">
                           {addForm.lines.reduce((s, l) => s + (Number.parseInt(l.count, 10) || 0), 0)}
                         </td>
-                        <td colSpan={5} />
+                        <td colSpan={6} />
                       </tr>
                     </tfoot>
                   </table>
@@ -967,6 +985,7 @@ function WorkshopStockInner() {
                             <th className="p-2 text-left">Drawer</th>
                             <th className="p-2 text-left">Suitable</th>
                             <th className="p-2 text-center">Grade</th>
+                            <th className="p-2 text-center">Cut</th>
                             <th className="p-2 text-center">Status</th>
                             <th className="p-2 text-center">Actions</th>
                           </tr>
@@ -995,6 +1014,18 @@ function WorkshopStockInner() {
                                 <td className="p-2 text-center">
                                   {piece.grade ? <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${piece.grade === 'S' ? 'bg-brand-orange/20 text-brand-orange' : 'bg-zinc-700 text-zinc-300'}`}>{piece.grade}</span> : '—'}
                                 </td>
+                                <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="checkbox"
+                                    className="accent-emerald-500"
+                                    checked={piece.is_cut}
+                                    onChange={async () => {
+                                      const newVal = !piece.is_cut
+                                      await supabase.from('workshop_stock').update({ is_cut: newVal }).eq('id', piece.id)
+                                      setStock((prev) => prev.map((s) => s.id === piece.id ? { ...s, is_cut: newVal } : s))
+                                    }}
+                                  />
+                                </td>
                                 <td className="p-2 text-center">
                                   <span className={`inline-block px-2 py-0.5 rounded border text-[10px] font-medium ${STATUS_COLORS[piece.status]}`}>
                                     {STATUS_LABELS[piece.status]}
@@ -1014,7 +1045,7 @@ function WorkshopStockInner() {
                               {/* expanded detail */}
                               {expandedPiece === piece.id && (
                                 <tr>
-                                  <td colSpan={9} className="p-4 bg-zinc-900/80 border-b border-zinc-800">
+                                  <td colSpan={10} className="p-4 bg-zinc-900/80 border-b border-zinc-800">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                       <div className="space-y-3">
                                         <div>
