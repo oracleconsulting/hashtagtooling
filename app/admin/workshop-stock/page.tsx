@@ -72,6 +72,23 @@ const STATUS_COLORS: Record<StockStatus, string> = {
 
 const SUITABLE_ABBR: Record<SuitableFor, string> = { head: 'H', handle: 'Ha', awl_handle: 'A', square_scale: 'S' }
 
+function suitableDisplay(piece: { suitable_for: SuitableFor[]; notes: string | null }): string {
+  const notes = piece.notes || ''
+  const tagMatch = notes.match(/^(S[CDJW]M\/T[CDJW]M)\s+(head|handle)/i)
+  if (tagMatch) {
+    const pair = tagMatch[1].toUpperCase()
+    const pos = tagMatch[2].charAt(0).toUpperCase() + tagMatch[2].slice(1)
+    return `${pair} ${pos}`
+  }
+  if (notes.startsWith('awl')) return 'Awl'
+  if (notes.startsWith('scale')) return 'Scale'
+  return piece.suitable_for.map((s) => {
+    if (s === 'awl_handle') return 'Awl'
+    if (s === 'square_scale') return 'Scale'
+    return s.charAt(0).toUpperCase() + s.slice(1)
+  }).join(', ')
+}
+
 const inputDarkClass = 'bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500'
 const selectDarkClass = 'h-9 rounded border border-zinc-700 bg-zinc-800 px-2 text-white text-sm'
 const textareaDarkClass = 'w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-sm text-white placeholder:text-zinc-500'
@@ -951,7 +968,7 @@ function WorkshopStockInner() {
                                 </td>
                                 <td className="p-2 text-zinc-300">{piece.dimensions || '—'}</td>
                                 <td className="p-2 text-zinc-300">{piece.drawer_number || '—'}</td>
-                                <td className="p-2 text-zinc-400">{piece.suitable_for.map((s) => SUITABLE_ABBR[s]).join(', ')}</td>
+                                <td className="p-2 text-zinc-400 whitespace-nowrap">{suitableDisplay(piece)}</td>
                                 <td className="p-2 text-center">
                                   {piece.grade ? <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${piece.grade === 'S' ? 'bg-brand-orange/20 text-brand-orange' : 'bg-zinc-700 text-zinc-300'}`}>{piece.grade}</span> : '—'}
                                 </td>
