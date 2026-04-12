@@ -73,6 +73,87 @@ const STATUS_COLORS: Record<StockStatus, string> = {
 
 const SUITABLE_ABBR: Record<SuitableFor, string> = { head: 'H', handle: 'Ha', awl_handle: 'A', square_scale: 'S' }
 
+/* ─── pricing types ────────────────────────────────────────────────── */
+
+interface BasePrice {
+  id: string
+  product_type: string
+  style_name: string
+  base_price: number
+  description: string
+}
+
+interface MspRow {
+  id?: string
+  material_id: string
+  base_price_id: string
+  position: SuitableFor
+  premium: number | string
+  stock?: number | string
+}
+
+function styleAbbr(name: string): string {
+  const w = name.trim().split(/\s+/).filter((s) => s.length > 0)
+  if (w.length === 0) return '?'
+  if (w.length === 1) return w[0].slice(0, 3).toUpperCase()
+  return w.map((s) => s[0]).join('').toUpperCase().slice(0, 6)
+}
+
+function awlAbbr(name: string): string {
+  if (name.includes('Small Scratch')) return 'SSA'
+  if (name.includes('Large Scratch')) return 'LSA'
+  if (name.includes('Small Birdcage')) return 'SBA'
+  if (name.includes('Large Birdcage')) return 'LBA'
+  if (name.includes('75B')) return '75B'
+  return styleAbbr(name)
+}
+
+function squareAbbr(name: string): string {
+  const m = name.match(/(Chode|95|80|70|60)\s*(Ti|TS)/i)
+  return m ? `${m[1]} ${m[2].toUpperCase()}` : styleAbbr(name)
+}
+
+function malletGroup(styleName: string): string {
+  const abbr = styleAbbr(styleName)
+  return abbr.length > 1 ? abbr.slice(1) : abbr
+}
+
+function pricingKey(materialId: string, basePriceId: string, position: string) {
+  return `${materialId}_${basePriceId}_${position}`
+}
+
+const numVal = (v: number | string | null | undefined) => {
+  if (v === null || v === undefined) return '0'
+  const n = typeof v === 'number' ? v : Number.parseFloat(String(v).replace(/,/g, ''))
+  return Number.isFinite(n) ? String(n) : '0'
+}
+
+function buildPricingSlice(materialId: string, mspRows: MspRow[], allBasePrices: BasePrice[]): Record<string, string> {
+  const next: Record<string, string> = {}
+  const mid = String(materialId)
+  const find = (bpId: string, pos: SuitableFor) =>
+    mspRows.find((r) => String(r.material_id) === mid && String(r.base_price_id) === String(bpId) && String(r.position) === pos)
+
+  for (const bp of allBasePrices) {
+    if (bp.product_type === 'mallet') {
+      for (const pos of ['head', 'handle'] as const) {
+        const row = find(bp.id, pos)
+        next[pricingKey(materialId, bp.id, pos)] = numVal(row?.premium)
+        next[pricingKey(materialId, bp.id, pos) + '_stock'] = numVal(row?.stock)
+      }
+    } else if (bp.product_type === 'awl') {
+      const row = find(bp.id, 'awl_handle')
+      next[pricingKey(materialId, bp.id, 'awl_handle')] = numVal(row?.premium)
+      next[pricingKey(materialId, bp.id, 'awl_handle') + '_stock'] = numVal(row?.stock)
+    } else if (bp.product_type === 'square') {
+      const row = find(bp.id, 'square_scale')
+      next[pricingKey(materialId, bp.id, 'square_scale')] = numVal(row?.premium)
+      next[pricingKey(materialId, bp.id, 'square_scale') + '_stock'] = numVal(row?.stock)
+    }
+  }
+  return next
+}
+
 function suitableDisplay(piece: { suitable_for: SuitableFor[]; notes: string | null }): string {
   const notes = piece.notes || ''
   const malletMatch = notes.match(/^(S[CDJW]M\/T[CDJW]M)(?:\s+(Head|Handle))?/i)
@@ -249,6 +330,12 @@ function WorkshopStockInner() {
   const [labelSkus, setLabelSkus] = useState<Set<string>>(new Set())
   const [uploadingId, setUploadingId] = useState<string | null>(null)
 
+  const [basePrices, setBasePrices] = useState<BasePrice[]>([])
+  const [mspRows, setMspRows] = useState<MspRow[]>([])
+  const [pricingForm, setPricingForm] = useState<Record<string, string>>({})
+  const [pricingExpanded, setPricingExpanded] = useState<Set<string>>(new Set())
+  const [savingPricing, setSavingPricing] = useState<string | null>(null)
+
   useEffect(() => {
     if (!sessionStorage.getItem('admin_auth')) { router.push('/admin'); return }
     loadAll()
@@ -266,12 +353,18 @@ function WorkshopStockInner() {
 
   const loadAll = async () => {
     try {
-      const [matsRes, stockRes] = await Promise.all([
+      const [matsRes, stockRes, bpRes, mspRes] = await Promise.all([
         supabase.from('materials').select('id, name, color_hex, grain_image_url').eq('category', 'wood').order('name'),
         supabase.from('workshop_stock').select('*').order('created_at', { ascending: false }),
+        supabase.from('base_prices').select('*').order('product_type').order('style_name'),
+        supabase.from('material_style_pricing').select('id, material_id, base_price_id, position, premium, stock').order('id'),
       ])
       setMaterials((matsRes.data || []) as WoodMaterial[])
       setStock((stockRes.data || []) as StockPiece[])
+      const bps = (bpRes.data || []) as BasePrice[]
+      const msps = (mspRes.data || []) as MspRow[]
+      setBasePrices(bps)
+      setMspRows(msps)
     } catch (e) {
       console.error(e)
     } finally {
@@ -332,6 +425,118 @@ function WorkshopStockInner() {
       .filter((g) => g.material)
       .sort((a, b) => (a.material?.name || '').localeCompare(b.material?.name || ''))
   }, [filteredStock, materials])
+
+  /* ─── pricing helpers ──────────────────────────────────────────── */
+
+  const malletBP = useMemo(() => basePrices.filter((b) => b.product_type === 'mallet'), [basePrices])
+  const awlBP = useMemo(() => basePrices.filter((b) => b.product_type === 'awl'), [basePrices])
+  const squareBP = useMemo(() => basePrices.filter((b) => b.product_type === 'square'), [basePrices])
+
+  const malletPartners = useMemo(() => {
+    const map = new Map<string, string[]>()
+    const groups = new Map<string, BasePrice[]>()
+    for (const bp of malletBP) {
+      const g = malletGroup(bp.style_name)
+      const arr = groups.get(g) || []
+      arr.push(bp)
+      groups.set(g, arr)
+    }
+    for (const [, bps] of groups) {
+      for (const bp of bps) {
+        map.set(bp.id, bps.filter((b) => b.id !== bp.id).map((b) => b.id))
+      }
+    }
+    return map
+  }, [malletBP])
+
+  const openPricing = (materialId: string) => {
+    const slice = buildPricingSlice(materialId, mspRows, basePrices)
+    const normalized = normalizeMalletPricing(slice, materialId)
+    setPricingForm((prev) => ({ ...prev, ...normalized }))
+    setPricingExpanded((prev) => { const n = new Set(prev); n.add(materialId); return n })
+  }
+
+  const normalizeMalletPricing = (slice: Record<string, string>, materialId: string) => {
+    const groups = new Map<string, BasePrice[]>()
+    for (const bp of malletBP) {
+      const g = malletGroup(bp.style_name)
+      const arr = groups.get(g) || []
+      arr.push(bp)
+      groups.set(g, arr)
+    }
+    const result = { ...slice }
+    for (const [, bps] of groups) {
+      if (bps.length < 2) continue
+      for (const pos of ['head', 'handle'] as const) {
+        let minStock = Infinity
+        let maxPremium = -Infinity
+        for (const bp of bps) {
+          const sv = Number.parseInt(result[pricingKey(materialId, bp.id, pos) + '_stock'] ?? '0', 10)
+          const pv = Number.parseFloat(result[pricingKey(materialId, bp.id, pos)] ?? '0')
+          if (sv < minStock) minStock = sv
+          if (pv > maxPremium) maxPremium = pv
+        }
+        const stockStr = String(minStock === Infinity ? 0 : minStock)
+        const premStr = String(maxPremium === -Infinity ? 0 : maxPremium)
+        for (const bp of bps) {
+          result[pricingKey(materialId, bp.id, pos) + '_stock'] = stockStr
+          result[pricingKey(materialId, bp.id, pos)] = premStr
+        }
+      }
+    }
+    return result
+  }
+
+  const persistMsp = async (
+    rows: { material_id: string; base_price_id: string; position: SuitableFor; premium: number; stock: number }[]
+  ) => {
+    const normalized = rows.map((r) => ({
+      material_id: r.material_id,
+      base_price_id: r.base_price_id,
+      position: r.position,
+      premium: Math.round((Number.isFinite(r.premium) ? r.premium : 0) * 100) / 100,
+      stock: Number.isFinite(r.stock) ? r.stock : 0,
+    }))
+    const { error } = await supabase
+      .from('material_style_pricing')
+      .upsert(normalized, { onConflict: 'material_id,base_price_id,position', ignoreDuplicates: false, defaultToNull: false })
+      .select('id, material_id, base_price_id, position, premium, stock')
+    if (error) {
+      alert(`Failed to save: ${error.message}`)
+      return false
+    }
+    return true
+  }
+
+  const savePricing = async (materialId: string, section: 'mallet' | 'awl' | 'square') => {
+    setSavingPricing(section)
+    try {
+      const styles = section === 'mallet' ? malletBP : section === 'awl' ? awlBP : squareBP
+      const positions: SuitableFor[] = section === 'mallet' ? ['head', 'handle'] : section === 'awl' ? ['awl_handle'] : ['square_scale']
+      const rows: { material_id: string; base_price_id: string; position: SuitableFor; premium: number; stock: number }[] = []
+      for (const bp of styles) {
+        for (const pos of positions) {
+          const key = pricingKey(materialId, bp.id, pos)
+          const prem = parseFloat(pricingForm[key] || '0')
+          const stk = parseInt(pricingForm[key + '_stock'] || '0', 10)
+          rows.push({ material_id: materialId, base_price_id: bp.id, position: pos, premium: prem, stock: stk })
+        }
+      }
+      const ok = await persistMsp(rows)
+      if (!ok) return
+      const { data: freshMsp } = await supabase.from('material_style_pricing').select('id, material_id, base_price_id, position, premium, stock').order('id')
+      if (freshMsp) {
+        setMspRows(freshMsp as MspRow[])
+        const slice = buildPricingSlice(materialId, freshMsp as MspRow[], basePrices)
+        setPricingForm((prev) => ({ ...prev, ...normalizeMalletPricing(slice, materialId) }))
+      }
+    } catch (e) {
+      console.error('[pricing] save error:', e)
+      alert('Failed to save pricing')
+    } finally {
+      setSavingPricing(null)
+    }
+  }
 
   /* ─── add piece ──────────────────────────────────────────────────── */
 
@@ -1119,6 +1324,215 @@ function WorkshopStockInner() {
                           ))}
                         </tbody>
                       </table>
+                    </div>
+                    {/* pricing section */}
+                    <div className="border-t border-zinc-700 p-3">
+                      <button
+                        className="flex items-center gap-2 text-sm text-zinc-300 hover:text-white w-full"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (pricingExpanded.has(materialId)) {
+                            setPricingExpanded((prev) => { const n = new Set(prev); n.delete(materialId); return n })
+                          } else {
+                            openPricing(materialId)
+                          }
+                        }}
+                      >
+                        {pricingExpanded.has(materialId) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        <span className="font-medium">Pricing &amp; Stock Levels</span>
+                      </button>
+                      {pricingExpanded.has(materialId) && (
+                        <div className="mt-3 space-y-6 overflow-x-auto">
+                          {/* mallet pricing */}
+                          {malletBP.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium text-zinc-300">Mallet — premiums &amp; stock</p>
+                              <p className="text-[10px] text-zinc-500">S/T pairs mirror: SCM↔TCM, SDM↔TDM, SJM↔TJM</p>
+                              <table className="text-xs border-collapse border border-zinc-700">
+                                <thead>
+                                  <tr>
+                                    <th rowSpan={2} className="border border-zinc-700 p-1.5 text-left bg-zinc-800 text-zinc-300">Pos</th>
+                                    {malletBP.map((bp) => (
+                                      <th key={bp.id} colSpan={2} className="border border-zinc-700 p-1 text-center bg-zinc-800 text-zinc-300" title={bp.style_name}>
+                                        {styleAbbr(bp.style_name)}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                  <tr>
+                                    {malletBP.map((bp) => (
+                                      <Fragment key={bp.id}>
+                                        <th className="border border-zinc-700 px-1 py-0.5 text-center bg-zinc-800/60 text-zinc-400 w-14">Stk</th>
+                                        <th className="border border-zinc-700 px-1 py-0.5 text-center bg-zinc-800/60 text-zinc-400 w-20">£</th>
+                                      </Fragment>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {(['head', 'handle'] as const).map((pos) => (
+                                    <tr key={pos}>
+                                      <td className="border border-zinc-700 p-1.5 font-medium capitalize bg-zinc-900/80 text-zinc-200">{pos}</td>
+                                      {malletBP.map((bp) => {
+                                        const key = pricingKey(materialId, bp.id, pos)
+                                        const stockKey = key + '_stock'
+                                        const sv = Number.parseInt(pricingForm[stockKey] ?? '0', 10)
+                                        const stockCls = sv === 0 ? 'bg-red-900/30 text-red-400' : sv === 1 ? 'bg-orange-900/30 text-orange-400' : ''
+                                        const partners = malletPartners.get(bp.id) || []
+                                        return (
+                                          <Fragment key={key}>
+                                            <td className={`border border-zinc-700 p-0.5 ${stockCls}`}>
+                                              <Input type="number" min={0} className={`w-14 h-7 text-center text-xs px-0.5 ${inputDarkClass} ${stockCls}`}
+                                                value={pricingForm[stockKey] ?? '0'}
+                                                onChange={(e) => {
+                                                  const v = e.target.value
+                                                  setPricingForm((prev) => {
+                                                    const next = { ...prev, [stockKey]: v }
+                                                    for (const pid of partners) next[pricingKey(materialId, pid, pos) + '_stock'] = v
+                                                    return next
+                                                  })
+                                                }}
+                                              />
+                                            </td>
+                                            <td className="border border-zinc-700 p-0.5 bg-zinc-900/50">
+                                              <Input type="number" step="0.01" className={`w-20 h-7 text-right text-xs px-1 ${inputDarkClass}`}
+                                                value={pricingForm[key] ?? '0'}
+                                                onChange={(e) => {
+                                                  const v = e.target.value
+                                                  setPricingForm((prev) => {
+                                                    const next = { ...prev, [key]: v }
+                                                    for (const pid of partners) next[pricingKey(materialId, pid, pos)] = v
+                                                    return next
+                                                  })
+                                                }}
+                                              />
+                                            </td>
+                                          </Fragment>
+                                        )
+                                      })}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                              <Button size="sm" className="bg-brand-orange hover:bg-brand-orange/90" disabled={savingPricing === 'mallet'} onClick={() => savePricing(materialId, 'mallet')}>
+                                {savingPricing === 'mallet' ? 'Saving…' : 'Save mallet pricing'}
+                              </Button>
+                            </div>
+                          )}
+
+                          {/* awl pricing */}
+                          {awlBP.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium text-zinc-300">Awl — premiums &amp; stock</p>
+                              <table className="text-xs border-collapse border border-zinc-700">
+                                <thead>
+                                  <tr>
+                                    <th rowSpan={2} className="border border-zinc-700 p-1.5 text-left bg-zinc-800 text-zinc-300">Style</th>
+                                    {awlBP.map((bp) => (
+                                      <th key={bp.id} colSpan={2} className="border border-zinc-700 p-1 text-center bg-zinc-800 text-zinc-300" title={bp.style_name}>
+                                        {awlAbbr(bp.style_name)}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                  <tr>
+                                    {awlBP.map((bp) => (
+                                      <Fragment key={bp.id}>
+                                        <th className="border border-zinc-700 px-1 py-0.5 text-center bg-zinc-800/60 text-zinc-400 w-14">Stk</th>
+                                        <th className="border border-zinc-700 px-1 py-0.5 text-center bg-zinc-800/60 text-zinc-400 w-20">£</th>
+                                      </Fragment>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <tr>
+                                    <td className="border border-zinc-700 p-1.5 font-medium bg-zinc-900/80 text-zinc-200">Premium</td>
+                                    {awlBP.map((bp) => {
+                                      const key = pricingKey(materialId, bp.id, 'awl_handle')
+                                      const stockKey = key + '_stock'
+                                      const sv = parseInt(pricingForm[stockKey] ?? '0', 10)
+                                      const stockCls = sv === 0 ? 'bg-red-900/30 text-red-400' : sv === 1 ? 'bg-orange-900/30 text-orange-400' : ''
+                                      return (
+                                        <Fragment key={key}>
+                                          <td className={`border border-zinc-700 p-0.5 ${stockCls}`}>
+                                            <Input type="number" min={0} className={`w-14 h-7 text-center text-xs px-0.5 ${inputDarkClass} ${stockCls}`}
+                                              value={pricingForm[stockKey] ?? '0'}
+                                              onChange={(e) => setPricingForm((prev) => ({ ...prev, [stockKey]: e.target.value }))}
+                                            />
+                                          </td>
+                                          <td className="border border-zinc-700 p-0.5 bg-zinc-900/50">
+                                            <Input type="number" step="0.01" className={`w-20 h-7 text-right text-xs px-1 ${inputDarkClass}`}
+                                              value={pricingForm[key] ?? '0'}
+                                              onChange={(e) => setPricingForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                                            />
+                                          </td>
+                                        </Fragment>
+                                      )
+                                    })}
+                                  </tr>
+                                </tbody>
+                              </table>
+                              <Button size="sm" className="bg-brand-orange hover:bg-brand-orange/90" disabled={savingPricing === 'awl'} onClick={() => savePricing(materialId, 'awl')}>
+                                {savingPricing === 'awl' ? 'Saving…' : 'Save awl pricing'}
+                              </Button>
+                            </div>
+                          )}
+
+                          {/* square pricing */}
+                          {squareBP.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium text-zinc-300">Square — premiums &amp; stock</p>
+                              <table className="text-xs border-collapse border border-zinc-700">
+                                <thead>
+                                  <tr>
+                                    <th rowSpan={2} className="border border-zinc-700 p-1.5 text-left bg-zinc-800 text-zinc-300">Size</th>
+                                    {squareBP.map((bp) => (
+                                      <th key={bp.id} colSpan={2} className="border border-zinc-700 p-1 text-center bg-zinc-800 text-zinc-300" title={bp.style_name}>
+                                        {squareAbbr(bp.style_name)}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                  <tr>
+                                    {squareBP.map((bp) => (
+                                      <Fragment key={bp.id}>
+                                        <th className="border border-zinc-700 px-1 py-0.5 text-center bg-zinc-800/60 text-zinc-400 w-14">Stk</th>
+                                        <th className="border border-zinc-700 px-1 py-0.5 text-center bg-zinc-800/60 text-zinc-400 w-20">£</th>
+                                      </Fragment>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <tr>
+                                    <td className="border border-zinc-700 p-1.5 font-medium bg-zinc-900/80 text-zinc-200">Premium</td>
+                                    {squareBP.map((bp) => {
+                                      const key = pricingKey(materialId, bp.id, 'square_scale')
+                                      const stockKey = key + '_stock'
+                                      const sv = parseInt(pricingForm[stockKey] ?? '0', 10)
+                                      const stockCls = sv === 0 ? 'bg-red-900/30 text-red-400' : sv === 1 ? 'bg-orange-900/30 text-orange-400' : ''
+                                      return (
+                                        <Fragment key={key}>
+                                          <td className={`border border-zinc-700 p-0.5 ${stockCls}`}>
+                                            <Input type="number" min={0} className={`w-14 h-7 text-center text-xs px-0.5 ${inputDarkClass} ${stockCls}`}
+                                              value={pricingForm[stockKey] ?? '0'}
+                                              onChange={(e) => setPricingForm((prev) => ({ ...prev, [stockKey]: e.target.value }))}
+                                            />
+                                          </td>
+                                          <td className="border border-zinc-700 p-0.5 bg-zinc-900/50">
+                                            <Input type="number" step="0.01" className={`w-20 h-7 text-right text-xs px-1 ${inputDarkClass}`}
+                                              value={pricingForm[key] ?? '0'}
+                                              onChange={(e) => setPricingForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                                            />
+                                          </td>
+                                        </Fragment>
+                                      )
+                                    })}
+                                  </tr>
+                                </tbody>
+                              </table>
+                              <Button size="sm" className="bg-brand-orange hover:bg-brand-orange/90" disabled={savingPricing === 'square'} onClick={() => savePricing(materialId, 'square')}>
+                                {savingPricing === 'square' ? 'Saving…' : 'Save square pricing'}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

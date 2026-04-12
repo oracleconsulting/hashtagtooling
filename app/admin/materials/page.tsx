@@ -1267,7 +1267,7 @@ export default function MaterialsAdminPage() {
                                 : openPricingGrid(mat.id)
                             }
                           >
-                            {expandedPricingMaterialId === mat.id ? 'Close grid' : 'Edit pricing'}
+                            {expandedPricingMaterialId === mat.id ? 'Close grid' : 'View pricing'}
                           </Button>
                         </td>
                         <td className="p-2 text-center">
@@ -1351,7 +1351,7 @@ export default function MaterialsAdminPage() {
                           {((mat.available_mallet_head ?? true) || (mat.available_mallet_handle ?? true)) && malletBasePrices.length > 0 && (
                             <div className="space-y-3">
                               <p className="text-sm font-medium text-zinc-200">Mallet — stock &amp; premiums</p>
-                              <p className="text-xs text-zinc-500">Stock is shared per blank size: S + T variants mirror (SCM↔TCM, SDM↔TDM, SJM↔TJM)</p>
+                              <p className="text-xs text-zinc-500">Manage stock &amp; pricing in <Link href={`/admin/workshop-stock?material=${mat.id}`} className="text-brand-orange hover:underline">Workshop Stock</Link></p>
                               <div className="inline-block min-w-full">
                                 <table className="text-xs border-collapse border border-zinc-700">
                                   <thead>
@@ -1387,36 +1387,14 @@ export default function MaterialsAdminPage() {
                                           const key = pricingKey(mat.id, bp.id, pos)
                                           const stockKey = key + '_stock'
                                           const sv = Number.parseInt(pricingForm[stockKey] ?? '0', 10)
-                                          const stockCls = sv === 0 ? 'bg-red-900/30 text-red-400' : sv === 1 ? 'bg-orange-900/30 text-orange-400' : ''
-                                          const partners = malletStockPartners.get(bp.id) || []
+                                          const stockCls = sv === 0 ? 'text-red-400' : sv === 1 ? 'text-orange-400' : 'text-zinc-300'
                                           return (
                                             <Fragment key={key}>
-                                              <td className={`border border-zinc-700 p-0.5 ${stockCls}`}>
-                                                <Input
-                                                  type="number"
-                                                  min={0}
-                                                  className={`w-14 h-8 text-center text-xs px-0.5 ${inputDarkClass} ${stockCls}`}
-                                                  value={pricingForm[stockKey] ?? '0'}
-                                                  onChange={(e) => {
-                                                    const v = e.target.value
-                                                    setPricingForm((prev) => {
-                                                      const next = { ...prev, [stockKey]: v }
-                                                      for (const pid of partners) {
-                                                        next[pricingKey(mat.id, pid, pos) + '_stock'] = v
-                                                      }
-                                                      return next
-                                                    })
-                                                  }}
-                                                />
+                                              <td className={`border border-zinc-700 px-2 py-1.5 text-center ${stockCls} font-medium`}>
+                                                {pricingForm[stockKey] ?? '0'}
                                               </td>
-                                              <td className="border border-zinc-700 p-0.5 bg-zinc-900/50">
-                                                <Input
-                                                  type="number"
-                                                  step="0.01"
-                                                  className={`w-20 h-8 text-right text-xs px-1 ${inputDarkClass}`}
-                                                  value={pricingForm[key] ?? '0'}
-                                                  onChange={(e) => setPricingForm((prev) => ({ ...prev, [key]: e.target.value }))}
-                                                />
+                                              <td className="border border-zinc-700 px-2 py-1.5 text-right text-zinc-300">
+                                                £{Number(pricingForm[key] ?? '0').toFixed(0)}
                                               </td>
                                             </Fragment>
                                           )
@@ -1426,15 +1404,6 @@ export default function MaterialsAdminPage() {
                                   </tbody>
                                 </table>
                               </div>
-                              <Button
-                                type="button"
-                                size="sm"
-                                className="bg-brand-orange hover:bg-brand-orange/90"
-                                disabled={savingPricingSection === 'mallet'}
-                                onClick={() => saveMalletPremiums(mat.id)}
-                              >
-                                {savingPricingSection === 'mallet' ? 'Saving…' : 'Save mallet premiums'}
-                              </Button>
                             </div>
                           )}
 
@@ -1473,26 +1442,14 @@ export default function MaterialsAdminPage() {
                                         const key = pricingKey(mat.id, bp.id, 'awl_handle')
                                         const stockKey = key + '_stock'
                                         const sv = parseInt(pricingForm[stockKey] ?? '0', 10)
-                                        const stockCls = sv === 0 ? 'bg-red-900/30 text-red-400' : sv === 1 ? 'bg-orange-900/30 text-orange-400' : ''
+                                        const stockCls = sv === 0 ? 'text-red-400' : sv === 1 ? 'text-orange-400' : 'text-zinc-300'
                                         return (
                                           <Fragment key={key}>
-                                            <td className={`border border-zinc-700 p-0.5 ${stockCls}`}>
-                                              <Input
-                                                type="number"
-                                                min={0}
-                                                className={`w-14 h-8 text-center text-xs px-0.5 ${inputDarkClass} ${stockCls}`}
-                                                value={pricingForm[stockKey] ?? '0'}
-                                                onChange={(e) => setPricingForm((prev) => ({ ...prev, [stockKey]: e.target.value }))}
-                                              />
+                                            <td className={`border border-zinc-700 px-2 py-1.5 text-center ${stockCls} font-medium`}>
+                                              {pricingForm[stockKey] ?? '0'}
                                             </td>
-                                            <td className="border border-zinc-700 p-0.5 bg-zinc-900/50">
-                                              <Input
-                                                type="number"
-                                                step="0.01"
-                                                className={`w-20 h-8 text-right text-xs px-1 ${inputDarkClass}`}
-                                                value={pricingForm[key] ?? '0'}
-                                                onChange={(e) => setPricingForm((prev) => ({ ...prev, [key]: e.target.value }))}
-                                              />
+                                            <td className="border border-zinc-700 px-2 py-1.5 text-right text-zinc-300">
+                                              £{Number(pricingForm[key] ?? '0').toFixed(0)}
                                             </td>
                                           </Fragment>
                                         )
@@ -1501,15 +1458,6 @@ export default function MaterialsAdminPage() {
                                   </tbody>
                                 </table>
                               </div>
-                              <Button
-                                type="button"
-                                size="sm"
-                                className="bg-brand-orange hover:bg-brand-orange/90"
-                                disabled={savingPricingSection === 'awl'}
-                                onClick={() => saveAwlPremiums(mat.id)}
-                              >
-                                {savingPricingSection === 'awl' ? 'Saving…' : 'Save awl premiums'}
-                              </Button>
                             </div>
                           )}
 
@@ -1548,26 +1496,14 @@ export default function MaterialsAdminPage() {
                                         const key = pricingKey(mat.id, bp.id, 'square_scale')
                                         const stockKey = key + '_stock'
                                         const sv = parseInt(pricingForm[stockKey] ?? '0', 10)
-                                        const stockCls = sv === 0 ? 'bg-red-900/30 text-red-400' : sv === 1 ? 'bg-orange-900/30 text-orange-400' : ''
+                                        const stockCls = sv === 0 ? 'text-red-400' : sv === 1 ? 'text-orange-400' : 'text-zinc-300'
                                         return (
                                           <Fragment key={key}>
-                                            <td className={`border border-zinc-700 p-0.5 ${stockCls}`}>
-                                              <Input
-                                                type="number"
-                                                min={0}
-                                                className={`w-14 h-8 text-center text-xs px-0.5 ${inputDarkClass} ${stockCls}`}
-                                                value={pricingForm[stockKey] ?? '0'}
-                                                onChange={(e) => setPricingForm((prev) => ({ ...prev, [stockKey]: e.target.value }))}
-                                              />
+                                            <td className={`border border-zinc-700 px-2 py-1.5 text-center ${stockCls} font-medium`}>
+                                              {pricingForm[stockKey] ?? '0'}
                                             </td>
-                                            <td className="border border-zinc-700 p-0.5 bg-zinc-900/50">
-                                              <Input
-                                                type="number"
-                                                step="0.01"
-                                                className={`w-20 h-8 text-right text-xs px-1 ${inputDarkClass}`}
-                                                value={pricingForm[key] ?? '0'}
-                                                onChange={(e) => setPricingForm((prev) => ({ ...prev, [key]: e.target.value }))}
-                                              />
+                                            <td className="border border-zinc-700 px-2 py-1.5 text-right text-zinc-300">
+                                              £{Number(pricingForm[key] ?? '0').toFixed(0)}
                                             </td>
                                           </Fragment>
                                         )
@@ -1576,15 +1512,6 @@ export default function MaterialsAdminPage() {
                                   </tbody>
                                 </table>
                               </div>
-                              <Button
-                                type="button"
-                                size="sm"
-                                className="bg-brand-orange hover:bg-brand-orange/90"
-                                disabled={savingPricingSection === 'square'}
-                                onClick={() => saveSquarePremiums(mat.id)}
-                              >
-                                {savingPricingSection === 'square' ? 'Saving…' : 'Save square premiums'}
-                              </Button>
                             </div>
                           )}
                         </div>
