@@ -52,6 +52,21 @@ function extractYouTubeId(url: string): string | null {
   return m ? m[1] : null
 }
 
+function StatusBadge({ status }: { status: string }) {
+  switch (status) {
+    case 'in_stock':
+      return <span className="px-2 py-0.5 text-xs rounded bg-green-900/50 text-green-400">In Stock</span>
+    case 'made_to_order':
+      return <span className="px-2 py-0.5 text-xs rounded bg-blue-900/50 text-blue-400">Made to Order</span>
+    case 'sold':
+      return <span className="px-2 py-0.5 text-xs rounded bg-zinc-800 text-zinc-400">Sold</span>
+    case 'out_of_stock':
+      return <span className="px-2 py-0.5 text-xs rounded bg-red-900/50 text-red-400">Out of Stock</span>
+    default:
+      return null
+  }
+}
+
 export default function WoodDetailContent({ wood, tools, stock }: WoodDetailContentProps) {
   const [playing, setPlaying] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -313,7 +328,10 @@ export default function WoodDetailContent({ wood, tools, stock }: WoodDetailCont
                   <div className="min-w-0 flex-1">
                     <h3 className="font-medium text-white truncate">{product.name}</h3>
                     <p className="text-sm text-zinc-400 capitalize">{product.category}</p>
-                    <p className="text-brand-orange font-semibold mt-1">{formatPrice(product.price)}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-brand-orange font-semibold">{formatPrice(product.price)}</p>
+                      <StatusBadge status={product.stock_status} />
+                    </div>
                   </div>
                 </Link>
               ))}
@@ -342,9 +360,7 @@ export default function WoodDetailContent({ wood, tools, stock }: WoodDetailCont
                     <span className="text-brand-orange font-semibold whitespace-nowrap">{formatPrice(piece.price)}</span>
                   </div>
                   {piece.dimensions && <p className="text-sm text-zinc-400">{piece.dimensions}</p>}
-                  <span className="inline-block mt-2 px-2 py-0.5 text-xs rounded bg-green-900/50 text-green-400">
-                    In Stock
-                  </span>
+                  <div className="mt-2"><StatusBadge status={piece.stock_status} /></div>
                 </Link>
               ))}
             </div>
@@ -355,7 +371,7 @@ export default function WoodDetailContent({ wood, tools, stock }: WoodDetailCont
         {tools.length === 0 && stock.length === 0 && (
           <section className="text-center py-8">
             <p className="text-zinc-400 mb-4">
-              No products currently available with {wood.name}. Check back soon or commission a custom piece.
+              No products yet listed with {wood.name}. Check back soon or commission a custom piece.
             </p>
             <Link href="/commissions">
               <Button>Commission a Custom Piece</Button>

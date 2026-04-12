@@ -50,7 +50,6 @@ export default async function WoodDetailPage({ params }: PageProps) {
     .select('*')
     .eq('id', id)
     .eq('category', 'wood')
-    .eq('available', true)
     .maybeSingle()
 
   if (!wood) notFound()
@@ -58,11 +57,16 @@ export default async function WoodDetailPage({ params }: PageProps) {
   const { data: relatedProducts } = await supabase
     .from('products')
     .select('id, name, price, image_url, category, stock_status, sku, dimensions, parent_product_id, material_id, material_ids, metadata')
-    .in('stock_status', ['in_stock', 'made_to_order'])
 
   const matchingProducts = (relatedProducts || []).filter((p) => {
-    const r = p as { material_id?: string | null; material_ids?: string[] | null }
-    return r.material_id === id || (r.material_ids && r.material_ids.includes(id))
+    const r = p as { material_id?: string | null; material_ids?: string[] | null; metadata?: Record<string, unknown> | null }
+    if (r.material_id === id) return true
+    if (r.material_ids && r.material_ids.includes(id)) return true
+    const meta = r.metadata as { head_wood?: string; handle_wood?: string; species?: string } | null
+    if (meta && wood) {
+      if (meta.head_wood === wood.name || meta.handle_wood === wood.name || meta.species === wood.name) return true
+    }
+    return false
   })
 
   const parentProducts = matchingProducts.filter((p) => !p.parent_product_id)

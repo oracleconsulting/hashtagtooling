@@ -223,6 +223,20 @@ export default function NewProductPage() {
     setLoading(true)
 
     try {
+      const linkedIds: string[] = []
+      if (formData.head_wood) {
+        const hw = availableWoods.find((w) => w.name === formData.head_wood)
+        if (hw) linkedIds.push(hw.id)
+      }
+      if (formData.handle_wood) {
+        const hlw = availableWoods.find((w) => w.name === formData.handle_wood)
+        if (hlw && !linkedIds.includes(hlw.id)) linkedIds.push(hlw.id)
+      }
+      if (formData.category === 'wood' && formData.wood_species) {
+        const sp = availableWoods.find((w) => w.name === formData.wood_species)
+        if (sp && !linkedIds.includes(sp.id)) linkedIds.push(sp.id)
+      }
+
       const { error } = await supabase.from('products').insert([
         {
           name: formData.name,
@@ -235,6 +249,8 @@ export default function NewProductPage() {
           digital_file_url: formData.is_digital && digitalFileUrl ? digitalFileUrl : null,
           digital_file_name: formData.is_digital && digitalFileName ? digitalFileName : null,
           image_url: imageUrls[0] || 'https://placehold.co/600x400/666/white?text=No+Image',
+          material_id: linkedIds[0] || null,
+          material_ids: linkedIds,
           metadata: {
             images: imageUrls,
             video: videoUrl,
