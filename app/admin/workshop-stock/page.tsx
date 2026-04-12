@@ -449,10 +449,64 @@ function WorkshopStockInner() {
     return map
   }, [malletBP])
 
+  const computeStockFromPieces = (materialId: string, slice: Record<string, string>) => {
+    const pieces = stock.filter((s) => s.material_id === materialId && s.status === 'available')
+    const result = { ...slice }
+
+    const malletGroups = new Map<string, BasePrice[]>()
+    for (const bp of malletBP) {
+      const g = malletGroup(bp.style_name)
+      const arr = malletGroups.get(g) || []
+      arr.push(bp)
+      malletGroups.set(g, arr)
+    }
+
+    for (const [grp, bps] of malletGroups) {
+      const grpTag = grp.length === 2 ? `S${grp}/T${grp}` : grp
+      const tagged = pieces.filter((p) => {
+        const notes = (p.notes || '').toUpperCase()
+        return notes.includes(grpTag.toUpperCase())
+      })
+
+      let headCount = 0
+      let handleCount = 0
+      for (const p of tagged) {
+        const hasHead = p.suitable_for.includes('head')
+        const hasHandle = p.suitable_for.includes('handle')
+        const notes = (p.notes || '').toLowerCase()
+        const isHeadOnly = notes.includes('head') && !notes.includes('handle')
+        const isHandleOnly = notes.includes('handle') && !notes.includes('head')
+
+        if (isHeadOnly) { headCount++ }
+        else if (isHandleOnly) { handleCount++ }
+        else if (hasHead && hasHandle) { headCount++; handleCount++ }
+        else if (hasHead) { headCount++ }
+        else if (hasHandle) { handleCount++ }
+      }
+
+      for (const bp of bps) {
+        result[pricingKey(materialId, bp.id, 'head') + '_stock'] = String(headCount)
+        result[pricingKey(materialId, bp.id, 'handle') + '_stock'] = String(handleCount)
+      }
+    }
+
+    const awlCount = pieces.filter((p) => p.suitable_for.includes('awl_handle')).length
+    for (const bp of awlBP) {
+      result[pricingKey(materialId, bp.id, 'awl_handle') + '_stock'] = String(awlCount)
+    }
+
+    const scaleCount = pieces.filter((p) => p.suitable_for.includes('square_scale')).length
+    for (const bp of squareBP) {
+      result[pricingKey(materialId, bp.id, 'square_scale') + '_stock'] = String(scaleCount)
+    }
+
+    return result
+  }
+
   const openPricing = (materialId: string) => {
     const slice = buildPricingSlice(materialId, mspRows, basePrices)
-    const normalized = normalizeMalletPricing(slice, materialId)
-    setPricingForm((prev) => ({ ...prev, ...normalized }))
+    const withStock = computeStockFromPieces(materialId, slice)
+    setPricingForm((prev) => ({ ...prev, ...withStock }))
     setPricingExpanded((prev) => { const n = new Set(prev); n.add(materialId); return n })
   }
 
@@ -528,7 +582,8 @@ function WorkshopStockInner() {
       if (freshMsp) {
         setMspRows(freshMsp as MspRow[])
         const slice = buildPricingSlice(materialId, freshMsp as MspRow[], basePrices)
-        setPricingForm((prev) => ({ ...prev, ...normalizeMalletPricing(slice, materialId) }))
+        const withStock = computeStockFromPieces(materialId, slice)
+        setPricingForm((prev) => ({ ...prev, ...withStock }))
       }
     } catch (e) {
       console.error('[pricing] save error:', e)
@@ -1375,22 +1430,12 @@ function WorkshopStockInner() {
                                         const key = pricingKey(materialId, bp.id, pos)
                                         const stockKey = key + '_stock'
                                         const sv = Number.parseInt(pricingForm[stockKey] ?? '0', 10)
-                                        const stockCls = sv === 0 ? 'bg-red-900/30 text-red-400' : sv === 1 ? 'bg-orange-900/30 text-orange-400' : ''
+                                        const stockCls = sv === 0 ? 'text-red-400' : sv === 1 ? 'text-orange-400' : 'text-zinc-200'
                                         const partners = malletPartners.get(bp.id) || []
                                         return (
                                           <Fragment key={key}>
-                                            <td className={`border border-zinc-700 p-0.5 ${stockCls}`}>
-                                              <Input type="number" min={0} className={`w-14 h-7 text-center text-xs px-0.5 ${inputDarkClass} ${stockCls}`}
-                                                value={pricingForm[stockKey] ?? '0'}
-                                                onChange={(e) => {
-                                                  const v = e.target.value
-                                                  setPricingForm((prev) => {
-                                                    const next = { ...prev, [stockKey]: v }
-                                                    for (const pid of partners) next[pricingKey(materialId, pid, pos) + '_stock'] = v
-                                                    return next
-                                                  })
-                                                }}
-                                              />
+                                            <td className={`border border-zinc-700 px-2 py-1 text-center text-xs font-bold ${stockCls}`} title="Auto-counted from stock pieces above">
+                                              {pricingForm[stockKey] ?? '0'}
                                             </td>
                                             <td className="border border-zinc-700 p-0.5 bg-zinc-900/50">
                                               <Input type="number" step="0.01" className={`w-20 h-7 text-right text-xs px-1 ${inputDarkClass}`}
@@ -1451,11 +1496,8 @@ function WorkshopStockInner() {
                                       const stockCls = sv === 0 ? 'bg-red-900/30 text-red-400' : sv === 1 ? 'bg-orange-900/30 text-orange-400' : ''
                                       return (
                                         <Fragment key={key}>
-                                          <td className={`border border-zinc-700 p-0.5 ${stockCls}`}>
-                                            <Input type="number" min={0} className={`w-14 h-7 text-center text-xs px-0.5 ${inputDarkClass} ${stockCls}`}
-                                              value={pricingForm[stockKey] ?? '0'}
-                                              onChange={(e) => setPricingForm((prev) => ({ ...prev, [stockKey]: e.target.value }))}
-                                            />
+                                          <td className={`border border-zinc-700 px-2 py-1 text-center text-xs font-bold ${stockCls.replace(/bg-\S+/g, '')}`} title="Auto-counted from stock pieces above">
+                                            {pricingForm[stockKey] ?? '0'}
                                           </td>
                                           <td className="border border-zinc-700 p-0.5 bg-zinc-900/50">
                                             <Input type="number" step="0.01" className={`w-20 h-7 text-right text-xs px-1 ${inputDarkClass}`}
@@ -1508,11 +1550,8 @@ function WorkshopStockInner() {
                                       const stockCls = sv === 0 ? 'bg-red-900/30 text-red-400' : sv === 1 ? 'bg-orange-900/30 text-orange-400' : ''
                                       return (
                                         <Fragment key={key}>
-                                          <td className={`border border-zinc-700 p-0.5 ${stockCls}`}>
-                                            <Input type="number" min={0} className={`w-14 h-7 text-center text-xs px-0.5 ${inputDarkClass} ${stockCls}`}
-                                              value={pricingForm[stockKey] ?? '0'}
-                                              onChange={(e) => setPricingForm((prev) => ({ ...prev, [stockKey]: e.target.value }))}
-                                            />
+                                          <td className={`border border-zinc-700 px-2 py-1 text-center text-xs font-bold ${stockCls.replace(/bg-\S+/g, '')}`} title="Auto-counted from stock pieces above">
+                                            {pricingForm[stockKey] ?? '0'}
                                           </td>
                                           <td className="border border-zinc-700 p-0.5 bg-zinc-900/50">
                                             <Input type="number" step="0.01" className={`w-20 h-7 text-right text-xs px-1 ${inputDarkClass}`}
