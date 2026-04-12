@@ -131,22 +131,39 @@ async function uploadStockImages(stockId: string, files: File[]): Promise<{ urls
   return { urls, errors }
 }
 
-/* ─── blank add form ───────────────────────────────────────────────── */
+/* ─── intake form types ────────────────────────────────────────────── */
+
+interface IntakeLineItem {
+  position: SuitableFor
+  label: string
+  count: string
+  dimensions: string
+  drawer_number: string
+  grade: Grade | ''
+  notes: string
+}
+
+function emptyLineItem(position: SuitableFor, label: string): IntakeLineItem {
+  return { position, label, count: '0', dimensions: '', drawer_number: '', grade: '', notes: '' }
+}
 
 interface AddForm {
   material_id: string
   skuPrefix: string
   sku: string
-  dimensions: string
-  weight_grams: string
   cost_price: string
   supplier: string
   purchase_date: string
-  drawer_number: string
   location_notes: string
+  notes: string
+  mode: 'intake' | 'single'
+  lines: IntakeLineItem[]
+  /* single-mode fields */
+  dimensions: string
+  weight_grams: string
+  drawer_number: string
   suitable_for: SuitableFor[]
   grade: Grade | ''
-  notes: string
   batchCount: string
 }
 
@@ -155,16 +172,23 @@ function emptyAddForm(materialId?: string, materialName?: string): AddForm {
     material_id: materialId || '',
     skuPrefix: materialName ? skuPrefixFromName(materialName) : '',
     sku: '',
-    dimensions: '',
-    weight_grams: '',
     cost_price: '',
     supplier: '',
     purchase_date: new Date().toISOString().slice(0, 10),
-    drawer_number: '',
     location_notes: '',
+    notes: '',
+    mode: 'intake',
+    lines: [
+      emptyLineItem('head', 'Head blanks'),
+      emptyLineItem('handle', 'Handle blanks'),
+      emptyLineItem('awl_handle', 'Awl blanks'),
+      emptyLineItem('square_scale', 'Scale blanks'),
+    ],
+    dimensions: '',
+    weight_grams: '',
+    drawer_number: '',
     suitable_for: ['head', 'handle', 'awl_handle', 'square_scale'],
     grade: '',
-    notes: '',
     batchCount: '1',
   }
 }
@@ -388,6 +412,53 @@ function WorkshopStockInner() {
     }
   }
 
+  const saveIntake = async () => {
+    if (!addForm.material_id || !addForm.skuPrefix.trim()) { alert('Select a species and set a SKU prefix'); return }
+    const activeLines = addForm.lines.filter((l) => Number.parseInt(l.count, 10) > 0)
+    if (activeLines.length === 0) { alert('Enter a count for at least one position type'); return }
+    setSaving(true)
+    try {
+      const totalPieces = activeLines.reduce((sum, l) => sum + (Number.parseInt(l.count, 10) || 0), 0)
+      const prefix = addForm.skuPrefix.trim().toUpperCase()
+      const skus = await generateSequentialSkus(prefix, totalPieces)
+
+      let skuIdx = 0
+      const rows: Record<string, unknown>[] = []
+      for (const line of activeLines) {
+        const cnt = Number.parseInt(line.count, 10) || 0
+        for (let i = 0; i < cnt; i++) {
+          rows.push({
+            material_id: addForm.material_id,
+            sku: skus[skuIdx++],
+            dimensions: line.dimensions || null,
+            cost_price: addForm.cost_price ? Number.parseFloat(addForm.cost_price) : null,
+            supplier: addForm.supplier || null,
+            purchase_date: addForm.purchase_date || null,
+            drawer_number: line.drawer_number || null,
+            location_notes: addForm.location_notes || null,
+            suitable_for: [line.position],
+            grade: line.grade || null,
+            notes: [addForm.notes, line.notes].filter(Boolean).join(' — ') || null,
+            images: [],
+          })
+        }
+      }
+
+      console.log('[workshop-stock] intake insert:', rows.length, 'rows across', activeLines.length, 'types')
+      const { error } = await supabase.from('workshop_stock').insert(rows)
+      if (error) throw error
+      setShowAddForm(false)
+      setAddForm(emptyAddForm())
+      await loadAll()
+    } catch (e: unknown) {
+      console.error('[workshop-stock] intake error:', e)
+      const msg = e instanceof Error ? e.message : (e as Record<string, unknown>)?.message || JSON.stringify(e)
+      alert(`Intake add failed: ${msg}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   /* ─── edit / update ──────────────────────────────────────────────── */
 
   const updatePiece = async (piece: StockPiece) => {
@@ -547,12 +618,25 @@ function WorkshopStockInner() {
         <Card className="mb-6 bg-zinc-900/80 border-zinc-700">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Add Stock Piece</CardTitle>
-              <button onClick={() => setShowAddForm(false)} className="text-zinc-400 hover:text-white"><X className="h-5 w-5" /></button>
+              <CardTitle className="text-lg">{addForm.mode === 'intake' ? 'Stock Intake' : 'Add Single Piece'}</CardTitle>
+              <div className="flex items-center gap-3">
+                <div className="flex rounded-md overflow-hidden border border-zinc-600 text-xs">
+                  <button
+                    className={`px-3 py-1.5 ${addForm.mode === 'intake' ? 'bg-brand-orange text-black font-semibold' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
+                    onClick={() => setAddForm((f) => ({ ...f, mode: 'intake' }))}
+                  >Intake Sheet</button>
+                  <button
+                    className={`px-3 py-1.5 ${addForm.mode === 'single' ? 'bg-brand-orange text-black font-semibold' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
+                    onClick={() => setAddForm((f) => ({ ...f, mode: 'single' }))}
+                  >Single Piece</button>
+                </div>
+                <button onClick={() => setShowAddForm(false)} className="text-zinc-400 hover:text-white"><X className="h-5 w-5" /></button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            {/* shared top fields — species, prefix, supplier, date, cost, notes */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-5">
               <div className="md:col-span-3">
                 <label className="block text-zinc-400 mb-1">Species *</label>
                 <select
@@ -572,29 +656,6 @@ function WorkshopStockInner() {
                 <Input className={inputDarkClass} value={addForm.skuPrefix} onChange={(e) => setAddForm((f) => ({ ...f, skuPrefix: e.target.value }))} />
               </div>
               <div>
-                <label className="block text-zinc-400 mb-1">SKU</label>
-                <div className="flex gap-2">
-                  <Input className={`flex-1 ${inputDarkClass}`} value={addForm.sku} onChange={(e) => setAddForm((f) => ({ ...f, sku: e.target.value }))} placeholder="Auto-generate →" />
-                  <Button size="sm" variant="outline" onClick={generateSku} disabled={!addForm.skuPrefix}>Gen</Button>
-                </div>
-              </div>
-              <div>
-                <label className="block text-zinc-400 mb-1">Batch count</label>
-                <Input type="number" min={1} className={inputDarkClass} value={addForm.batchCount} onChange={(e) => setAddForm((f) => ({ ...f, batchCount: e.target.value }))} />
-              </div>
-              <div>
-                <label className="block text-zinc-400 mb-1">Dimensions</label>
-                <Input className={inputDarkClass} value={addForm.dimensions} onChange={(e) => setAddForm((f) => ({ ...f, dimensions: e.target.value }))} placeholder="85x85x520mm" />
-              </div>
-              <div>
-                <label className="block text-zinc-400 mb-1">Weight (g)</label>
-                <Input type="number" className={inputDarkClass} value={addForm.weight_grams} onChange={(e) => setAddForm((f) => ({ ...f, weight_grams: e.target.value }))} />
-              </div>
-              <div>
-                <label className="block text-zinc-400 mb-1">Cost price (£)</label>
-                <Input type="number" step="0.01" className={inputDarkClass} value={addForm.cost_price} onChange={(e) => setAddForm((f) => ({ ...f, cost_price: e.target.value }))} />
-              </div>
-              <div>
                 <label className="block text-zinc-400 mb-1">Supplier</label>
                 <Input className={inputDarkClass} value={addForm.supplier} onChange={(e) => setAddForm((f) => ({ ...f, supplier: e.target.value }))} />
               </div>
@@ -603,56 +664,203 @@ function WorkshopStockInner() {
                 <Input type="date" className={inputDarkClass} value={addForm.purchase_date} onChange={(e) => setAddForm((f) => ({ ...f, purchase_date: e.target.value }))} />
               </div>
               <div>
-                <label className="block text-zinc-400 mb-1">Drawer / Location</label>
-                <Input className={inputDarkClass} value={addForm.drawer_number} onChange={(e) => setAddForm((f) => ({ ...f, drawer_number: e.target.value }))} placeholder="D12, Shelf 3A" />
+                <label className="block text-zinc-400 mb-1">Cost price per piece (£)</label>
+                <Input type="number" step="0.01" className={inputDarkClass} value={addForm.cost_price} onChange={(e) => setAddForm((f) => ({ ...f, cost_price: e.target.value }))} />
               </div>
               <div>
                 <label className="block text-zinc-400 mb-1">Location notes</label>
                 <Input className={inputDarkClass} value={addForm.location_notes} onChange={(e) => setAddForm((f) => ({ ...f, location_notes: e.target.value }))} placeholder="Left side, behind the..." />
               </div>
               <div>
-                <label className="block text-zinc-400 mb-1">Grade</label>
-                <select className={`${selectDarkClass} w-full`} value={addForm.grade} onChange={(e) => setAddForm((f) => ({ ...f, grade: (e.target.value || '') as Grade | '' }))}>
-                  <option value="">—</option>
-                  <option value="S">S — Exhibition</option>
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                  <option value="C">C</option>
-                </select>
+                <label className="block text-zinc-400 mb-1">General notes</label>
+                <Input className={inputDarkClass} value={addForm.notes} onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))} placeholder="From March delivery..." />
               </div>
-              <div className="md:col-span-3">
-                <label className="block text-zinc-400 mb-1">Suitable for</label>
-                <div className="flex flex-wrap gap-4">
-                  {(['head', 'handle', 'awl_handle', 'square_scale'] as const).map((sf) => (
-                    <label key={sf} className="flex items-center gap-2 text-zinc-300 cursor-pointer">
-                      <input type="checkbox" checked={addForm.suitable_for.includes(sf)} onChange={() => setAddForm((f) => ({ ...f, suitable_for: suitableToggle(f.suitable_for, sf) }))} className="accent-brand-orange" />
-                      {{head:'Head',handle:'Handle',awl_handle:'Awl Handle',square_scale:'Square Scale'}[sf]}
-                    </label>
-                  ))}
+            </div>
+
+            {addForm.mode === 'intake' ? (
+              <>
+                {/* intake line items table */}
+                <div className="border border-zinc-700 rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-zinc-800/80 text-zinc-400 text-xs uppercase tracking-wider">
+                        <th className="text-left px-3 py-2 w-[140px]">Type</th>
+                        <th className="text-center px-3 py-2 w-[70px]">Qty</th>
+                        <th className="text-left px-3 py-2">Dimensions</th>
+                        <th className="text-left px-3 py-2 w-[120px]">Drawer</th>
+                        <th className="text-center px-3 py-2 w-[80px]">Grade</th>
+                        <th className="text-left px-3 py-2">Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {addForm.lines.map((line, idx) => {
+                        const cnt = Number.parseInt(line.count, 10) || 0
+                        return (
+                          <tr key={line.position} className={`border-t border-zinc-700/50 ${cnt > 0 ? 'bg-zinc-800/30' : ''}`}>
+                            <td className="px-3 py-2 font-medium text-zinc-200">{line.label}</td>
+                            <td className="px-2 py-2">
+                              <Input
+                                type="number"
+                                min={0}
+                                className={`${inputDarkClass} w-16 text-center ${cnt > 0 ? '!border-brand-orange/60 !text-brand-orange font-bold' : ''}`}
+                                value={line.count}
+                                onChange={(e) => setAddForm((f) => {
+                                  const lines = [...f.lines]
+                                  lines[idx] = { ...lines[idx], count: e.target.value }
+                                  return { ...f, lines }
+                                })}
+                              />
+                            </td>
+                            <td className="px-2 py-2">
+                              <Input
+                                className={inputDarkClass}
+                                placeholder="85x85x520mm"
+                                value={line.dimensions}
+                                onChange={(e) => setAddForm((f) => {
+                                  const lines = [...f.lines]
+                                  lines[idx] = { ...lines[idx], dimensions: e.target.value }
+                                  return { ...f, lines }
+                                })}
+                              />
+                            </td>
+                            <td className="px-2 py-2">
+                              <Input
+                                className={inputDarkClass}
+                                placeholder="D12"
+                                value={line.drawer_number}
+                                onChange={(e) => setAddForm((f) => {
+                                  const lines = [...f.lines]
+                                  lines[idx] = { ...lines[idx], drawer_number: e.target.value }
+                                  return { ...f, lines }
+                                })}
+                              />
+                            </td>
+                            <td className="px-2 py-2">
+                              <select
+                                className={`${selectDarkClass} w-full`}
+                                value={line.grade}
+                                onChange={(e) => setAddForm((f) => {
+                                  const lines = [...f.lines]
+                                  lines[idx] = { ...lines[idx], grade: (e.target.value || '') as Grade | '' }
+                                  return { ...f, lines }
+                                })}
+                              >
+                                <option value="">—</option>
+                                <option value="S">S</option>
+                                <option value="A">A</option>
+                                <option value="B">B</option>
+                                <option value="C">C</option>
+                              </select>
+                            </td>
+                            <td className="px-2 py-2">
+                              <Input
+                                className={inputDarkClass}
+                                placeholder="e.g. nice figure"
+                                value={line.notes}
+                                onChange={(e) => setAddForm((f) => {
+                                  const lines = [...f.lines]
+                                  lines[idx] = { ...lines[idx], notes: e.target.value }
+                                  return { ...f, lines }
+                                })}
+                              />
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-zinc-600 bg-zinc-800/50">
+                        <td className="px-3 py-2 font-semibold text-zinc-300">Total</td>
+                        <td className="px-3 py-2 text-center font-bold text-brand-orange">
+                          {addForm.lines.reduce((s, l) => s + (Number.parseInt(l.count, 10) || 0), 0)}
+                        </td>
+                        <td colSpan={4} />
+                      </tr>
+                    </tfoot>
+                  </table>
                 </div>
-              </div>
-              <div className="md:col-span-3">
-                <label className="block text-zinc-400 mb-1">Notes</label>
-                <textarea className={textareaDarkClass} rows={2} value={addForm.notes} onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Beautiful figure, small bark inclusion..." />
-              </div>
-              <div className="md:col-span-3">
-                <label className="block text-zinc-400 mb-1">Photos</label>
-                <input type="file" multiple accept="image/*,.heic,.HEIC" onChange={(e) => setAddingFiles(Array.from(e.target.files || []))} className="text-sm text-zinc-400" />
-                {addingFiles.length > 0 && <p className="text-xs text-zinc-500 mt-1">{addingFiles.length} file{addingFiles.length !== 1 ? 's' : ''} selected</p>}
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              {Number.parseInt(addForm.batchCount, 10) > 1 ? (
-                <Button onClick={saveBatch} disabled={saving || !addForm.material_id}>
-                  {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Adding...</> : `Add ${addForm.batchCount} pieces`}
-                </Button>
-              ) : (
-                <Button onClick={savePiece} disabled={saving || !addForm.material_id || !addForm.sku}>
-                  {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Add piece'}
-                </Button>
-              )}
-              <Button variant="outline" onClick={() => setShowAddForm(false)}>Cancel</Button>
-            </div>
+                <div className="flex gap-2 mt-4">
+                  <Button
+                    onClick={saveIntake}
+                    disabled={saving || !addForm.material_id || addForm.lines.every((l) => (Number.parseInt(l.count, 10) || 0) === 0)}
+                  >
+                    {saving ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Adding...</>
+                    ) : (
+                      `Add ${addForm.lines.reduce((s, l) => s + (Number.parseInt(l.count, 10) || 0), 0)} pieces`
+                    )}
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowAddForm(false)}>Cancel</Button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* single piece mode */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <label className="block text-zinc-400 mb-1">SKU</label>
+                    <div className="flex gap-2">
+                      <Input className={`flex-1 ${inputDarkClass}`} value={addForm.sku} onChange={(e) => setAddForm((f) => ({ ...f, sku: e.target.value }))} placeholder="Auto-generate →" />
+                      <Button size="sm" variant="outline" onClick={generateSku} disabled={!addForm.skuPrefix}>Gen</Button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 mb-1">Batch count</label>
+                    <Input type="number" min={1} className={inputDarkClass} value={addForm.batchCount} onChange={(e) => setAddForm((f) => ({ ...f, batchCount: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 mb-1">Dimensions</label>
+                    <Input className={inputDarkClass} value={addForm.dimensions} onChange={(e) => setAddForm((f) => ({ ...f, dimensions: e.target.value }))} placeholder="85x85x520mm" />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 mb-1">Weight (g)</label>
+                    <Input type="number" className={inputDarkClass} value={addForm.weight_grams} onChange={(e) => setAddForm((f) => ({ ...f, weight_grams: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 mb-1">Drawer / Location</label>
+                    <Input className={inputDarkClass} value={addForm.drawer_number} onChange={(e) => setAddForm((f) => ({ ...f, drawer_number: e.target.value }))} placeholder="D12, Shelf 3A" />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 mb-1">Grade</label>
+                    <select className={`${selectDarkClass} w-full`} value={addForm.grade} onChange={(e) => setAddForm((f) => ({ ...f, grade: (e.target.value || '') as Grade | '' }))}>
+                      <option value="">—</option>
+                      <option value="S">S — Exhibition</option>
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="C">C</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-3">
+                    <label className="block text-zinc-400 mb-1">Suitable for</label>
+                    <div className="flex flex-wrap gap-4">
+                      {(['head', 'handle', 'awl_handle', 'square_scale'] as const).map((sf) => (
+                        <label key={sf} className="flex items-center gap-2 text-zinc-300 cursor-pointer">
+                          <input type="checkbox" checked={addForm.suitable_for.includes(sf)} onChange={() => setAddForm((f) => ({ ...f, suitable_for: suitableToggle(f.suitable_for, sf) }))} className="accent-brand-orange" />
+                          {{head:'Head',handle:'Handle',awl_handle:'Awl Handle',square_scale:'Square Scale'}[sf]}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="md:col-span-3">
+                    <label className="block text-zinc-400 mb-1">Photos</label>
+                    <input type="file" multiple accept="image/*,.heic,.HEIC" onChange={(e) => setAddingFiles(Array.from(e.target.files || []))} className="text-sm text-zinc-400" />
+                    {addingFiles.length > 0 && <p className="text-xs text-zinc-500 mt-1">{addingFiles.length} file{addingFiles.length !== 1 ? 's' : ''} selected</p>}
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  {Number.parseInt(addForm.batchCount, 10) > 1 ? (
+                    <Button onClick={saveBatch} disabled={saving || !addForm.material_id}>
+                      {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Adding...</> : `Add ${addForm.batchCount} pieces`}
+                    </Button>
+                  ) : (
+                    <Button onClick={savePiece} disabled={saving || !addForm.material_id || !addForm.sku}>
+                      {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Add piece'}
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={() => setShowAddForm(false)}>Cancel</Button>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       )}
