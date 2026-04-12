@@ -74,8 +74,12 @@ const SUITABLE_ABBR: Record<SuitableFor, string> = { head: 'H', handle: 'Ha', aw
 
 function suitableDisplay(piece: { suitable_for: SuitableFor[]; notes: string | null }): string {
   const notes = piece.notes || ''
-  const tagMatch = notes.match(/^(S[CDJW]M\/T[CDJW]M)/i)
-  if (tagMatch) return tagMatch[1].toUpperCase()
+  const malletMatch = notes.match(/^(S[CDJW]M\/T[CDJW]M)(?:\s+(Head|Handle))?/i)
+  if (malletMatch) {
+    const pair = malletMatch[1].toUpperCase()
+    const cut = malletMatch[2] ? ` ${malletMatch[2].charAt(0).toUpperCase() + malletMatch[2].slice(1)}` : ''
+    return `${pair}${cut}`
+  }
   if (/^Awl\b/i.test(notes)) return 'Awl'
   if (/^Scale\b/i.test(notes)) return 'Scale'
   const labels: string[] = []
@@ -148,10 +152,14 @@ async function uploadStockImages(stockId: string, files: File[]): Promise<{ urls
 
 /* ─── intake form types ────────────────────────────────────────────── */
 
+type CutFor = '' | 'head' | 'handle'
+
 interface IntakeLineItem {
   positions: SuitableFor[]
   label: string
   tag: string
+  isMallet: boolean
+  cutFor: CutFor
   count: string
   dimensions: string
   drawer_number: string
@@ -159,16 +167,16 @@ interface IntakeLineItem {
   notes: string
 }
 
-const INTAKE_LINES_TEMPLATE: Omit<IntakeLineItem, 'count' | 'dimensions' | 'drawer_number' | 'grade' | 'notes'>[] = [
-  { positions: ['head', 'handle'], label: 'SJM / TJM blanks', tag: 'SJM/TJM' },
-  { positions: ['head', 'handle'], label: 'SDM / TDM blanks', tag: 'SDM/TDM' },
-  { positions: ['head', 'handle'], label: 'SCM / TCM blanks', tag: 'SCM/TCM' },
-  { positions: ['awl_handle'],     label: 'Awl blanks',       tag: 'Awl' },
-  { positions: ['square_scale'],   label: 'Scale blanks',     tag: 'Scale' },
+const INTAKE_LINES_TEMPLATE: Omit<IntakeLineItem, 'count' | 'dimensions' | 'drawer_number' | 'grade' | 'notes' | 'cutFor'>[] = [
+  { positions: ['head', 'handle'], label: 'SJM / TJM blanks', tag: 'SJM/TJM', isMallet: true },
+  { positions: ['head', 'handle'], label: 'SDM / TDM blanks', tag: 'SDM/TDM', isMallet: true },
+  { positions: ['head', 'handle'], label: 'SCM / TCM blanks', tag: 'SCM/TCM', isMallet: true },
+  { positions: ['awl_handle'],     label: 'Awl blanks',       tag: 'Awl',     isMallet: false },
+  { positions: ['square_scale'],   label: 'Scale blanks',     tag: 'Scale',   isMallet: false },
 ]
 
 function emptyLineItem(tpl: typeof INTAKE_LINES_TEMPLATE[number]): IntakeLineItem {
-  return { ...tpl, count: '0', dimensions: '', drawer_number: '', grade: '', notes: '' }
+  return { ...tpl, cutFor: '', count: '0', dimensions: '', drawer_number: '', grade: '', notes: '' }
 }
 
 interface AddForm {
@@ -455,9 +463,9 @@ function WorkshopStockInner() {
             purchase_date: addForm.purchase_date || null,
             drawer_number: line.drawer_number || null,
             location_notes: addForm.location_notes || null,
-            suitable_for: line.positions,
+            suitable_for: line.cutFor ? [line.cutFor] : line.positions,
             grade: line.grade || null,
-            notes: [line.tag, addForm.notes, line.notes].filter(Boolean).join(' — ') || null,
+            notes: [line.cutFor ? `${line.tag} ${line.cutFor.charAt(0).toUpperCase() + line.cutFor.slice(1)}` : line.tag, addForm.notes, line.notes].filter(Boolean).join(' — ') || null,
             images: [],
           })
         }
@@ -705,9 +713,10 @@ function WorkshopStockInner() {
                       <tr className="bg-zinc-800/80 text-zinc-400 text-xs uppercase tracking-wider">
                         <th className="text-left px-3 py-2 w-[140px]">Type</th>
                         <th className="text-center px-3 py-2 w-[70px]">Qty</th>
+                        <th className="text-center px-3 py-2 w-[100px]">Cut for</th>
                         <th className="text-left px-3 py-2">Dimensions</th>
-                        <th className="text-left px-3 py-2 w-[120px]">Drawer</th>
-                        <th className="text-center px-3 py-2 w-[80px]">Grade</th>
+                        <th className="text-left px-3 py-2 w-[100px]">Drawer</th>
+                        <th className="text-center px-3 py-2 w-[70px]">Grade</th>
                         <th className="text-left px-3 py-2">Notes</th>
                       </tr>
                     </thead>
@@ -730,6 +739,25 @@ function WorkshopStockInner() {
                                   return { ...f, lines }
                                 })}
                               />
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              {line.isMallet ? (
+                                <select
+                                  className={`${selectDarkClass} w-full`}
+                                  value={line.cutFor}
+                                  onChange={(e) => setAddForm((f) => {
+                                    const lines = [...f.lines]
+                                    lines[idx] = { ...lines[idx], cutFor: e.target.value as CutFor }
+                                    return { ...f, lines }
+                                  })}
+                                >
+                                  <option value="">Either</option>
+                                  <option value="head">Head</option>
+                                  <option value="handle">Handle</option>
+                                </select>
+                              ) : (
+                                <span className="text-zinc-600">—</span>
+                              )}
                             </td>
                             <td className="px-2 py-2">
                               <Input
@@ -794,7 +822,7 @@ function WorkshopStockInner() {
                         <td className="px-3 py-2 text-center font-bold text-brand-orange">
                           {addForm.lines.reduce((s, l) => s + (Number.parseInt(l.count, 10) || 0), 0)}
                         </td>
-                        <td colSpan={4} />
+                        <td colSpan={5} />
                       </tr>
                     </tfoot>
                   </table>
