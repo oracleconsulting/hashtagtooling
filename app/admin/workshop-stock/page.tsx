@@ -74,19 +74,17 @@ const SUITABLE_ABBR: Record<SuitableFor, string> = { head: 'H', handle: 'Ha', aw
 
 function suitableDisplay(piece: { suitable_for: SuitableFor[]; notes: string | null }): string {
   const notes = piece.notes || ''
-  const tagMatch = notes.match(/^(S[CDJW]M\/T[CDJW]M)\s+(head|handle)/i)
-  if (tagMatch) {
-    const pair = tagMatch[1].toUpperCase()
-    const pos = tagMatch[2].charAt(0).toUpperCase() + tagMatch[2].slice(1)
-    return `${pair} ${pos}`
+  const tagMatch = notes.match(/^(S[CDJW]M\/T[CDJW]M)/i)
+  if (tagMatch) return tagMatch[1].toUpperCase()
+  if (/^Awl\b/i.test(notes)) return 'Awl'
+  if (/^Scale\b/i.test(notes)) return 'Scale'
+  const labels: string[] = []
+  for (const s of piece.suitable_for) {
+    if (s === 'awl_handle') labels.push('Awl')
+    else if (s === 'square_scale') labels.push('Scale')
+    else labels.push(s.charAt(0).toUpperCase() + s.slice(1))
   }
-  if (notes.startsWith('awl')) return 'Awl'
-  if (notes.startsWith('scale')) return 'Scale'
-  return piece.suitable_for.map((s) => {
-    if (s === 'awl_handle') return 'Awl'
-    if (s === 'square_scale') return 'Scale'
-    return s.charAt(0).toUpperCase() + s.slice(1)
-  }).join(', ')
+  return labels.join(', ')
 }
 
 const inputDarkClass = 'bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500'
@@ -151,7 +149,7 @@ async function uploadStockImages(stockId: string, files: File[]): Promise<{ urls
 /* ─── intake form types ────────────────────────────────────────────── */
 
 interface IntakeLineItem {
-  position: SuitableFor
+  positions: SuitableFor[]
   label: string
   tag: string
   count: string
@@ -162,14 +160,11 @@ interface IntakeLineItem {
 }
 
 const INTAKE_LINES_TEMPLATE: Omit<IntakeLineItem, 'count' | 'dimensions' | 'drawer_number' | 'grade' | 'notes'>[] = [
-  { position: 'head',         label: 'SJM / TJM Heads',    tag: 'SJM/TJM head' },
-  { position: 'handle',       label: 'SJM / TJM Handles',  tag: 'SJM/TJM handle' },
-  { position: 'head',         label: 'SDM / TDM Heads',    tag: 'SDM/TDM head' },
-  { position: 'handle',       label: 'SDM / TDM Handles',  tag: 'SDM/TDM handle' },
-  { position: 'head',         label: 'SCM / TCM Heads',    tag: 'SCM/TCM head' },
-  { position: 'handle',       label: 'SCM / TCM Handles',  tag: 'SCM/TCM handle' },
-  { position: 'awl_handle',   label: 'Awl blanks',         tag: 'awl' },
-  { position: 'square_scale', label: 'Scale blanks',       tag: 'scale' },
+  { positions: ['head', 'handle'], label: 'SJM / TJM blanks', tag: 'SJM/TJM' },
+  { positions: ['head', 'handle'], label: 'SDM / TDM blanks', tag: 'SDM/TDM' },
+  { positions: ['head', 'handle'], label: 'SCM / TCM blanks', tag: 'SCM/TCM' },
+  { positions: ['awl_handle'],     label: 'Awl blanks',       tag: 'Awl' },
+  { positions: ['square_scale'],   label: 'Scale blanks',     tag: 'Scale' },
 ]
 
 function emptyLineItem(tpl: typeof INTAKE_LINES_TEMPLATE[number]): IntakeLineItem {
@@ -460,7 +455,7 @@ function WorkshopStockInner() {
             purchase_date: addForm.purchase_date || null,
             drawer_number: line.drawer_number || null,
             location_notes: addForm.location_notes || null,
-            suitable_for: [line.position],
+            suitable_for: line.positions,
             grade: line.grade || null,
             notes: [line.tag, addForm.notes, line.notes].filter(Boolean).join(' — ') || null,
             images: [],
@@ -719,7 +714,7 @@ function WorkshopStockInner() {
                     <tbody>
                       {addForm.lines.map((line, idx) => {
                         const cnt = Number.parseInt(line.count, 10) || 0
-                        const isGroupBreak = idx === 6
+                        const isGroupBreak = idx === 3
                         return (
                           <tr key={line.tag} className={`border-t ${isGroupBreak ? 'border-zinc-500' : 'border-zinc-700/50'} ${cnt > 0 ? 'bg-zinc-800/30' : ''}`}>
                             <td className="px-3 py-2 font-medium text-zinc-200 whitespace-nowrap">{line.label}</td>
