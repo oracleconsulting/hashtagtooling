@@ -62,6 +62,9 @@ export default function ProductContent() {
   const [pieceLightboxOpen, setPieceLightboxOpen] = useState(false)
   const [pieceLightboxImages, setPieceLightboxImages] = useState<string[]>([])
   const [pieceLightboxIndex, setPieceLightboxIndex] = useState(0)
+  const [reviews, setReviews] = useState<{ id: string; customer_name: string; rating: number; title: string | null; body: string | null; verified_purchase: boolean; created_at: string }[]>([])
+  const [avgRating, setAvgRating] = useState(0)
+  const [reviewCount, setReviewCount] = useState(0)
 
   useEffect(() => {
     if (id) loadProduct()
@@ -115,6 +118,16 @@ export default function ProductContent() {
           .in('stock_status', ['in_stock', 'made_to_order', 'sold'])
           .limit(3)
         setRelated(relatedData || [])
+      }
+
+      try {
+        const reviewsRes = await fetch(`/api/reviews/${id}`)
+        const reviewsData = await reviewsRes.json()
+        setReviews(reviewsData.reviews || [])
+        setAvgRating(reviewsData.averageRating || 0)
+        setReviewCount(reviewsData.count || 0)
+      } catch {
+        /* reviews non-critical */
       }
     } catch (err) {
       console.error('Error loading product:', err)
@@ -336,6 +349,16 @@ export default function ProductContent() {
 
         <div>
           <h1 className="font-heading text-3xl md:text-4xl font-bold mb-4 text-white">{product.name}</h1>
+          {reviewCount > 0 && (
+            <div className="flex items-center gap-2 mb-4">
+              <div className="flex">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <span key={star} className={`text-lg ${star <= Math.round(avgRating) ? 'text-brand-orange' : 'text-zinc-600'}`}>★</span>
+                ))}
+              </div>
+              <span className="text-zinc-400 text-sm">{avgRating.toFixed(1)} ({reviewCount} {reviewCount === 1 ? 'review' : 'reviews'})</span>
+            </div>
+          )}
           {!isWoodParentWithPieces ? (
             <p className="text-3xl font-bold mb-6 text-brand-orange">{formatPrice(product.price)}</p>
           ) : (
@@ -607,6 +630,38 @@ export default function ProductContent() {
           )}
         </div>
       </div>
+
+      {reviews.length > 0 && (
+        <section className="mt-12 pt-8 border-t border-brand-dark-border">
+          <h2 className="font-heading text-2xl font-bold text-white mb-6">Reviews</h2>
+          <div className="space-y-6">
+            {reviews.map((review) => (
+              <div key={review.id} className="bg-brand-dark-card border border-brand-dark-border rounded-lg p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <span key={s} className={s <= review.rating ? 'text-brand-orange' : 'text-zinc-600'}>★</span>
+                        ))}
+                      </div>
+                      {review.verified_purchase && (
+                        <span className="text-xs text-green-500 bg-green-900/30 px-2 py-0.5 rounded">Verified Purchase</span>
+                      )}
+                    </div>
+                    {review.title && <p className="font-semibold text-white mt-1">{review.title}</p>}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-zinc-500">{review.customer_name}</p>
+                    <p className="text-xs text-zinc-600">{new Date(review.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  </div>
+                </div>
+                {review.body && <p className="text-zinc-300 leading-relaxed">{review.body}</p>}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {related.length > 0 && (
         <section className="mt-16">

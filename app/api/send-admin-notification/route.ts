@@ -50,6 +50,18 @@ export async function POST(req: NextRequest) {
         <p><strong>Message:</strong></p>
         <p>${(data.message || '').replace(/\n/g, '<br>')}</p>
       `
+    } else if (type === 'new_review') {
+      const stars = '★'.repeat(Number(data.rating) || 0) + '☆'.repeat(5 - (Number(data.rating) || 0))
+      subject = `New Review — ${data.rating}★ from ${data.customerName}`
+      html = `
+        <h2>New Review Submitted</h2>
+        <p><strong>From:</strong> ${data.customerName}</p>
+        <p><strong>Rating:</strong> ${stars}</p>
+        <p><strong>Title:</strong> ${data.title}</p>
+        <p><strong>Review:</strong></p>
+        <p>${(data.body || '').replace(/\n/g, '<br>')}</p>
+        <p><a href="https://hashtag.guru/admin/reviews">Approve in Admin &rarr;</a></p>
+      `
     } else {
       return NextResponse.json({ error: 'Unknown type' }, { status: 400 })
     }

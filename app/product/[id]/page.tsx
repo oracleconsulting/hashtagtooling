@@ -95,6 +95,19 @@ export default async function ProductPage({ params }: Props) {
         ? 'PreOrder'
         : 'SoldOut'
 
+  const { data: reviewRows } = await supabase
+    .from('product_reviews')
+    .select('customer_name, rating, body, created_at')
+    .eq('product_id', id)
+    .eq('published', true)
+    .order('created_at', { ascending: false })
+    .limit(5)
+
+  const reviewCount = reviewRows?.length || 0
+  const avgRating = reviewCount > 0
+    ? reviewRows!.reduce((sum: number, r: { rating: number }) => sum + r.rating, 0) / reviewCount
+    : 0
+
   return (
     <>
       <BreadcrumbJsonLd items={[
@@ -110,6 +123,9 @@ export default async function ProductPage({ params }: Props) {
         url={`https://hashtag.guru/product/${id}`}
         availability={availability}
         shipping={(product.metadata as Record<string, unknown> | null)?.shipping as { uk: number; europe: number; world: number } | undefined}
+        reviews={reviewRows || undefined}
+        averageRating={avgRating || undefined}
+        reviewCount={reviewCount || undefined}
       />
       <Suspense fallback={<ProductDetailSkeleton />}>
         <ProductContent />

@@ -1,3 +1,10 @@
+interface ReviewData {
+  customer_name: string;
+  rating: number;
+  body: string | null;
+  created_at: string;
+}
+
 interface ProductJsonLdProps {
   name: string;
   description: string;
@@ -7,6 +14,9 @@ interface ProductJsonLdProps {
   availability: "InStock" | "PreOrder" | "SoldOut";
   currency?: string;
   shipping?: { uk: number; europe: number; world: number };
+  reviews?: ReviewData[];
+  averageRating?: number;
+  reviewCount?: number;
 }
 
 export function ProductJsonLd({
@@ -18,6 +28,9 @@ export function ProductJsonLd({
   availability,
   currency = "GBP",
   shipping,
+  reviews,
+  averageRating,
+  reviewCount,
 }: ProductJsonLdProps) {
   const jsonLd = {
     "@context": "https://schema.org",
@@ -27,6 +40,32 @@ export function ProductJsonLd({
     image,
     url,
     brand: { "@type": "Brand", name: "#TOOLING" },
+    ...(averageRating && reviewCount && reviewCount > 0
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: averageRating.toFixed(1),
+            reviewCount: reviewCount.toString(),
+            bestRating: "5",
+            worstRating: "1",
+          },
+        }
+      : {}),
+    ...(reviews && reviews.length > 0
+      ? {
+          review: reviews.slice(0, 5).map((r) => ({
+            "@type": "Review",
+            author: { "@type": "Person", name: r.customer_name },
+            datePublished: r.created_at,
+            reviewRating: {
+              "@type": "Rating",
+              ratingValue: r.rating.toString(),
+              bestRating: "5",
+            },
+            ...(r.body ? { reviewBody: r.body } : {}),
+          })),
+        }
+      : {}),
     offers: {
       "@type": "Offer",
       price: price.toFixed(2),
