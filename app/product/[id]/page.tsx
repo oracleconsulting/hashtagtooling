@@ -80,7 +80,7 @@ export default async function ProductPage({ params }: Props) {
   const { id } = await params
   const { data: product } = await supabase
     .from('products')
-    .select('name, description, price, image_url, stock_status, material_id')
+    .select('name, description, price, image_url, stock_status, material_id, metadata')
     .eq('id', id)
     .single()
 
@@ -109,6 +109,7 @@ export default async function ProductPage({ params }: Props) {
         image={jsonLdImage}
         url={`https://hashtag.guru/product/${id}`}
         availability={availability}
+        shipping={(product.metadata as Record<string, unknown> | null)?.shipping as { uk: number; europe: number; world: number } | undefined}
       />
       <Suspense fallback={<ProductDetailSkeleton />}>
         <ProductContent />

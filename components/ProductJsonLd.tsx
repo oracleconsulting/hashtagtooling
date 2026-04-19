@@ -6,6 +6,7 @@ interface ProductJsonLdProps {
   url: string;
   availability: "InStock" | "PreOrder" | "SoldOut";
   currency?: string;
+  shipping?: { uk: number; europe: number; world: number };
 }
 
 export function ProductJsonLd({
@@ -16,12 +17,13 @@ export function ProductJsonLd({
   url,
   availability,
   currency = "GBP",
+  shipping,
 }: ProductJsonLdProps) {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
     name,
-    description,
+    description: description || `Handcrafted by #TOOLING from exotic timber. Made to order in the UK.`,
     image,
     url,
     brand: { "@type": "Brand", name: "#TOOLING" },
@@ -31,6 +33,41 @@ export function ProductJsonLd({
       priceCurrency: currency,
       availability: `https://schema.org/${availability}`,
       seller: { "@type": "Organization", name: "#TOOLING" },
+      hasMerchantReturnPolicy: {
+        "@type": "MerchantReturnPolicy",
+        applicableCountry: "GB",
+        returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+        merchantReturnDays: 14,
+        returnMethod: "https://schema.org/ReturnByMail",
+        returnFees: "https://schema.org/ReturnShippingFees",
+      },
+      shippingDetails: {
+        "@type": "OfferShippingDetails",
+        shippingDestination: {
+          "@type": "DefinedRegion",
+          addressCountry: "GB",
+        },
+        shippingRate: {
+          "@type": "MonetaryAmount",
+          value: shipping?.uk?.toString() || "15.00",
+          currency: "GBP",
+        },
+        deliveryTime: {
+          "@type": "ShippingDeliveryTime",
+          handlingTime: {
+            "@type": "QuantitativeValue",
+            minValue: 1,
+            maxValue: 5,
+            unitCode: "DAY",
+          },
+          transitTime: {
+            "@type": "QuantitativeValue",
+            minValue: 2,
+            maxValue: 5,
+            unitCode: "DAY",
+          },
+        },
+      },
     },
   };
 
