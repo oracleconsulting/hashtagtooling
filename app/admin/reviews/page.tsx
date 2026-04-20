@@ -57,7 +57,7 @@ export default function AdminReviewsPage() {
     try {
       const [reviewsRes, productsRes] = await Promise.all([
         supabase.from('product_reviews').select('*').order('created_at', { ascending: false }),
-        supabase.from('products').select('id, name').is('parent_product_id', null).order('name'),
+        supabase.from('products').select('id, name').is('parent_product_id', null).in('stock_status', ['in_stock', 'made_to_order', 'sold']).order('name'),
       ])
       setReviews((reviewsRes.data || []) as Review[])
       setProducts((productsRes.data || []) as Product[])
