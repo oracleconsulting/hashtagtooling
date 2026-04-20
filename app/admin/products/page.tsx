@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
-import { Pencil, Trash2, Plus } from 'lucide-react'
+import { Pencil, Trash2, Plus, Loader2 } from 'lucide-react'
 
 interface Product {
   id: string
@@ -18,11 +18,115 @@ interface Product {
   image_url: string
 }
 
+function ReviewRequestButton({ product }: { product: { id: string; name: string } }) {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'sent' | 'error'>('idle')
+  const [reviewUrl, setReviewUrl] = useState('')
+
+  const send = async () => {
+    if (!name.trim() || !email.trim()) return
+    setStatus('loading')
+    try {
+      const res = await fetch('/api/reviews/create-invitation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_name: name.trim(),
+          customer_email: email.trim(),
+          product_id: product.id,
+          source: 'historical',
+          send_email: true,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setStatus('sent')
+        setReviewUrl(data.review_url || '')
+      } else {
+        setStatus('error')
+      }
+    } catch {
+      setStatus('error')
+    }
+  }
+
+  if (status === 'sent') {
+    return (
+      <div className="mt-2 p-3 bg-green-900/20 border border-green-800 rounded text-sm">
+        <p className="text-green-400 font-medium text-xs">&#10003; Review request sent to {email}</p>
+        {reviewUrl && (
+          <button
+            onClick={() => { navigator.clipboard.writeText(reviewUrl) }}
+            className="text-green-600 text-xs mt-1 hover:underline"
+          >
+            Copy review link
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  if (!open) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full mt-1 text-xs"
+        onClick={() => setOpen(true)}
+      >
+        Request Review
+      </Button>
+    )
+  }
+
+  return (
+    <div className="mt-2 p-3 bg-zinc-900 border border-zinc-700 rounded space-y-2">
+      <p className="text-xs text-zinc-400 font-medium truncate">{product.name}</p>
+      <input
+        type="text"
+        placeholder="Customer name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="w-full px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-white text-sm placeholder:text-zinc-500"
+      />
+      <input
+        type="email"
+        placeholder="Customer email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        className="w-full px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-white text-sm placeholder:text-zinc-500"
+      />
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          className="flex-1 text-xs"
+          onClick={send}
+          disabled={status === 'loading' || !name.trim() || !email.trim()}
+        >
+          {status === 'loading' ? 'Sending...' : 'Send'}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs"
+          onClick={() => { setOpen(false); setName(''); setEmail('') }}
+        >
+          Cancel
+        </Button>
+      </div>
+      {status === 'error' && <p className="text-red-400 text-xs">Failed to send. Try again.</p>}
+    </div>
+  )
+}
+
 export default function AdminProductsPage() {
   const router = useRouter()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'live' | 'drafts' | 'gallery'>('live')
+  const [reviewStatusMap, setReviewStatusMap] = useState<Map<string, string>>(new Map())
 
   useEffect(() => {
     // Check auth
@@ -37,13 +141,22 @@ export default function AdminProductsPage() {
 
   const loadProducts = async () => {
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('created_at', { ascending: false })
+      const [{ data, error }, { data: reviewedProducts }] = await Promise.all([
+        supabase.from('products').select('*').order('created_at', { ascending: false }),
+        supabase.from('product_reviews').select('product_id, token_used, published').not('product_id', 'is', null),
+      ])
 
       if (error) throw error
       setProducts(data || [])
+
+      const statusMap = new Map<string, string>()
+      ;(reviewedProducts || []).forEach((r: { product_id: string; token_used: boolean; published: boolean }) => {
+        const current = statusMap.get(r.product_id)
+        if (r.published) statusMap.set(r.product_id, 'published')
+        else if (r.token_used && current !== 'published') statusMap.set(r.product_id, 'received')
+        else if (!current) statusMap.set(r.product_id, 'invited')
+      })
+      setReviewStatusMap(statusMap)
     } catch (error) {
       console.error('Error loading products:', error)
     } finally {
@@ -255,6 +368,15 @@ export default function AdminProductsPage() {
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
+                {product.stock_status === 'sold' && (
+                  reviewStatusMap.get(product.id) === 'published'
+                    ? <span className="text-green-500 text-xs mt-2 block">★ Review published</span>
+                    : reviewStatusMap.get(product.id) === 'received'
+                    ? <span className="text-brand-orange text-xs mt-2 block">Review pending approval</span>
+                    : reviewStatusMap.get(product.id) === 'invited'
+                    ? <span className="text-zinc-500 text-xs mt-2 block">Review invited — awaiting</span>
+                    : <ReviewRequestButton product={product} />
+                )}
               </CardContent>
             </Card>
           ))}
