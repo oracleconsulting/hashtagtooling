@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
 import { Loader2 } from 'lucide-react'
+import { AdminProductPreview } from '@/components/AdminProductPreview'
 
 interface Review {
   id: string
@@ -31,6 +32,17 @@ interface Review {
 interface Product {
   id: string
   name: string
+  image_url?: string
+  category?: string
+  created_at?: string
+  description?: string
+  price?: number
+  stock_status?: string
+  metadata?: {
+    images?: string[]
+    head_wood?: string
+    handle_wood?: string
+  }
 }
 
 export default function AdminReviewsPage() {
@@ -41,7 +53,9 @@ export default function AdminReviewsPage() {
 
   const [inviteName, setInviteName] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteProduct, setInviteProduct] = useState('')
+  const [inviteProductId, setInviteProductId] = useState('')
+  const [productSearch, setProductSearch] = useState('')
+  const [productDropdownOpen, setProductDropdownOpen] = useState(false)
   const [inviteDescription, setInviteDescription] = useState('')
   const [inviteSource, setInviteSource] = useState('historical')
   const [inviting, setInviting] = useState(false)
@@ -57,7 +71,7 @@ export default function AdminReviewsPage() {
     try {
       const [reviewsRes, productsRes] = await Promise.all([
         supabase.from('product_reviews').select('*').order('created_at', { ascending: false }),
-        supabase.from('products').select('id, name').is('parent_product_id', null).in('stock_status', ['in_stock', 'made_to_order', 'sold']).order('name'),
+        supabase.from('products').select('id, name, image_url, category, created_at, description, price, stock_status, metadata').is('parent_product_id', null).in('stock_status', ['in_stock', 'made_to_order', 'sold']).order('name'),
       ])
       setReviews((reviewsRes.data || []) as Review[])
       setProducts((productsRes.data || []) as Product[])
@@ -79,6 +93,10 @@ export default function AdminReviewsPage() {
     reviews.filter((r) => r.product_id).map((r) => r.product_id)
   )
   const availableProducts = products.filter((p) => !reviewedProductIds.has(p.id))
+  const selectedProduct = availableProducts.find((p) => p.id === inviteProductId) || null
+  const filteredProducts = availableProducts.filter((p) =>
+    p.name.toLowerCase().includes(productSearch.toLowerCase())
+  )
 
   const approveReview = async (id: string) => {
     await supabase.from('product_reviews').update({ published: true, published_at: new Date().toISOString() }).eq('id', id)
@@ -107,7 +125,7 @@ export default function AdminReviewsPage() {
         body: JSON.stringify({
           customer_name: inviteName.trim(),
           customer_email: inviteEmail.trim(),
-          product_id: inviteProduct || null,
+          product_id: inviteProductId || null,
           source: inviteSource,
           product_description: inviteDescription.trim() || null,
           send_email: true,
@@ -118,7 +136,8 @@ export default function AdminReviewsPage() {
         setInviteResult({ url: data.review_url })
         setInviteName('')
         setInviteEmail('')
-        setInviteProduct('')
+        setInviteProductId('')
+        setProductSearch('')
         setInviteDescription('')
         loadData()
       } else {
@@ -193,17 +212,53 @@ export default function AdminReviewsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1">Link to Product (optional)</label>
-              <select
-                className="w-full h-10 rounded-md border border-brand-dark-border bg-brand-dark text-white px-3"
-                value={inviteProduct}
-                onChange={(e) => setInviteProduct(e.target.value)}
-              >
-                <option value="">General review (no specific product)</option>
-                {availableProducts.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={productSearch}
+                  onChange={(e) => { setProductSearch(e.target.value); setProductDropdownOpen(true) }}
+                  onFocus={() => setProductDropdownOpen(true)}
+                  placeholder="Search products..."
+                  className="w-full h-10 px-3 py-2 bg-brand-dark border border-brand-dark-border rounded-md text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-brand-orange"
+                />
+                {productDropdownOpen && productSearch.length > 0 && (
+                  <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-zinc-900 border border-zinc-700 rounded-lg max-h-64 overflow-y-auto shadow-lg">
+                    <button
+                      type="button"
+                      onClick={() => { setInviteProductId(''); setProductSearch(''); setProductDropdownOpen(false) }}
+                      className="w-full px-3 py-2 text-left text-sm text-zinc-400 hover:bg-zinc-800 flex items-center gap-3"
+                    >
+                      General review (no specific product)
+                    </button>
+                    {filteredProducts.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => { setInviteProductId(p.id); setProductSearch(p.name); setProductDropdownOpen(false) }}
+                        className="w-full px-3 py-2 text-left text-sm text-white hover:bg-zinc-800 flex items-center gap-3"
+                      >
+                        {p.image_url && !p.image_url.includes('placehold') ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img src={p.metadata?.images?.[0] || p.image_url} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
+                        ) : (
+                          <div className="w-8 h-8 rounded bg-zinc-800 flex-shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="truncate">{p.name}</p>
+                          {p.category && p.created_at && (
+                            <p className="text-zinc-500 text-xs">{p.category} · {new Date(p.created_at).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</p>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                    {filteredProducts.length === 0 && (
+                      <p className="px-3 py-2 text-sm text-zinc-500">No matching products</p>
+                    )}
+                  </div>
+                )}
+              </div>
               <p className="text-xs text-zinc-500 mt-1">{availableProducts.length} products awaiting review · {reviewedProductIds.size} invited/reviewed</p>
+              <AdminProductPreview product={selectedProduct} />
             </div>
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1">Source</label>
