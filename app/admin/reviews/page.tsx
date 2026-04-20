@@ -75,6 +75,11 @@ export default function AdminReviewsPage() {
     ? (published.reduce((s, r) => s + r.rating, 0) / published.length).toFixed(1)
     : '—'
 
+  const reviewedProductIds = new Set(
+    reviews.filter((r) => r.product_id).map((r) => r.product_id)
+  )
+  const availableProducts = products.filter((p) => !reviewedProductIds.has(p.id))
+
   const approveReview = async (id: string) => {
     await supabase.from('product_reviews').update({ published: true, published_at: new Date().toISOString() }).eq('id', id)
     loadData()
@@ -178,11 +183,11 @@ export default function AdminReviewsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1">Customer Name *</label>
-              <Input value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder="John Smith" />
+              <Input className="bg-brand-dark border-brand-dark-border text-white placeholder:text-zinc-500" value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder="John Smith" />
             </div>
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1">Customer Email *</label>
-              <Input value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="john@example.com" type="email" />
+              <Input className="bg-brand-dark border-brand-dark-border text-white placeholder:text-zinc-500" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="john@example.com" type="email" />
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -194,10 +199,11 @@ export default function AdminReviewsPage() {
                 onChange={(e) => setInviteProduct(e.target.value)}
               >
                 <option value="">General review (no specific product)</option>
-                {products.map((p) => (
+                {availableProducts.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
+              <p className="text-xs text-zinc-500 mt-1">{availableProducts.length} products awaiting review · {reviewedProductIds.size} invited/reviewed</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1">Source</label>
@@ -215,6 +221,7 @@ export default function AdminReviewsPage() {
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1">Product Description (optional — for items not in database)</label>
             <Input
+              className="bg-brand-dark border-brand-dark-border text-white placeholder:text-zinc-500"
               value={inviteDescription}
               onChange={(e) => setInviteDescription(e.target.value)}
               placeholder="e.g. Cocobolo Carving Mallet, 2023"
