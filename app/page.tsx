@@ -46,7 +46,7 @@ const defaultImages: SiteImages = {
 }
 
 export default async function Home() {
-  const [siteImagesRes, latestRes, malletRes, awlRes, squareRes, woodRes, coinRes] = await Promise.all([
+  const [siteImagesRes, latestRes, malletRes, awlRes, squareRes, woodRes, coinRes, reviewsRes] = await Promise.all([
     supabase.from('site_images').select('section_key, image_url'),
     supabase
       .from('products')
@@ -89,6 +89,12 @@ export default async function Home() {
       .in('stock_status', ['in_stock', 'made_to_order'])
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from('product_reviews')
+      .select('id, customer_name, rating, title, body, verified_purchase, product_id')
+      .eq('published', true)
+      .order('created_at', { ascending: false })
+      .limit(6),
   ])
 
   const images: SiteImages = { ...defaultImages }
@@ -112,6 +118,22 @@ export default async function Home() {
   if (woodRes.data?.image_url) categoryImages.wood = woodRes.data.image_url
   if (coinRes.data?.image_url) categoryImages.coin = coinRes.data.image_url
 
+  const rawReviews = reviewsRes.data || []
+  const reviewProductIds = rawReviews.map((r: { product_id: string | null }) => r.product_id).filter(Boolean) as string[]
+  const { data: reviewProducts } = reviewProductIds.length > 0
+    ? await supabase.from('products').select('id, name').in('id', reviewProductIds)
+    : { data: [] as { id: string; name: string }[] }
+  const reviewProductMap = new Map((reviewProducts || []).map((p: { id: string; name: string }) => [p.id, p.name]))
+  const homeReviews = rawReviews.map((r: { id: string; customer_name: string; rating: number; title: string | null; body: string | null; verified_purchase: boolean; product_id: string | null }) => ({
+    id: r.id,
+    customer_name: r.customer_name,
+    rating: r.rating,
+    title: r.title,
+    body: r.body,
+    verified_purchase: r.verified_purchase,
+    product_name: r.product_id ? reviewProductMap.get(r.product_id) || null : null,
+  }))
+
   return (
     <>
       <LocalBusinessJsonLd />
@@ -121,6 +143,7 @@ export default async function Home() {
         heroVideoUrl={heroVideoUrl}
         latestProducts={latestProducts}
         categoryImages={categoryImages}
+        reviews={homeReviews}
       />
     </>
   )

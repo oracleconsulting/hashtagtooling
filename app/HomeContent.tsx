@@ -24,11 +24,22 @@ interface LatestProduct {
   metadata?: { shipping?: { uk: number; europe: number; world: number } }
 }
 
+interface HomeReview {
+  id: string
+  customer_name: string
+  rating: number
+  title: string | null
+  body: string | null
+  verified_purchase: boolean
+  product_name: string | null
+}
+
 interface HomeContentProps {
   images: SiteImages
   heroVideoUrl?: string
   latestProducts?: LatestProduct[]
   categoryImages?: Record<string, string>
+  reviews?: HomeReview[]
 }
 
 const CATEGORIES = [
@@ -39,7 +50,7 @@ const CATEGORIES = [
   { id: 'coin', name: 'EDC Coins', href: '/shop?category=coins', desc: 'Laser-cut carry coins from exotic materials' },
 ]
 
-export default function HomeContent({ images, heroVideoUrl, latestProducts = [], categoryImages = {} }: HomeContentProps) {
+export default function HomeContent({ images, heroVideoUrl, latestProducts = [], categoryImages = {}, reviews = [] }: HomeContentProps) {
   return (
     <div>
       <section className="relative min-h-[80vh] flex items-center bg-brand-dark overflow-hidden">
@@ -301,6 +312,39 @@ export default function HomeContent({ images, heroVideoUrl, latestProducts = [],
           </div>
         </div>
       </section>
+
+      {reviews.length > 0 && (
+        <section className="py-20 bg-brand-dark-card">
+          <div className="container mx-auto px-4">
+            <h2 className="font-heading text-3xl md:text-4xl font-bold text-brand-orange mb-3 text-center">WHAT PEOPLE SAY</h2>
+            <p className="text-zinc-400 text-center mb-10">Real reviews from real woodworkers.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+              {reviews.map((review) => (
+                <div key={review.id} className="bg-brand-dark border border-brand-dark-border rounded-lg p-6">
+                  <div className="flex items-center gap-1 mb-3">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <span key={s} className={`text-sm ${s <= review.rating ? 'text-brand-orange' : 'text-zinc-700'}`}>★</span>
+                    ))}
+                  </div>
+                  {review.title && <p className="font-semibold text-white text-sm mb-2">{review.title}</p>}
+                  {review.body && <p className="text-zinc-400 text-sm leading-relaxed line-clamp-4">{review.body}</p>}
+                  <div className="mt-4 pt-3 border-t border-brand-dark-border flex items-center justify-between">
+                    <div>
+                      <p className="text-white text-sm font-medium">{review.customer_name}</p>
+                      {review.product_name && (
+                        <p className="text-zinc-500 text-xs">{review.product_name}</p>
+                      )}
+                    </div>
+                    {review.verified_purchase && (
+                      <span className="text-[10px] text-green-500 bg-green-900/30 px-1.5 py-0.5 rounded font-medium">Verified</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="py-16 bg-brand-dark">
         <div className="container mx-auto px-4">
