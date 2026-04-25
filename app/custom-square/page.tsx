@@ -8,12 +8,20 @@ import { formatPrice } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import { Check, Loader2, Info } from 'lucide-react'
 import { SquareProfileSVG } from '@/components/SquareProfileSVG'
+import dynamic from 'next/dynamic'
 import {
   SQUARE_SPECS,
   BODY_MATERIALS,
   SCALE_TYPES,
   type SquareSize,
-} from '@/lib/square-profiles'
+  type ScaleType,
+  type ScaleVariant,
+} from '@/lib/square-geometry'
+
+const SquarePreview3D = dynamic(() => import('@/components/SquarePreview3D'), {
+  ssr: false,
+  loading: () => <div className="w-full h-[400px] rounded-lg bg-zinc-900 animate-pulse" />,
+})
 
 interface BasePrice {
   id: string
@@ -61,6 +69,9 @@ export default function CustomSquarePage() {
   const [selectedScaleMaterial, setSelectedScaleMaterial] = useState<string | null>(null)
   const [scaleMaterialType, setScaleMaterialType] = useState<'wood' | 'cf'>('wood')
   const [addedToCart, setAddedToCart] = useState(false)
+  const [show3D, setShow3D] = useState(false)
+
+  const scaleVariant: ScaleVariant = scaleMaterialType === 'cf' ? 'wide_cf' : 'narrow'
 
   useEffect(() => {
     loadData()
@@ -267,15 +278,64 @@ export default function CustomSquarePage() {
           {/* Live Preview */}
           <div className="order-1 lg:sticky lg:top-24 h-fit">
             <div className="sticky top-20 z-10 bg-brand-dark py-2 md:py-0 md:static lg:bg-transparent">
-              <div className="bg-brand-dark-card border border-brand-dark-border rounded-lg p-8 flex items-center justify-center min-h-[300px]">
-                <SquareProfileSVG
-                  size={selectedSize}
-                  bodyColor={getBodyColor()}
-                  scaleColor={getScaleColor()}
-                  linerColor={getLinerColor()}
-                  showDimensions
-                  showHoles
-                />
+              <div className="bg-zinc-950/60 rounded-2xl border border-brand-dark-border p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs uppercase tracking-wider text-zinc-500">Preview</p>
+                  <div className="flex bg-zinc-900 rounded-lg p-0.5 text-xs">
+                    <button
+                      onClick={() => setShow3D(false)}
+                      className={`px-3 py-1 rounded-md transition-colors ${
+                        !show3D ? 'bg-brand-orange text-black font-medium' : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      2D
+                    </button>
+                    <button
+                      onClick={() => setShow3D(true)}
+                      className={`px-3 py-1 rounded-md transition-colors ${
+                        show3D ? 'bg-brand-orange text-black font-medium' : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      3D
+                    </button>
+                  </div>
+                </div>
+
+                {show3D ? (
+                  <SquarePreview3D
+                    size={selectedSize}
+                    scaleType={selectedScaleType as ScaleType}
+                    scaleVariant={scaleVariant}
+                    bodyColor={getBodyColor()}
+                    scaleColor={getScaleColor()}
+                    linerColor={getLinerColor()}
+                    scaleTextureUrl={
+                      scaleMaterialType === 'wood'
+                        ? woodScales.find((w) => w.id === selectedScaleMaterial)?.grain_image_url ?? null
+                        : null
+                    }
+                    linerThicknessMm={isThickLiner ? 2.5 : 1}
+                    scaleThicknessMm={
+                      scaleMaterialType === 'cf'
+                        ? selectedScaleMaterial && cfScales.find((c) => c.id === selectedScaleMaterial)?.name.includes('2.5mm')
+                          ? 2.5
+                          : 1
+                        : 3
+                    }
+                  />
+                ) : (
+                  <SquareProfileSVG
+                    size={selectedSize}
+                    scaleType={selectedScaleType as ScaleType}
+                    scaleVariant={scaleVariant}
+                    bodyColor={getBodyColor()}
+                    scaleColor={getScaleColor()}
+                    linerColor={getLinerColor()}
+                    linerThicknessMm={isThickLiner ? 2.5 : 1}
+                    showDimensions
+                    showHoles
+                  />
+                )}
               </div>
               <p className="text-zinc-500 text-xs mt-2 text-center">
                 {SQUARE_SPECS[selectedSize].label} — {SQUARE_SPECS[selectedSize].width}mm × {SQUARE_SPECS[selectedSize].height}mm — Chamfer {SQUARE_SPECS[selectedSize].chamfer}mm
@@ -431,7 +491,7 @@ export default function CustomSquarePage() {
                 {isThickLiner && (
                   <div className="flex items-start gap-2 mt-2 p-3 bg-zinc-800/50 rounded-lg text-xs text-zinc-400">
                     <Info className="h-4 w-4 text-brand-orange flex-shrink-0 mt-0.5" />
-                    <span>Thick liners (2.5mm) require a 1mm carbon fibre scale for the sandwich to work.</span>
+                    <span>2.5mm liners only pair with 1mm carbon fibre scales. Wood and 2.5mm carbon fibre scales need a 1mm liner — switching liner thickness will reset your scale choice.</span>
                   </div>
                 )}
               </CardContent>
@@ -446,7 +506,7 @@ export default function CustomSquarePage() {
                 {isThickLiner && (
                   <div className="flex items-start gap-2 mb-4 p-3 bg-zinc-800/50 rounded-lg text-xs text-zinc-400">
                     <Info className="h-4 w-4 text-brand-orange flex-shrink-0 mt-0.5" />
-                    <span>Thick liners require a 1mm carbon fibre scale. Wood and 2.5mm CF are not available with 2.5mm liners.</span>
+                    <span>2.5mm liner selected — only 1mm carbon fibre scales are compatible. Choose a 1mm liner to unlock wood species and 2.5mm carbon fibre.</span>
                   </div>
                 )}
 

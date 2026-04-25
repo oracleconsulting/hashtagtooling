@@ -4,7 +4,9 @@ import { ArrowRight } from 'lucide-react'
 import { BreadcrumbJsonLd } from '@/components/BreadcrumbJsonLd'
 import { FAQJsonLd } from '@/components/FAQJsonLd'
 import { SquareProfileSVG } from '@/components/SquareProfileSVG'
-import { SQUARE_SPECS, BODY_MATERIALS, LASER_TOLERANCE, type SquareSize } from '@/lib/square-profiles'
+import { SQUARE_SPECS, BODY_MATERIALS, type SquareSize } from '@/lib/square-geometry'
+
+const LASER_TOLERANCE = 0.15
 
 export const revalidate = 60
 
