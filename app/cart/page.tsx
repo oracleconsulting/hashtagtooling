@@ -1,6 +1,6 @@
 'use client'
 
-import { useCart } from '@/lib/store'
+import { useCart, isCustomBuildItem, computePaymentBreakdown } from '@/lib/store'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,6 +12,9 @@ import { useSearchParams } from 'next/navigation'
 import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js'
 import { useState, useEffect, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
+import { SquareProfileSVG } from '@/components/SquareProfileSVG'
+import type { SquareSize, ScaleType, ScaleVariant } from '@/lib/square-geometry'
+import { computeSquareShipWindow, cartContainsCustomSquare } from '@/lib/lead-time'
 
 function CartContent() {
   const searchParams = useSearchParams()
@@ -39,6 +42,8 @@ function CartContent() {
   const [appliedLaunch, setAppliedLaunch] = useState<{ code: string; discount_percent: number } | null>(null)
   const [launchStatus, setLaunchStatus] = useState<'idle' | 'loading' | 'applied' | 'error'>('idle')
   const [launchError, setLaunchError] = useState('')
+  const [paymentPlan, setPaymentPlan] = useState<'deposit' | 'full'>('deposit')
+  const [acceptedDepositTerms, setAcceptedDepositTerms] = useState(false)
 
   useEffect(() => {
     const success = searchParams.get('success')
@@ -49,6 +54,12 @@ function CartContent() {
       clearCart()
     }
   }, [searchParams, clearCart])
+
+  const hasCustomItems = items.some(isCustomBuildItem)
+
+  useEffect(() => {
+    if (!hasCustomItems && paymentPlan !== 'full') setPaymentPlan('full')
+  }, [hasCustomItems, paymentPlan])
 
   const hasOnlyDigital = items.length > 0 && items.every((i) => i.is_digital)
   const hasAnyDigital = items.some((i) => i.is_digital)
@@ -136,7 +147,9 @@ function CartContent() {
       })()
     : 0
   const launchNoEligible = appliedLaunch && launchEligibleItems.length === 0
-  const finalTotal = Math.max(0, afterReferral - launchDiscount)
+
+  const totalDiscount = voucherDiscount + referralDiscount + launchDiscount
+  const breakdown = computePaymentBreakdown(items, shippingTotal, paymentPlan, totalDiscount)
 
   const applyVoucher = async () => {
     const code = voucherInput.trim().toUpperCase()
@@ -254,13 +267,33 @@ function CartContent() {
             <Card key={item.id} className="bg-brand-dark-card border border-brand-dark-border">
               <CardContent className="p-4">
                 <div className="flex gap-4">
-                  <div className="relative w-24 h-24 bg-brand-dark-card rounded-lg overflow-hidden flex-shrink-0">
-                    <Image
-                      src={item.image_url}
-                      alt={item.name}
-                      fill
-                      className="object-cover"
-                    />
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg bg-zinc-900 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                    {isCustomBuildItem(item) && item.customConfig?.square_size && item.customConfig?.scale_type ? (
+                      <div className="w-full h-full p-1">
+                        <SquareProfileSVG
+                          size={item.customConfig.square_size as SquareSize}
+                          scaleType={item.customConfig.scale_type as ScaleType}
+                          scaleVariant={(item.customConfig.scale_variant ?? 'narrow') as ScaleVariant}
+                          bodyColor={item.customConfig.body_color_hex ?? '#888888'}
+                          scaleColor={item.customConfig.scale_color_hex ?? '#8B4513'}
+                          linerColor={item.customConfig.liner_color_hex ?? '#C8963E'}
+                          scaleTextureUrl={item.customConfig.scale_grain_url ?? null}
+                          linerThicknessMm={Number.parseFloat(item.customConfig.liner_thickness ?? '1')}
+                          showHoles
+                          showDimensions={false}
+                        />
+                      </div>
+                    ) : item.image_url ? (
+                      <Image
+                        src={item.image_url}
+                        alt={item.name}
+                        width={96}
+                        height={96}
+                        className="object-cover w-full h-full"
+                      />
+                    ) : (
+                      <div className="text-zinc-600 text-xs text-center p-2">{item.category ?? 'Item'}</div>
+                    )}
                   </div>
 
                   <div className="flex-1">
@@ -279,6 +312,11 @@ function CartContent() {
                           <p className="text-xs text-amber-400 mt-1">⚠ Extended lead time: 6-8 weeks (wood sourcing required)</p>
                         )}
                       </div>
+                    )}
+                    {item.category === 'square' && item.customConfig?.custom_build && (
+                      <p className="text-xs text-zinc-500 mt-1">
+                        Ships {computeSquareShipWindow().formattedShort}
+                      </p>
                     )}
 
                     <div className="flex items-center gap-1 mt-3">
@@ -372,11 +410,102 @@ function CartContent() {
                       <span>−{formatPrice(launchDiscount)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between font-bold text-lg">
-                    <span>Total</span>
-                    <span className="text-brand-orange">{formatPrice(finalTotal)}</span>
-                  </div>
                 </div>
+
+                {hasCustomItems && (
+                  <div className="py-4 border-t border-brand-dark-border">
+                    <label className="block text-sm font-medium mb-3">Payment plan</label>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => setPaymentPlan('deposit')}
+                        className={`w-full p-3 rounded-lg border text-left transition-colors ${
+                          paymentPlan === 'deposit'
+                            ? 'border-brand-orange bg-brand-orange/5'
+                            : 'border-brand-dark-border hover:border-zinc-600'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm">50% deposit now</span>
+                          <span className="text-xs text-zinc-400">Default</span>
+                        </div>
+                        <p className="text-xs text-zinc-400 mt-1">
+                          Balance invoiced when your build is complete. Deposit is non-refundable.
+                        </p>
+                      </button>
+                      <button
+                        onClick={() => setPaymentPlan('full')}
+                        className={`w-full p-3 rounded-lg border text-left transition-colors ${
+                          paymentPlan === 'full'
+                            ? 'border-brand-orange bg-brand-orange/5'
+                            : 'border-brand-dark-border hover:border-zinc-600'
+                        }`}
+                      >
+                        <span className="font-medium text-sm">Pay in full now</span>
+                        <p className="text-xs text-zinc-400 mt-1">
+                          Full payment upfront. Same lead time.
+                        </p>
+                      </button>
+                    </div>
+
+                    {paymentPlan === 'deposit' && (
+                      <label className="flex items-start gap-2 mt-3 text-xs text-zinc-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={acceptedDepositTerms}
+                          onChange={(e) => setAcceptedDepositTerms(e.target.checked)}
+                          className="mt-0.5"
+                        />
+                        <span>
+                          I understand the 50% deposit is non-refundable. The balance is due within 14 days
+                          of build completion or the order will be cancelled and the deposit forfeit.
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-2 py-3 border-t border-brand-dark-border">
+                  {paymentPlan === 'deposit' && hasCustomItems ? (
+                    <>
+                      <div className="flex justify-between">
+                        <div>
+                          <p className="font-medium">Pay now</p>
+                          <p className="text-xs text-zinc-400">
+                            50% deposit + in-stock items + shipping
+                          </p>
+                        </div>
+                        <p className="font-bold text-brand-orange text-lg">
+                          £{breakdown.upfrontAmount.toFixed(2)}
+                        </p>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <div>
+                          <p className="text-zinc-300">Balance due on completion</p>
+                          <p className="text-xs text-zinc-500">Invoiced by email when build is ready</p>
+                        </div>
+                        <p className="text-zinc-300">£{breakdown.balanceAmount.toFixed(2)}</p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between font-bold text-lg">
+                      <span>Total</span>
+                      <span className="text-brand-orange">{formatPrice(breakdown.upfrontAmount)}</span>
+                    </div>
+                  )}
+                </div>
+
+                {cartContainsCustomSquare(items) && (
+                  <div className="py-3 border-t border-brand-dark-border">
+                    <p className="text-xs text-zinc-400 mb-1">Estimated ship window for squares</p>
+                    <p className="text-sm font-medium text-brand-orange">
+                      {computeSquareShipWindow().formatted}
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-1">
+                      Squares are made-to-order. Blanks for all orders this month are procured at month-end,
+                      then built over 6–8 weeks.
+                    </p>
+                  </div>
+                )}
 
                 <div className="pt-2 space-y-3">
                   {voucherStatus === 'applied' && appliedVoucher ? (
@@ -563,7 +692,7 @@ function CartContent() {
                       type="button"
                       size="lg"
                       className="w-full"
-                      disabled={stripeLoading}
+                      disabled={stripeLoading || (paymentPlan === 'deposit' && hasCustomItems && !acceptedDepositTerms)}
                       onClick={async () => {
                         setStripeLoading(true)
                         try {
@@ -571,7 +700,7 @@ function CartContent() {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                              items: items.map((i) => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, image_url: i.image_url, is_digital: i.is_digital })),
+                              items: items.map((i) => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, image_url: i.image_url, is_digital: i.is_digital, customConfig: i.customConfig, category: i.category })),
                               customerEmail: customerInfo.email,
                               shippingAddress: hasOnlyDigital ? '' : customerInfo.shippingAddress,
                               shippingCost: getShippingTotal(),
@@ -581,6 +710,10 @@ function CartContent() {
                               referralDiscount: referralDiscount > 0 ? referralDiscount : null,
                               launchVoucherCode: appliedLaunch?.code || null,
                               launchVoucherDiscount: launchDiscount > 0 ? launchDiscount : null,
+                              paymentPlan,
+                              upfrontAmount: breakdown.upfrontAmount,
+                              depositAmount: breakdown.depositAmount,
+                              balanceAmount: breakdown.balanceAmount,
                             }),
                           })
                           const data = await res.json()
@@ -598,7 +731,7 @@ function CartContent() {
                     </Button>
                   )}
 
-                  {customerInfo.name && customerInfo.email && (hasOnlyDigital || customerInfo.shippingAddress) && paymentMethod === 'paypal' && (
+                  {customerInfo.name && customerInfo.email && (hasOnlyDigital || customerInfo.shippingAddress) && paymentMethod === 'paypal' && !(paymentPlan === 'deposit' && hasCustomItems && !acceptedDepositTerms) && (
                     <PayPalScriptProvider
                       options={{
                         clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || 'test',
@@ -612,9 +745,12 @@ function CartContent() {
                             purchase_units: [{
                               amount: {
                                 currency_code: 'GBP',
-                                value: finalTotal.toFixed(2),
+                                value: breakdown.upfrontAmount.toFixed(2),
                               },
-                              description: `Order from ${customerInfo.name}`,
+                              description: paymentPlan === 'deposit'
+                                ? `#TOOLING — 50% deposit + in-stock (balance £${breakdown.balanceAmount.toFixed(2)})`
+                                : `Order from ${customerInfo.name}`,
+                              custom_id: `plan=${paymentPlan};deposit=${breakdown.depositAmount.toFixed(2)};balance=${breakdown.balanceAmount.toFixed(2)}`,
                             }],
                           })
                         }}
@@ -626,15 +762,21 @@ function CartContent() {
                                 .insert({
                                   customer_name: customerInfo.name,
                                   customer_email: customerInfo.email,
-                                  total_amount: finalTotal,
+                                  total_amount: breakdown.upfrontAmount,
                                   paypal_order_id: details.id,
-                                  status: 'paid',
+                                  status: paymentPlan === 'deposit' ? 'awaiting_balance' : 'paid',
+                                  payment_plan: paymentPlan,
+                                  upfront_amount: breakdown.upfrontAmount,
+                                  deposit_amount: paymentPlan === 'deposit' ? breakdown.depositAmount : null,
+                                  balance_amount: paymentPlan === 'deposit' ? breakdown.balanceAmount : null,
+                                  balance_status: paymentPlan === 'deposit' ? 'awaiting_build' : 'not_applicable',
                                   order_details: {
                                     items: items.map(item => ({
                                       id: item.id,
                                       name: item.name,
                                       price: item.price,
                                       quantity: item.quantity,
+                                      category: item.category,
                                       customConfig: item.customConfig,
                                     })),
                                     shipping_address: customerInfo.shippingAddress,
@@ -697,9 +839,15 @@ function CartContent() {
                                       name: item.name,
                                       price: item.price,
                                       quantity: item.quantity,
+                                      category: item.category,
+                                      customConfig: item.customConfig,
                                     })),
-                                    totalAmount: finalTotal,
+                                    totalAmount: breakdown.upfrontAmount,
                                     shippingAddress: hasOnlyDigital ? '' : customerInfo.shippingAddress,
+                                    paymentPlan,
+                                    upfrontAmount: breakdown.upfrontAmount,
+                                    depositAmount: breakdown.depositAmount,
+                                    balanceAmount: breakdown.balanceAmount,
                                   }),
                                 }).catch((err) => console.error('Email send failed:', err))
                                 if (hasAnyDigital) {
@@ -722,7 +870,7 @@ function CartContent() {
                                     data: {
                                       customerName: customerInfo.name,
                                       customerEmail: customerInfo.email,
-                                      total: finalTotal,
+                                      total: breakdown.upfrontAmount,
                                       shippingAddress: customerInfo.shippingAddress,
                                       items: items.map((item) => ({ name: item.name, quantity: item.quantity })),
                                     },
@@ -739,6 +887,11 @@ function CartContent() {
                         }}
                       />
                     </PayPalScriptProvider>
+                  )}
+                  {paymentPlan === 'deposit' && hasCustomItems && !acceptedDepositTerms && (
+                    <p className="text-xs text-amber-500 mt-2 text-center">
+                      Please accept the deposit terms above to continue.
+                    </p>
                   )}
                 </div>
               )}

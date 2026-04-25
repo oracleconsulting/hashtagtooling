@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
 import { ChevronDown, ChevronRight } from 'lucide-react'
+import { computeSquareShipWindow, cartContainsCustomSquare } from '@/lib/lead-time'
 
 interface Order {
   id: string
@@ -20,20 +21,36 @@ interface Order {
   tracking_url?: string | null
   shipped_at?: string | null
   order_details?: {
-    items?: { id?: string; name: string; price: number; quantity: number }[]
+    items?: { id?: string; name: string; price: number; quantity: number; category?: string; customConfig?: { custom_build?: boolean } }[]
     shipping_address?: string
     payer?: unknown
   }
+  paypal_order_id?: string | null
+  payment_plan?: string | null
+  deposit_amount?: number | null
+  balance_amount?: number | null
+  upfront_amount?: number | null
+  balance_status?: string | null
 }
 
-const STATUS_OPTIONS = ['pending', 'paid', 'shipped', 'completed', 'refunded'] as const
+const STATUS_OPTIONS = ['pending', 'paid', 'awaiting_balance', 'shipped', 'completed', 'refunded', 'cancelled'] as const
 
 const STATUS_BADGE: Record<string, string> = {
   pending: 'bg-zinc-700 text-zinc-300',
   paid: 'bg-blue-900/50 text-blue-400',
+  awaiting_balance: 'bg-amber-900/50 text-amber-400',
   shipped: 'bg-brand-orange/20 text-brand-orange',
   completed: 'bg-green-900/50 text-green-400',
   refunded: 'bg-red-900/50 text-red-400',
+  cancelled: 'bg-red-900/50 text-red-400',
+}
+
+const BALANCE_BADGE: Record<string, { className: string; label: string }> = {
+  not_applicable: { className: 'text-zinc-600', label: '—' },
+  awaiting_build: { className: 'text-amber-400', label: 'Awaiting build' },
+  awaiting_payment: { className: 'text-brand-orange', label: 'Awaiting payment' },
+  paid: { className: 'text-green-400', label: 'Paid' },
+  cancelled: { className: 'text-red-400', label: 'Cancelled' },
 }
 
 export default function AdminOrdersPage() {
@@ -216,6 +233,15 @@ export default function AdminOrdersPage() {
                   Status
                 </th>
                 <th className="text-left py-3 px-4 text-white font-semibold">
+                  Plan
+                </th>
+                <th className="text-left py-3 px-4 text-white font-semibold">
+                  Balance
+                </th>
+                <th className="text-left py-3 px-4 text-white font-semibold">
+                  Batch
+                </th>
+                <th className="text-left py-3 px-4 text-white font-semibold">
                   Items
                 </th>
               </tr>
@@ -224,7 +250,7 @@ export default function AdminOrdersPage() {
               {orders.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={10}
                     className="py-12 text-center text-zinc-400"
                   >
                     No orders yet
@@ -280,6 +306,40 @@ export default function AdminOrdersPage() {
                           ))}
                         </select>
                       </td>
+                      <td className="py-3 px-4">
+                        {order.payment_plan === 'deposit' ? (
+                          <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-amber-900/50 text-amber-400">Deposit</span>
+                        ) : (
+                          <span className="text-xs text-zinc-500">Full</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        {(() => {
+                          const bs = order.balance_status || 'not_applicable'
+                          const info = BALANCE_BADGE[bs] || BALANCE_BADGE.not_applicable
+                          return (
+                            <div className="text-xs">
+                              <span className={info.className}>{info.label}</span>
+                              {(bs === 'awaiting_build' || bs === 'awaiting_payment') && order.balance_amount && (
+                                <p className="text-zinc-500">£{Number(order.balance_amount).toFixed(2)}</p>
+                              )}
+                            </div>
+                          )
+                        })()}
+                      </td>
+                      <td className="py-3 px-4">
+                        {(() => {
+                          const orderItems = (order.order_details as { items?: Array<{ category?: string; customConfig?: { custom_build?: boolean } }> } | null)?.items ?? []
+                          if (!cartContainsCustomSquare(orderItems)) return <span className="text-xs text-zinc-600">—</span>
+                          const sw = computeSquareShipWindow(new Date(order.created_at))
+                          return (
+                            <div className="text-xs">
+                              <p className="text-zinc-300">{sw.batchMonth}</p>
+                              <p className="text-zinc-500">{sw.formattedShort}</p>
+                            </div>
+                          )
+                        })()}
+                      </td>
                       <td className="py-3 px-4 text-zinc-400">
                         {itemsCount(order)}
                       </td>
@@ -287,7 +347,7 @@ export default function AdminOrdersPage() {
                     {expandedId === order.id && (
                       <tr key={`${order.id}-details`}>
                         <td
-                          colSpan={7}
+                          colSpan={10}
                           className="bg-brand-dark/80 p-6 border-b border-brand-dark-border"
                           onClick={(e) => e.stopPropagation()}
                         >

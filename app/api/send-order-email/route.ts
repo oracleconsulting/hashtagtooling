@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
+import { computeSquareShipWindow } from '@/lib/lead-time'
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.RESEND_API_KEY
@@ -10,13 +11,58 @@ export async function POST(req: NextRequest) {
   const resend = new Resend(apiKey)
   try {
     const body = await req.json()
-    const { customerName, customerEmail, orderNumber, items, totalAmount, shippingAddress } = body
+    const {
+      customerName,
+      customerEmail,
+      orderNumber,
+      items,
+      totalAmount,
+      shippingAddress,
+      paymentPlan,
+      upfrontAmount,
+      depositAmount,
+      balanceAmount,
+      createdAt,
+    } = body
 
     const itemsList = items
       .map((item: { name: string; price: number; quantity: number }) =>
         `${item.name} x${item.quantity} — £${(item.price * item.quantity).toFixed(2)}`
       )
       .join('\n')
+
+    const isDeposit = paymentPlan === 'deposit' && balanceAmount > 0
+
+    const paymentPlanBlock = isDeposit ? `
+          <div style="margin-top:24px;padding:16px;background:#1a1a1a;border-left:3px solid #E8A000;">
+            <h3 style="margin:0 0 8px 0;color:#E8A000;font-size:14px;">Deposit received — £${Number(upfrontAmount).toFixed(2)}</h3>
+            <p style="margin:0;color:#ccc;font-size:13px;">
+              This includes your 50% deposit on custom builds, in-stock items in full, and shipping.
+            </p>
+            <p style="margin:8px 0 0 0;color:#ccc;font-size:13px;">
+              <strong>Balance of £${Number(balanceAmount).toFixed(2)}</strong> will be invoiced by email when your build is complete.
+              You'll have 14 days to pay the balance from that point.
+            </p>
+          </div>
+    ` : ''
+
+    const hasCustomSquare = (items as Array<{ category?: string; customConfig?: { custom_build?: boolean } }>).some(
+      (i) => i.category === 'square' && i.customConfig?.custom_build === true
+    )
+
+    const squareWindow = hasCustomSquare ? computeSquareShipWindow(createdAt ? new Date(createdAt) : new Date()) : null
+
+    const squareLeadTimeBlock = squareWindow ? `
+          <div style="margin-top:24px;padding:16px;background:#1a1a1a;border-left:3px solid #E8A000;">
+            <h3 style="margin:0 0 8px 0;color:#E8A000;font-size:14px;">Your engineering square ship window</h3>
+            <p style="margin:0 0 8px 0;color:#fff;font-size:15px;font-weight:600;">${squareWindow.formatted}</p>
+            <p style="margin:0;color:#ccc;font-size:13px;">
+              Squares are made-to-order. We bundle every order placed in ${squareWindow.batchMonth.split(' ')[0]} and procure all blanks at the end of the month. Your square will be built over the following 6–8 weeks.
+            </p>
+          </div>
+    ` : ''
+
+    const totalLabel = isDeposit ? `Paid today: £${Number(upfrontAmount).toFixed(2)}` : `Total: £${Number(totalAmount).toFixed(2)}`
 
     const { data, error } = await resend.emails.send({
       from: process.env.RESEND_FROM ?? 'onboarding@resend.dev',
@@ -37,8 +83,11 @@ export async function POST(req: NextRequest) {
             <p style="color: #E8A000; font-weight: bold; margin-top: 0;">Order #${String(orderNumber).slice(0, 8).toUpperCase()}</p>
             <pre style="color: #ccc; white-space: pre-wrap; font-family: inherit; margin: 0;">${itemsList}</pre>
             <hr style="border: none; border-top: 1px solid #333; margin: 16px 0;" />
-            <p style="color: #E8A000; font-weight: bold; font-size: 18px; margin-bottom: 0;">Total: £${Number(totalAmount).toFixed(2)}</p>
+            <p style="color: #E8A000; font-weight: bold; font-size: 18px; margin-bottom: 0;">${totalLabel}</p>
           </div>
+
+          ${paymentPlanBlock}
+          ${squareLeadTimeBlock}
 
           <div style="background: #222; border: 1px solid #333; border-radius: 8px; padding: 20px; margin: 20px 0;">
             <p style="color: #E8A000; font-weight: bold; margin-top: 0;">Shipping to:</p>

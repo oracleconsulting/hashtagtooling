@@ -8,6 +8,7 @@ import { formatPrice } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import { Check, Loader2, Info } from 'lucide-react'
 import { SquareProfileSVG } from '@/components/SquareProfileSVG'
+import { computeSquareShipWindow } from '@/lib/lead-time'
 import dynamic from 'next/dynamic'
 import {
   SQUARE_SPECS,
@@ -246,7 +247,7 @@ export default function CustomSquarePage() {
       name: `Custom ${specs.label} ${scaleTypeLabel} Square — ${bodyLabel} / ${getScaleName()} / ${linerMetal}`,
       price: calculatePrice(),
       quantity: 1,
-      image_url: 'https://placehold.co/600x400/666/white?text=Custom+Square',
+      image_url: '',
       category: 'square',
       stock_status: 'made_to_order',
       customConfig: {
@@ -258,6 +259,13 @@ export default function CustomSquarePage() {
         liner_material: linerMetal,
         liner_thickness: getLinerThickness(),
         scale_thickness: getScaleThickness(),
+        scale_variant: scaleVariant,
+        body_color_hex: getBodyColor(),
+        scale_color_hex: getScaleColor(),
+        scale_grain_url: scaleMaterialType === 'wood'
+          ? woodScales.find((w) => w.id === selectedScaleMaterial)?.grain_image_url ?? null
+          : null,
+        liner_color_hex: getLinerColor(),
       },
     })
 
@@ -707,7 +715,10 @@ export default function CustomSquarePage() {
                     )}
                   </Button>
                   <p className="text-xs text-zinc-500 text-center mt-3">
-                    Lead time: 3-4 weeks for custom orders
+                    Lead time: 6–8 weeks following the end of the month placed
+                  </p>
+                  <p className="text-xs text-zinc-400 text-center mt-0.5">
+                    Order today and ship between <span className="text-brand-orange">{computeSquareShipWindow().formatted}</span>
                   </p>
                 </div>
               </CardContent>

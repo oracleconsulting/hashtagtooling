@@ -91,8 +91,13 @@ export async function POST(req: NextRequest) {
       stripe_session_id: session.id,
       voucher_code: meta.voucher_code || null,
       voucher_discount: meta.voucher_discount ? Number(meta.voucher_discount) : null,
-      items: orderItems,
+      items: meta.items_json ? (() => { try { return JSON.parse(meta.items_json) } catch { return orderItems } })() : orderItems,
     }
+
+    const paymentPlan = (meta.payment_plan || 'full') as 'full' | 'deposit'
+    const depositAmount = Number.parseFloat(meta.deposit_amount || '0')
+    const balanceAmount = Number.parseFloat(meta.balance_amount || '0')
+    const upfrontAmount = Number.parseFloat(meta.upfront_amount || '0')
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -101,8 +106,13 @@ export async function POST(req: NextRequest) {
         customer_email: session.customer_details?.email || meta.customerEmail || '',
         total_amount: (session.amount_total || 0) / 100,
         paypal_order_id: session.id,
-        status: 'paid',
+        status: paymentPlan === 'deposit' ? 'awaiting_balance' : 'paid',
         order_details: orderDetails,
+        payment_plan: paymentPlan,
+        upfront_amount: upfrontAmount || null,
+        deposit_amount: paymentPlan === 'deposit' ? depositAmount : null,
+        balance_amount: paymentPlan === 'deposit' ? balanceAmount : null,
+        balance_status: paymentPlan === 'deposit' ? 'awaiting_build' : 'not_applicable',
       })
       .select('id')
       .single()
@@ -159,9 +169,14 @@ export async function POST(req: NextRequest) {
           customerName: session.customer_details?.name || 'Unknown',
           customerEmail: session.customer_details?.email || meta.customerEmail || '',
           orderNumber: order.id,
-          items: orderItems.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity })),
+          items: meta.items_json ? (() => { try { return JSON.parse(meta.items_json) } catch { return orderItems.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity })) } })() : orderItems.map((i) => ({ name: i.name, price: i.price, quantity: i.quantity })),
           totalAmount: (session.amount_total || 0) / 100,
           shippingAddress: meta.shippingAddress || '',
+          paymentPlan,
+          upfrontAmount: upfrontAmount || null,
+          depositAmount: paymentPlan === 'deposit' ? depositAmount : null,
+          balanceAmount: paymentPlan === 'deposit' ? balanceAmount : null,
+          createdAt: new Date().toISOString(),
         }),
       }).catch((err) => console.error('Order email webhook error:', err))
 

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { CustomMalletConfig } from './constants'
 
-interface CartItem {
+export interface CartItem {
   id: string
   name: string
   price: number
@@ -61,6 +61,56 @@ export const useCart = create<CartStore>()(
     { name: 'hashtag-cart' }
   )
 )
+
+export const isCustomBuildItem = (item: CartItem): boolean =>
+  Boolean(item.customConfig?.custom_build)
+
+export const computePaymentBreakdown = (
+  items: CartItem[],
+  shipping: number,
+  paymentPlan: 'full' | 'deposit',
+  discount: number = 0,
+): {
+  customSubtotal: number
+  stockSubtotal: number
+  upfrontAmount: number
+  depositAmount: number
+  balanceAmount: number
+  totalAmount: number
+} => {
+  const customSubtotal = items
+    .filter(isCustomBuildItem)
+    .reduce((s, i) => s + i.price * i.quantity, 0)
+  const stockSubtotal = items
+    .filter((i) => !isCustomBuildItem(i))
+    .reduce((s, i) => s + i.price * i.quantity, 0)
+
+  const totalAmount = customSubtotal + stockSubtotal - discount
+
+  if (paymentPlan === 'full' || customSubtotal === 0) {
+    return {
+      customSubtotal,
+      stockSubtotal,
+      upfrontAmount: totalAmount + shipping,
+      depositAmount: 0,
+      balanceAmount: 0,
+      totalAmount,
+    }
+  }
+
+  const depositAmount = customSubtotal * 0.5
+  const balanceAmount = customSubtotal * 0.5
+  const upfrontAmount = depositAmount + stockSubtotal + shipping - discount
+
+  return {
+    customSubtotal,
+    stockSubtotal,
+    upfrontAmount: Math.max(0, upfrontAmount),
+    depositAmount,
+    balanceAmount,
+    totalAmount,
+  }
+}
 
 
 
