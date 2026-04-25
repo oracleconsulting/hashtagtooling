@@ -69,22 +69,39 @@ export default function CustomSquarePage() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [pricesRes, woodRes, cfRes, linerRes, mspRes] = await Promise.all([
-        supabase.from('base_prices').select('*').eq('product_type', 'square').eq('available', true),
-        supabase.from('materials').select('*').eq('category', 'wood').eq('available', true).order('name'),
+
+      const { data: pricesData, error: pricesError } = await supabase
+        .from('base_prices')
+        .select('*')
+        .eq('product_type', 'square')
+        .eq('available', true)
+
+      if (pricesError) throw pricesError
+      const prices = pricesData || []
+      const priceIds = prices.map((p) => p.id)
+
+      const [woodRes, cfRes, linerRes, mspRes] = await Promise.all([
+        supabase.from('materials').select('*').eq('category', 'wood').eq('available', true).order('name').limit(2000),
         supabase.from('materials').select('*').eq('category', 'square_scale').eq('available', true).order('sort_order'),
         supabase.from('materials').select('*').eq('category', 'liner').eq('available', true).order('sort_order'),
-        supabase.from('material_style_pricing').select('material_id, base_price_id, position, premium'),
+        priceIds.length
+          ? supabase
+              .from('material_style_pricing')
+              .select('material_id, base_price_id, position, premium')
+              .in('base_price_id', priceIds)
+              .eq('position', 'square_scale')
+              .limit(5000)
+          : Promise.resolve({ data: [], error: null }),
       ])
 
-      if (pricesRes.error) throw pricesRes.error
       if (woodRes.error) throw woodRes.error
       if (cfRes.error) throw cfRes.error
       if (linerRes.error) throw linerRes.error
       if (mspRes.error) throw mspRes.error
 
-      setBasePrices(pricesRes.data || [])
+      setBasePrices(prices)
       setStylePricing((mspRes.data || []) as MaterialStylePricingRow[])
+
       const woodsFiltered = (woodRes.data || []).filter((w) => (w as Material).available_square_scale !== false)
       setWoodScales(woodsFiltered)
       setCfScales(cfRes.data || [])

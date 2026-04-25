@@ -53,7 +53,6 @@ export default function CustomAwlPage() {
   const loadMaterials = async () => {
     setLoading(true)
     try {
-      // Load awl styles
       const { data: styles, error: stylesError } = await supabase
         .from('base_prices')
         .select('*')
@@ -62,41 +61,46 @@ export default function CustomAwlPage() {
         .order('base_price', { ascending: true })
 
       if (stylesError) throw stylesError
+
+      const priceIds = (styles || []).map((s) => s.id)
+
+      const [woodRes, mspRes, ferruleRes] = await Promise.all([
+        supabase
+          .from('materials')
+          .select('*')
+          .eq('category', 'wood')
+          .eq('available', true)
+          .order('name', { ascending: true })
+          .limit(2000),
+        priceIds.length
+          ? supabase
+              .from('material_style_pricing')
+              .select('material_id, base_price_id, position, premium')
+              .in('base_price_id', priceIds)
+              .eq('position', 'awl_handle')
+              .limit(5000)
+          : Promise.resolve({ data: [], error: null }),
+        supabase
+          .from('materials')
+          .select('*')
+          .eq('category', 'transition')
+          .eq('available', true)
+          .order('awl_ferrule_premium', { ascending: true }),
+      ])
+
+      if (woodRes.error) throw woodRes.error
+      if (mspRes.error) throw mspRes.error
+      if (ferruleRes.error) throw ferruleRes.error
+
       setAwlStyles(styles || [])
-
-      // Load wood materials
-      const { data: woods, error: woodsError } = await supabase
-        .from('materials')
-        .select('*')
-        .eq('category', 'wood')
-        .eq('available', true)
-        .order('name', { ascending: true })
-
-      if (woodsError) throw woodsError
-      const filteredWoods = (woods || []).filter((w) => w.available_awl_handle !== false)
+      const filteredWoods = (woodRes.data || []).filter((w) => w.available_awl_handle !== false)
       setHandleWoods(filteredWoods)
-
-      const { data: mspData, error: mspError } = await supabase
-        .from('material_style_pricing')
-        .select('material_id, base_price_id, position, premium')
-
-      if (mspError) throw mspError
-      setStylePricing((mspData || []) as MaterialStylePricingRow[])
-
-      // Load ferrule materials
-      const { data: ferrules, error: ferrulesError } = await supabase
-        .from('materials')
-        .select('*')
-        .eq('category', 'transition')
-        .eq('available', true)
-        .order('awl_ferrule_premium', { ascending: true })
-
-      if (ferrulesError) throw ferrulesError
-      setFerruleMaterials(ferrules || [])
+      setStylePricing((mspRes.data || []) as MaterialStylePricingRow[])
+      setFerruleMaterials(ferruleRes.data || [])
 
       if (styles && styles.length > 0) setSelectedStyle(styles[0].id)
       if (filteredWoods.length > 0) setSelectedHandleWood(filteredWoods[0].id)
-      if (ferrules && ferrules.length > 0) setSelectedFerrule(ferrules[0].id)
+      if (ferruleRes.data && ferruleRes.data.length > 0) setSelectedFerrule(ferruleRes.data[0].id)
 
     } catch (error) {
       console.error('Error loading materials:', error)

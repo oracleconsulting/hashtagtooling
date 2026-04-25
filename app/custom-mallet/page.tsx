@@ -72,7 +72,6 @@ export default function CustomMalletPage() {
     try {
       setLoading(true)
       
-      // Load mallet base prices
       const { data: styles, error: stylesError } = await supabase
         .from('base_prices')
         .select('*')
@@ -81,46 +80,49 @@ export default function CustomMalletPage() {
         .order('base_price')
       
       if (stylesError) throw stylesError
-      
-      // Load all wood materials (including unavailable so we can show sourcing warnings)
-      const { data: woodData, error: woodError } = await supabase
-        .from('materials')
-        .select('*')
-        .eq('category', 'wood')
-        .order('name')
-      
-      if (woodError) throw woodError
-      
-      // Load transition materials
-      const { data: transData, error: transError } = await supabase
-        .from('materials')
-        .select('*')
-        .eq('category', 'transition')
-        .eq('available', true)
-        .order('mallet_head_premium')
-      
-      if (transError) throw transError
 
-      const { data: mspData, error: mspError } = await supabase
-        .from('material_style_pricing')
-        .select('material_id, base_price_id, position, premium, stock')
+      const priceIds = (styles || []).map((s) => s.id)
 
-      if (mspError) throw mspError
+      const [woodRes, transRes, mspRes] = await Promise.all([
+        supabase
+          .from('materials')
+          .select('*')
+          .eq('category', 'wood')
+          .order('name')
+          .limit(2000),
+        supabase
+          .from('materials')
+          .select('*')
+          .eq('category', 'transition')
+          .eq('available', true)
+          .order('mallet_head_premium'),
+        priceIds.length
+          ? supabase
+              .from('material_style_pricing')
+              .select('material_id, base_price_id, position, premium, stock')
+              .in('base_price_id', priceIds)
+              .in('position', ['head', 'handle'])
+              .limit(5000)
+          : Promise.resolve({ data: [], error: null }),
+      ])
+
+      if (woodRes.error) throw woodRes.error
+      if (transRes.error) throw transRes.error
+      if (mspRes.error) throw mspRes.error
 
       setMalletStyles(styles || [])
-      setWoods(woodData || [])
-      setTransitions(transData || [])
-      setStylePricing((mspData || []) as MaterialStylePricingRow[])
+      setWoods(woodRes.data || [])
+      setTransitions(transRes.data || [])
+      setStylePricing((mspRes.data || []) as MaterialStylePricingRow[])
       
-      // Set default selections
       if (styles && styles.length > 0) setSelectedStyle(styles[0].id)
-      if (woodData && woodData.length > 0) {
-        const headList = woodData.filter((w) => w.available_mallet_head !== false)
-        const handleList = woodData.filter((w) => w.available_mallet_handle !== false)
+      if (woodRes.data && woodRes.data.length > 0) {
+        const headList = woodRes.data.filter((w) => w.available_mallet_head !== false)
+        const handleList = woodRes.data.filter((w) => w.available_mallet_handle !== false)
         if (headList[0]) setSelectedHeadWood(headList[0].id)
         if (handleList[0]) setSelectedHandleWood(handleList[0].id)
       }
-      if (transData && transData.length > 0) setSelectedTransition(transData[0].id)
+      if (transRes.data && transRes.data.length > 0) setSelectedTransition(transRes.data[0].id)
       
     } catch (error) {
       console.error('Error loading materials:', error)
