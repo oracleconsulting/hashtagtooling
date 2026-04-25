@@ -151,6 +151,13 @@ function CartContent() {
   const totalDiscount = voucherDiscount + referralDiscount + launchDiscount
   const breakdown = computePaymentBreakdown(items, shippingTotal, paymentPlan, totalDiscount)
 
+  const checkoutDisabled =
+    items.length === 0 ||
+    !customerInfo.name ||
+    !customerInfo.email ||
+    (!hasOnlyDigital && !customerInfo.shippingAddress) ||
+    (paymentPlan === 'deposit' && hasCustomItems && !acceptedDepositTerms)
+
   const applyVoucher = async () => {
     const code = voucherInput.trim().toUpperCase()
     if (!code) return
@@ -692,13 +699,14 @@ function CartContent() {
                     </div>
                   </div>
 
-                  {customerInfo.name && customerInfo.email && (hasOnlyDigital || customerInfo.shippingAddress) && paymentMethod === 'stripe' && (
+                  {paymentMethod === 'stripe' && (
                     <Button
                       type="button"
                       size="lg"
                       className="w-full"
-                      disabled={stripeLoading || (paymentPlan === 'deposit' && hasCustomItems && !acceptedDepositTerms)}
+                      disabled={checkoutDisabled || stripeLoading}
                       onClick={async () => {
+                        if (checkoutDisabled) return
                         setStripeLoading(true)
                         try {
                           const res = await fetch('/api/create-checkout-session', {
@@ -738,7 +746,8 @@ function CartContent() {
                     </Button>
                   )}
 
-                  {customerInfo.name && customerInfo.email && (hasOnlyDigital || customerInfo.shippingAddress) && paymentMethod === 'paypal' && !(paymentPlan === 'deposit' && hasCustomItems && !acceptedDepositTerms) && (
+                  {paymentMethod === 'paypal' && (
+                    <div className={checkoutDisabled ? 'opacity-50 pointer-events-none' : ''}>
                     <PayPalScriptProvider
                       options={{
                         clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || 'test',
@@ -746,6 +755,7 @@ function CartContent() {
                       }}
                     >
                       <PayPalButtons
+                        disabled={checkoutDisabled}
                         createOrder={(data, actions) => {
                           return actions.order.create({
                             intent: 'CAPTURE',
@@ -898,10 +908,17 @@ function CartContent() {
                         }}
                       />
                     </PayPalScriptProvider>
+                    </div>
                   )}
-                  {paymentPlan === 'deposit' && hasCustomItems && !acceptedDepositTerms && (
-                    <p className="text-xs text-amber-500 mt-2 text-center">
-                      Please accept the deposit terms above to continue.
+                  {checkoutDisabled && items.length > 0 && (
+                    <p className="text-xs text-amber-500 mt-3 text-center">
+                      {!customerInfo.name || !customerInfo.email
+                        ? 'Please enter your name and email to continue.'
+                        : !hasOnlyDigital && !customerInfo.shippingAddress
+                        ? 'Please enter your shipping address to continue.'
+                        : paymentPlan === 'deposit' && hasCustomItems && !acceptedDepositTerms
+                        ? 'Please accept the deposit terms above to continue.'
+                        : ''}
                     </p>
                   )}
                 </div>
