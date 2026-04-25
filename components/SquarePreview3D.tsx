@@ -22,6 +22,8 @@ interface SquarePreview3DProps {
   linerThicknessMm: number
   bodyThicknessMm?: number
   scaleThicknessMm?: number
+  expanded?: boolean
+  onExpandClick?: () => void
 }
 
 export default function SquarePreview3D({
@@ -35,6 +37,8 @@ export default function SquarePreview3D({
   linerThicknessMm,
   bodyThicknessMm = 3,
   scaleThicknessMm = 3,
+  expanded = false,
+  onExpandClick,
 }: SquarePreview3DProps) {
   const mountRef = useRef<HTMLDivElement>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
@@ -149,13 +153,10 @@ export default function SquarePreview3D({
     fill.position.set(-maxDim, -maxDim * 1.5, maxDim)
     scene.add(fill)
 
-    // ─── Body (centred at z=0) ────────────────────────────────────────
+    // ─── Body (centred at z=0, no bevels) ─────────────────────────────
     const bodyGeo = new THREE.ExtrudeGeometry(bodyShape, {
       depth: bodyThicknessMm,
-      bevelEnabled: true,
-      bevelThickness: 0.15,
-      bevelSize: 0.15,
-      bevelSegments: 2,
+      bevelEnabled: false,
       curveSegments: 24,
     })
     const bodyMat = new THREE.MeshStandardMaterial({
@@ -182,17 +183,13 @@ export default function SquarePreview3D({
     linerMesh.position.z = bodyThicknessMm / 2
     scene.add(linerMesh)
 
-    // ─── Front scale ──────────────────────────────────────────────────
+    // ─── Front scale (no bevels) ──────────────────────────────────────
     const scaleGeo = new THREE.ExtrudeGeometry(scaleShapeRaw, {
       depth: scaleThicknessMm,
-      bevelEnabled: true,
-      bevelThickness: 0.1,
-      bevelSize: 0.1,
-      bevelSegments: 2,
+      bevelEnabled: false,
       curveSegments: 24,
     })
 
-    // Remap UVs so grain image spans the full scale face, rotated 90° for lengthwise grain
     const remapScaleUVs = (geom: THREE.BufferGeometry) => {
       const pos = geom.attributes.position
       const uv = geom.attributes.uv
@@ -254,12 +251,9 @@ export default function SquarePreview3D({
     scaleMesh.position.z = bodyThicknessMm / 2 + linerThicknessMm
     scene.add(scaleMesh)
 
-    // ─── Back-side liner + scale (mirrored sandwich) ──────────────────
-    const backLinerGeo = linerGeo.clone()
-    const backLinerMesh = new THREE.Mesh(backLinerGeo, linerMat)
+    // ─── Back-side liner + scale (no rotation/mirroring, just positioned) ─
+    const backLinerMesh = new THREE.Mesh(linerGeo, linerMat)
     backLinerMesh.position.z = -bodyThicknessMm / 2 - linerThicknessMm
-    backLinerMesh.rotation.y = Math.PI
-    backLinerMesh.scale.x = -1
     scene.add(backLinerMesh)
 
     const backScaleGeo = scaleGeo.clone()
@@ -272,8 +266,6 @@ export default function SquarePreview3D({
     }
     const backScaleMesh = new THREE.Mesh(backScaleGeo, backScaleMat)
     backScaleMesh.position.z = -bodyThicknessMm / 2 - linerThicknessMm - scaleThicknessMm
-    backScaleMesh.rotation.y = Math.PI
-    backScaleMesh.scale.x = -1
     scene.add(backScaleMesh)
 
     // ─── Animation loop ───────────────────────────────────────────────
@@ -303,7 +295,6 @@ export default function SquarePreview3D({
       linerMat.dispose()
       scaleGeo.dispose()
       scaleMat.dispose()
-      backLinerGeo.dispose()
       backScaleGeo.dispose()
       backScaleMat.dispose()
       if (backScaleMat.map) backScaleMat.map.dispose()
@@ -314,22 +305,78 @@ export default function SquarePreview3D({
     }
   }, [size, scaleType, scaleVariant, bodyColor, scaleColor, linerColor, scaleTextureUrl, linerThicknessMm, bodyThicknessMm, scaleThicknessMm])
 
+  const handleZoom = (factor: number) => {
+    const cam = cameraRef.current
+    const ctrl = controlsRef.current
+    if (!cam || !ctrl) return
+    const offset = new THREE.Vector3().subVectors(cam.position, ctrl.target)
+    const newDist = offset.length() * factor
+    const clamped = Math.max(ctrl.minDistance, Math.min(ctrl.maxDistance, newDist))
+    offset.setLength(clamped)
+    cam.position.copy(ctrl.target).add(offset)
+    ctrl.update()
+  }
+
+  const wrapperClass = expanded
+    ? 'relative w-full h-full bg-zinc-950'
+    : 'relative w-full h-[400px] rounded-lg overflow-hidden bg-zinc-950'
+
   return (
-    <div className="relative w-full h-[400px] rounded-lg overflow-hidden bg-zinc-950">
+    <div className={wrapperClass}>
       <div ref={mountRef} className="absolute inset-0" />
-      <button
-        onClick={() => {
-          const c = cameraRef.current
-          const k = controlsRef.current
-          if (!c || !k || !initialPosRef.current || !initialTargetRef.current) return
-          c.position.copy(initialPosRef.current)
-          k.target.copy(initialTargetRef.current)
-          k.update()
-        }}
-        className="absolute bottom-3 right-3 px-3 py-1.5 text-xs bg-black/70 hover:bg-black/90 text-white rounded-md backdrop-blur-sm border border-white/10 transition-colors"
-      >
-        Reset view
-      </button>
+
+      <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
+        <button
+          onClick={() => handleZoom(0.8)}
+          aria-label="Zoom in"
+          className="w-9 h-9 flex items-center justify-center bg-black/70 hover:bg-black/90 text-white rounded-md backdrop-blur-sm border border-white/10 transition-colors"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            <line x1="11" y1="8" x2="11" y2="14" />
+            <line x1="8" y1="11" x2="14" y2="11" />
+          </svg>
+        </button>
+        <button
+          onClick={() => handleZoom(1.25)}
+          aria-label="Zoom out"
+          className="w-9 h-9 flex items-center justify-center bg-black/70 hover:bg-black/90 text-white rounded-md backdrop-blur-sm border border-white/10 transition-colors"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            <line x1="8" y1="11" x2="14" y2="11" />
+          </svg>
+        </button>
+        <button
+          onClick={() => {
+            const c = cameraRef.current
+            const k = controlsRef.current
+            if (!c || !k || !initialPosRef.current || !initialTargetRef.current) return
+            c.position.copy(initialPosRef.current)
+            k.target.copy(initialTargetRef.current)
+            k.update()
+          }}
+          className="px-3 h-9 text-xs bg-black/70 hover:bg-black/90 text-white rounded-md backdrop-blur-sm border border-white/10 transition-colors"
+        >
+          Reset
+        </button>
+        {!expanded && onExpandClick && (
+          <button
+            onClick={onExpandClick}
+            aria-label="Expand"
+            className="w-9 h-9 flex items-center justify-center bg-black/70 hover:bg-black/90 text-white rounded-md backdrop-blur-sm border border-white/10 transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 3 21 3 21 9" />
+              <polyline points="9 21 3 21 3 15" />
+              <line x1="21" y1="3" x2="14" y2="10" />
+              <line x1="3" y1="21" x2="10" y2="14" />
+            </svg>
+          </button>
+        )}
+      </div>
     </div>
   )
 }

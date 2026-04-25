@@ -70,12 +70,24 @@ export default function CustomSquarePage() {
   const [scaleMaterialType, setScaleMaterialType] = useState<'wood' | 'cf'>('wood')
   const [addedToCart, setAddedToCart] = useState(false)
   const [show3D, setShow3D] = useState(false)
+  const [expanded3D, setExpanded3D] = useState(false)
 
   const scaleVariant: ScaleVariant = scaleMaterialType === 'cf' ? 'wide_cf' : 'narrow'
 
   useEffect(() => {
     loadData()
   }, [])
+
+  useEffect(() => {
+    if (!expanded3D) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setExpanded3D(false) }
+    window.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [expanded3D])
 
   const loadData = async () => {
     try {
@@ -266,7 +278,54 @@ export default function CustomSquarePage() {
   const { woods: filteredWoods, cfs: filteredCfs } = availableScaleOptions()
 
   return (
-    <div className="container mx-auto px-4 py-12 pb-32 md:pb-12">
+    <>
+      {expanded3D && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex flex-col"
+          tabIndex={-1}
+          ref={(el) => el?.focus()}
+        >
+          <div className="flex items-center justify-between p-4 border-b border-white/10">
+            <div className="text-white">
+              <p className="text-sm uppercase tracking-wider text-zinc-400">Preview</p>
+              <p className="text-base font-medium">
+                {SQUARE_SPECS[selectedSize].label} — {SQUARE_SPECS[selectedSize].width}mm × {SQUARE_SPECS[selectedSize].height}mm
+              </p>
+            </div>
+            <button
+              onClick={() => setExpanded3D(false)}
+              className="px-4 h-9 text-sm bg-white/10 hover:bg-white/20 text-white rounded-md transition-colors"
+            >
+              Close
+            </button>
+          </div>
+          <div className="flex-1 min-h-0">
+            <SquarePreview3D
+              size={selectedSize}
+              scaleType={selectedScaleType as ScaleType}
+              scaleVariant={scaleVariant}
+              bodyColor={getBodyColor()}
+              scaleColor={getScaleColor()}
+              linerColor={getLinerColor()}
+              scaleTextureUrl={
+                scaleMaterialType === 'wood'
+                  ? woodScales.find((w) => w.id === selectedScaleMaterial)?.grain_image_url ?? null
+                  : null
+              }
+              linerThicknessMm={isThickLiner ? 2.5 : 1}
+              scaleThicknessMm={
+                scaleMaterialType === 'cf'
+                  ? selectedScaleMaterial && cfScales.find((c) => c.id === selectedScaleMaterial)?.name.includes('2.5mm')
+                    ? 2.5
+                    : 1
+                  : 3
+              }
+              expanded
+            />
+          </div>
+        </div>
+      )}
+      <div className="container mx-auto px-4 py-12 pb-32 md:pb-12">
       <div className="max-w-6xl mx-auto">
         <h1 className="font-heading text-4xl font-bold mb-4 text-brand-orange">Build Your Engineering Square</h1>
         <p className="text-zinc-400 mb-12">
@@ -322,6 +381,7 @@ export default function CustomSquarePage() {
                           : 1
                         : 3
                     }
+                    onExpandClick={() => setExpanded3D(true)}
                   />
                 ) : (
                   <SquareProfileSVG
@@ -332,6 +392,11 @@ export default function CustomSquarePage() {
                     scaleColor={getScaleColor()}
                     linerColor={getLinerColor()}
                     linerThicknessMm={isThickLiner ? 2.5 : 1}
+                    scaleTextureUrl={
+                      scaleMaterialType === 'wood'
+                        ? woodScales.find((w) => w.id === selectedScaleMaterial)?.grain_image_url ?? null
+                        : null
+                    }
                     showDimensions
                     showHoles
                   />
@@ -662,5 +727,6 @@ export default function CustomSquarePage() {
         </div>
       </div>
     </div>
+    </>
   )
 }

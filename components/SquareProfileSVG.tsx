@@ -17,6 +17,7 @@ interface SquareProfileSVGProps {
   scaleColor?: string | null
   linerColor?: string | null
   linerThicknessMm?: number
+  scaleTextureUrl?: string | null
   showDimensions?: boolean
   showHoles?: boolean
   className?: string
@@ -31,6 +32,7 @@ export function SquareProfileSVG({
   scaleColor = null,
   linerColor = null,
   linerThicknessMm = 1,
+  scaleTextureUrl = null,
   showDimensions = false,
   showHoles = true,
   className = '',
@@ -101,6 +103,13 @@ export function SquareProfileSVG({
   const bodyPath = linesToPath(body.lines)
   const scalePath = scale ? linesToPath(scale.lines, scale.bodyOffsetX, scale.bodyOffsetY) : ''
 
+  const patternId = `grain-${size}-${scaleType}-${scaleVariant}`
+  const usePattern = !!scaleTextureUrl && !!scale && !!scaleColor
+  const scaleBoxX = scale ? scale.bodyOffsetX : 0
+  const scaleBoxY = scale ? scale.bodyOffsetY : 0
+  const scaleBoxW = scale ? scale.width : 0
+  const scaleBoxH = scale ? scale.height : 0
+
   return (
     <svg
       viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
@@ -109,6 +118,29 @@ export function SquareProfileSVG({
       style={{ opacity }}
       xmlns="http://www.w3.org/2000/svg"
     >
+      {usePattern && (
+        <defs>
+          <pattern
+            id={patternId}
+            patternUnits="userSpaceOnUse"
+            x={scaleBoxX}
+            y={scaleBoxY}
+            width={scaleBoxW}
+            height={scaleBoxH}
+            patternTransform={`rotate(90 ${scaleBoxX + scaleBoxW / 2} ${scaleBoxY + scaleBoxH / 2})`}
+          >
+            <image
+              href={scaleTextureUrl ?? ''}
+              x={scaleBoxX}
+              y={scaleBoxY}
+              width={scaleBoxW}
+              height={scaleBoxH}
+              preserveAspectRatio="xMidYMid slice"
+            />
+          </pattern>
+        </defs>
+      )}
+
       {/* Body fill */}
       <path
         d={bodyPath}
@@ -141,8 +173,8 @@ export function SquareProfileSVG({
         >
           <path
             d={scalePath}
-            fill={scaleColor}
-            fillOpacity={0.95}
+            fill={usePattern ? `url(#${patternId})` : scaleColor}
+            fillOpacity={usePattern ? 1 : 0.95}
             stroke={scaleColor}
             strokeWidth={scaleStrokeWidth}
             strokeLinejoin="round"
