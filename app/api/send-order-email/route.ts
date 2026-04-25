@@ -23,6 +23,8 @@ export async function POST(req: NextRequest) {
       depositAmount,
       balanceAmount,
       createdAt,
+      shippingAmount,
+      insuranceAmount,
     } = body
 
     const itemsList = items
@@ -64,6 +66,11 @@ export async function POST(req: NextRequest) {
 
     const totalLabel = isDeposit ? `Paid today: £${Number(upfrontAmount).toFixed(2)}` : `Total: £${Number(totalAmount).toFixed(2)}`
 
+    const shippingInsuranceTotal = (Number(shippingAmount) || 0) + (Number(insuranceAmount) || 0)
+    const shippingInsuranceLine = shippingInsuranceTotal > 0
+      ? `<p style="color:#ccc;font-size:13px;margin:8px 0 0 0;">Shipping & insurance: £${shippingInsuranceTotal.toFixed(2)}${Number(insuranceAmount) > 0 ? ` <span style="color:#999;font-size:11px;">(includes £${Number(insuranceAmount).toFixed(2)} full-value insurance)</span>` : ''}</p>`
+      : ''
+
     const { data, error } = await resend.emails.send({
       from: process.env.RESEND_FROM ?? 'onboarding@resend.dev',
       to: [customerEmail],
@@ -82,6 +89,7 @@ export async function POST(req: NextRequest) {
           <div style="background: #222; border: 1px solid #333; border-radius: 8px; padding: 20px; margin: 20px 0;">
             <p style="color: #E8A000; font-weight: bold; margin-top: 0;">Order #${String(orderNumber).slice(0, 8).toUpperCase()}</p>
             <pre style="color: #ccc; white-space: pre-wrap; font-family: inherit; margin: 0;">${itemsList}</pre>
+            ${shippingInsuranceLine}
             <hr style="border: none; border-top: 1px solid #333; margin: 16px 0;" />
             <p style="color: #E8A000; font-weight: bold; font-size: 18px; margin-bottom: 0;">${totalLabel}</p>
           </div>

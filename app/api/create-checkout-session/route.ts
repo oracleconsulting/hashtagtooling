@@ -15,6 +15,8 @@ export async function POST(req: NextRequest) {
       customerEmail,
       shippingAddress,
       shippingCost,
+      shippingRegion,
+      insurance,
       voucherCode,
       voucherDiscount,
       referralCode,
@@ -36,7 +38,7 @@ export async function POST(req: NextRequest) {
             currency: 'gbp',
             product_data: {
               name: '#TOOLING — Order (50% deposit + in-stock items)',
-              description: `Includes 50% deposit on custom builds, in-stock items in full, and shipping. Balance of £${Number(balanceAmount).toFixed(2)} invoiced when build is complete.`,
+              description: `Includes 50% deposit on custom builds, in-stock items in full, shipping, and full-value insurance. Balance of £${Number(balanceAmount).toFixed(2)} invoiced when build is complete.`,
             },
             unit_amount: Math.round(Number(upfrontAmount) * 100),
           },
@@ -56,12 +58,17 @@ export async function POST(req: NextRequest) {
         quantity: item.quantity,
       }))
 
-      if (Number(shippingCost) > 0) {
+      if (Number(shippingCost) > 0 || Number(insurance) > 0) {
+        const shippingAndInsurance = Number(shippingCost) + Number(insurance ?? 0)
+        const regionLabel = shippingRegion === 'uk' ? 'UK' : shippingRegion === 'europe' ? 'Europe' : 'Rest of World'
         lineItems.push({
           price_data: {
             currency: 'gbp',
-            product_data: { name: 'Shipping', images: [] },
-            unit_amount: Math.round(Number(shippingCost) * 100),
+            product_data: {
+              name: `Shipping & insurance (${regionLabel})`,
+              images: [],
+            },
+            unit_amount: Math.round(shippingAndInsurance * 100),
           },
           quantity: 1,
         })
@@ -134,6 +141,9 @@ export async function POST(req: NextRequest) {
         deposit_amount: depositAmount ? Number(depositAmount).toFixed(2) : '',
         balance_amount: balanceAmount ? Number(balanceAmount).toFixed(2) : '',
         has_custom_items: hasCustomItems ? 'true' : 'false',
+        insurance_amount: (insurance ?? 0).toFixed(2),
+        shipping_amount: shippingCost ? Number(shippingCost).toFixed(2) : '0.00',
+        shipping_region: shippingRegion || '',
         items_json: JSON.stringify(
           (items as { id?: string; name?: string; price?: number; quantity?: number; category?: string; customConfig?: Record<string, unknown> }[]).map((i) => ({
             id: i.id,

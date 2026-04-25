@@ -98,6 +98,8 @@ export async function POST(req: NextRequest) {
     const depositAmount = Number.parseFloat(meta.deposit_amount || '0')
     const balanceAmount = Number.parseFloat(meta.balance_amount || '0')
     const upfrontAmount = Number.parseFloat(meta.upfront_amount || '0')
+    const insuranceAmount = Number.parseFloat(meta.insurance_amount || '0')
+    const shippingAmount = Number.parseFloat(meta.shipping_amount || '0')
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -113,6 +115,8 @@ export async function POST(req: NextRequest) {
         deposit_amount: paymentPlan === 'deposit' ? depositAmount : null,
         balance_amount: paymentPlan === 'deposit' ? balanceAmount : null,
         balance_status: paymentPlan === 'deposit' ? 'awaiting_build' : 'not_applicable',
+        insurance_amount: insuranceAmount || null,
+        shipping_amount: shippingAmount || null,
       })
       .select('id')
       .single()
@@ -177,6 +181,8 @@ export async function POST(req: NextRequest) {
           depositAmount: paymentPlan === 'deposit' ? depositAmount : null,
           balanceAmount: paymentPlan === 'deposit' ? balanceAmount : null,
           createdAt: new Date().toISOString(),
+          shippingAmount: shippingAmount || null,
+          insuranceAmount: insuranceAmount || null,
         }),
       }).catch((err) => console.error('Order email webhook error:', err))
 

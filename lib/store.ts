@@ -65,6 +65,11 @@ export const useCart = create<CartStore>()(
 export const isCustomBuildItem = (item: CartItem): boolean =>
   Boolean(item.customConfig?.custom_build)
 
+export function computeInsurance(subtotalAfterDiscount: number): number {
+  if (subtotalAfterDiscount <= 250) return 0
+  return Math.floor(subtotalAfterDiscount / 200) * 5
+}
+
 export const computePaymentBreakdown = (
   items: CartItem[],
   shipping: number,
@@ -73,6 +78,9 @@ export const computePaymentBreakdown = (
 ): {
   customSubtotal: number
   stockSubtotal: number
+  subtotalAfterDiscount: number
+  insurance: number
+  shippingAndInsurance: number
   upfrontAmount: number
   depositAmount: number
   balanceAmount: number
@@ -85,30 +93,40 @@ export const computePaymentBreakdown = (
     .filter((i) => !isCustomBuildItem(i))
     .reduce((s, i) => s + i.price * i.quantity, 0)
 
-  const totalAmount = customSubtotal + stockSubtotal - discount
+  const subtotalBeforeDiscount = customSubtotal + stockSubtotal
+  const subtotalAfterDiscount = Math.max(0, subtotalBeforeDiscount - discount)
+  const insurance = computeInsurance(subtotalAfterDiscount)
+  const shippingAndInsurance = shipping + insurance
 
   if (paymentPlan === 'full' || customSubtotal === 0) {
     return {
       customSubtotal,
       stockSubtotal,
-      upfrontAmount: totalAmount + shipping,
+      subtotalAfterDiscount,
+      insurance,
+      shippingAndInsurance,
+      upfrontAmount: subtotalAfterDiscount + shippingAndInsurance,
       depositAmount: 0,
       balanceAmount: 0,
-      totalAmount,
+      totalAmount: subtotalAfterDiscount,
     }
   }
 
   const depositAmount = customSubtotal * 0.5
   const balanceAmount = customSubtotal * 0.5
-  const upfrontAmount = depositAmount + stockSubtotal + shipping - discount
+  const upfrontPreDiscount = depositAmount + stockSubtotal + shippingAndInsurance
+  const upfrontAmount = Math.max(0, upfrontPreDiscount - discount)
 
   return {
     customSubtotal,
     stockSubtotal,
-    upfrontAmount: Math.max(0, upfrontAmount),
+    subtotalAfterDiscount,
+    insurance,
+    shippingAndInsurance,
+    upfrontAmount,
     depositAmount,
     balanceAmount,
-    totalAmount,
+    totalAmount: subtotalAfterDiscount,
   }
 }
 

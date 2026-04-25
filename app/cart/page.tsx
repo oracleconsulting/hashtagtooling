@@ -385,11 +385,16 @@ function CartContent() {
                 </div>
                 {!hasOnlyDigital && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-zinc-400">Shipping ({shippingRegion === 'uk' ? 'UK' : shippingRegion === 'europe' ? 'Europe' : 'Rest of World'}):</span>
+                  <span className="text-zinc-400">Shipping & insurance ({shippingRegion === 'uk' ? 'UK' : shippingRegion === 'europe' ? 'Europe' : 'Rest of World'}):</span>
                   <span className="text-white">
-                    {items.length > 0 ? `£${shippingTotal.toFixed(2)}` : '£0.00'}
+                    {items.length > 0 ? `£${breakdown.shippingAndInsurance.toFixed(2)}` : '£0.00'}
                   </span>
                 </div>
+                )}
+                {breakdown.insurance > 0 && (
+                  <p className="text-xs text-zinc-500 -mt-1">
+                    Includes £{breakdown.insurance.toFixed(2)} full-value insurance.
+                  </p>
                 )}
                 <div className="border-t border-brand-dark-border pt-3">
                   {appliedVoucher && (
@@ -704,6 +709,8 @@ function CartContent() {
                               customerEmail: customerInfo.email,
                               shippingAddress: hasOnlyDigital ? '' : customerInfo.shippingAddress,
                               shippingCost: getShippingTotal(),
+                              shippingRegion,
+                              insurance: breakdown.insurance,
                               voucherCode: appliedVoucher?.code || null,
                               voucherDiscount: voucherDiscount > 0 ? voucherDiscount : null,
                               referralCode: appliedReferralCode || null,
@@ -770,6 +777,8 @@ function CartContent() {
                                   deposit_amount: paymentPlan === 'deposit' ? breakdown.depositAmount : null,
                                   balance_amount: paymentPlan === 'deposit' ? breakdown.balanceAmount : null,
                                   balance_status: paymentPlan === 'deposit' ? 'awaiting_build' : 'not_applicable',
+                                  shipping_amount: getShippingTotal(),
+                                  insurance_amount: breakdown.insurance,
                                   order_details: {
                                     items: items.map(item => ({
                                       id: item.id,
@@ -848,6 +857,8 @@ function CartContent() {
                                     upfrontAmount: breakdown.upfrontAmount,
                                     depositAmount: breakdown.depositAmount,
                                     balanceAmount: breakdown.balanceAmount,
+                                    shippingAmount: getShippingTotal(),
+                                    insuranceAmount: breakdown.insurance,
                                   }),
                                 }).catch((err) => console.error('Email send failed:', err))
                                 if (hasAnyDigital) {

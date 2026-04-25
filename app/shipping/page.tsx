@@ -80,6 +80,24 @@ export default function ShippingPage() {
           </section>
 
           <section>
+            <h2 className="text-2xl font-semibold mb-4 text-white">Insurance</h2>
+            <div className="bg-brand-dark-card border border-brand-dark-border p-6 rounded-lg space-y-3">
+              <p className="text-zinc-400">
+                Every package ships fully insured. For orders over £250, a small insurance fee
+                is applied to cover the full value of your order in transit.
+              </p>
+              <ul className="space-y-1 text-zinc-400 text-sm">
+                <li>• Orders up to £250: included, no additional fee</li>
+                <li>• Orders over £250: £5 per £200 of order value</li>
+              </ul>
+              <p className="text-zinc-500 text-xs">
+                The same rate applies regardless of shipping region. Insurance is shown combined
+                with shipping at checkout.
+              </p>
+            </div>
+          </section>
+
+          <section>
             <h2 className="text-2xl font-semibold mb-4 text-white">Packaging</h2>
             <p className="text-zinc-400 mb-4">
               Each tool is carefully wrapped and packaged to ensure it arrives in perfect condition. 
