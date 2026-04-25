@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import {
@@ -43,16 +43,34 @@ export default function SquarePreview3D({
   const mountRef = useRef<HTMLDivElement>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const controlsRef = useRef<OrbitControls | null>(null)
-  const initialPosRef = useRef<THREE.Vector3 | null>(null)
-  const initialTargetRef = useRef<THREE.Vector3 | null>(null)
+
+  const framing = useMemo(() => {
+    const body = getBody(size, scaleType)
+    if (!body) return null
+    const cx = body.width / 2
+    const cy = body.height / 2
+    const modelH = body.height
+    const stackDepth = scaleThicknessMm * 2 + linerThicknessMm * 2 + bodyThicknessMm
+    const modelMaxLateral = Math.max(body.width, stackDepth)
+    const fov = 35
+    const margin = 1.25
+    const computeFitDistance = (w: number, h: number, viewAspect: number) => {
+      const vFovRad = (fov * Math.PI) / 180
+      const hFovRad = 2 * Math.atan(Math.tan(vFovRad / 2) * viewAspect)
+      return Math.max((h / 2) / Math.tan(vFovRad / 2), (w / 2) / Math.tan(hFovRad / 2))
+    }
+    return { cx, cy, modelH, modelMaxLateral, fov, margin, computeFitDistance }
+  }, [size, scaleType, bodyThicknessMm, linerThicknessMm, scaleThicknessMm])
 
   useEffect(() => {
     const mount = mountRef.current
-    if (!mount) return
+    if (!mount || !framing) return
 
     const body = getBody(size, scaleType)
     const scale = getScale(size, scaleType, scaleVariant)
     if (!body || !scale) return
+
+    const { cx: cx2, cy: cy2, modelH, modelMaxLateral, fov, margin, computeFitDistance } = framing
 
     const buildShapeFromLines = (
       lines: { x1: number; y1: number; x2: number; y2: number }[]
@@ -110,12 +128,10 @@ export default function SquarePreview3D({
     scene.background = new THREE.Color(0x1a1a1a)
 
     const aspect = mount.clientWidth / mount.clientHeight
-    const camera = new THREE.PerspectiveCamera(35, aspect, 1, 2000)
+    const camera = new THREE.PerspectiveCamera(fov, aspect, 1, 5000)
 
-    const cx2 = body.width / 2
-    const cy2 = body.height / 2
-    const maxDim = Math.max(body.width, body.height)
-    camera.position.set(cx2, -cy2 - maxDim * 0.4, maxDim * 1.1)
+    const fitDistance = computeFitDistance(modelMaxLateral, modelH, aspect) * margin
+    camera.position.set(cx2, -cy2 - fitDistance * 0.25, fitDistance * 0.95)
     camera.lookAt(cx2, -cy2, 0)
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
@@ -131,20 +147,17 @@ export default function SquarePreview3D({
     controls.enablePan = false
     controls.rotateSpeed = 0.7
     controls.zoomSpeed = 0.6
-    controls.minDistance = maxDim * 0.9
-    controls.maxDistance = maxDim * 2.2
+    controls.minDistance = fitDistance * 0.4
+    controls.maxDistance = fitDistance * 2.5
     controls.minPolarAngle = Math.PI * 0.15
     controls.maxPolarAngle = Math.PI * 0.85
     controls.update()
 
-    const initialCameraPos = camera.position.clone()
-    const initialTarget = controls.target.clone()
     cameraRef.current = camera
     controlsRef.current = controls
-    initialPosRef.current = initialCameraPos
-    initialTargetRef.current = initialTarget
 
     // ─── Lights ───────────────────────────────────────────────────────
+    const maxDim = Math.max(body.width, body.height)
     scene.add(new THREE.AmbientLight(0xffffff, 0.45))
     const key = new THREE.DirectionalLight(0xffffff, 0.9)
     key.position.set(maxDim, -maxDim * 0.5, maxDim * 1.5)
@@ -275,7 +288,6 @@ export default function SquarePreview3D({
       metalness: 0.95,
       roughness: 0.25,
     })
-    const pinMeshes: THREE.Mesh[] = []
     const pinGeos: THREE.CylinderGeometry[] = []
     body.circles.forEach((c) => {
       const pinRadius = c.r * 0.95
@@ -284,7 +296,6 @@ export default function SquarePreview3D({
       const pin = new THREE.Mesh(pinGeo, pinMat)
       pin.position.set(c.cx, -c.cy, 0)
       scene.add(pin)
-      pinMeshes.push(pin)
       pinGeos.push(pinGeo)
     })
 
@@ -297,11 +308,31 @@ export default function SquarePreview3D({
     }
     animate()
 
+    // ─── Resize observer with aspect-aware reframing ──────────────────
+    let lastAspect = aspect
+    let userHasInteracted = false
+    controls.addEventListener('start', () => { userHasInteracted = true })
+
     const ro = new ResizeObserver(() => {
       if (!mount) return
-      camera.aspect = mount.clientWidth / mount.clientHeight
+      const newAspect = mount.clientWidth / mount.clientHeight
+      camera.aspect = newAspect
       camera.updateProjectionMatrix()
       renderer.setSize(mount.clientWidth, mount.clientHeight)
+
+      const newFitDistance = computeFitDistance(modelMaxLateral, modelH, newAspect) * margin
+      controls.minDistance = newFitDistance * 0.4
+      controls.maxDistance = newFitDistance * 2.5
+
+      const aspectChangedSignificantly = Math.abs(newAspect - lastAspect) > 0.3
+      if (!userHasInteracted || aspectChangedSignificantly) {
+        const offset = new THREE.Vector3().subVectors(camera.position, controls.target)
+        offset.setLength(newFitDistance)
+        camera.position.copy(controls.target).add(offset)
+        controls.update()
+      }
+
+      lastAspect = newAspect
     })
     ro.observe(mount)
 
@@ -325,7 +356,7 @@ export default function SquarePreview3D({
       cameraRef.current = null
       controlsRef.current = null
     }
-  }, [size, scaleType, scaleVariant, bodyColor, scaleColor, linerColor, scaleTextureUrl, linerThicknessMm, bodyThicknessMm, scaleThicknessMm])
+  }, [size, scaleType, scaleVariant, bodyColor, scaleColor, linerColor, scaleTextureUrl, linerThicknessMm, bodyThicknessMm, scaleThicknessMm, framing])
 
   const handleZoom = (factor: number) => {
     const cam = cameraRef.current
@@ -337,6 +368,19 @@ export default function SquarePreview3D({
     offset.setLength(clamped)
     cam.position.copy(ctrl.target).add(offset)
     ctrl.update()
+  }
+
+  const handleReset = () => {
+    const c = cameraRef.current
+    const k = controlsRef.current
+    if (!c || !k || !mountRef.current || !framing) return
+    const m = mountRef.current
+    const newAspect = m.clientWidth / m.clientHeight
+    const { cx: fx, cy: fy, modelH: mH, modelMaxLateral: mW, margin: mg, computeFitDistance: cfd } = framing
+    const fitD = cfd(mW, mH, newAspect) * mg
+    c.position.set(fx, -fy - fitD * 0.25, fitD * 0.95)
+    k.target.set(fx, -fy, 0)
+    k.update()
   }
 
   const wrapperClass = expanded
@@ -372,14 +416,7 @@ export default function SquarePreview3D({
           </svg>
         </button>
         <button
-          onClick={() => {
-            const c = cameraRef.current
-            const k = controlsRef.current
-            if (!c || !k || !initialPosRef.current || !initialTargetRef.current) return
-            c.position.copy(initialPosRef.current)
-            k.target.copy(initialTargetRef.current)
-            k.update()
-          }}
+          onClick={handleReset}
           className="px-2.5 h-8 sm:px-3 sm:h-9 text-xs bg-black/70 hover:bg-black/90 text-white rounded-md backdrop-blur-sm border border-white/10 transition-colors"
         >
           Reset
