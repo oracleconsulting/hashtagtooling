@@ -127,15 +127,15 @@ export function SquareProfileSVG({
             y={scaleBoxY}
             width={scaleBoxW}
             height={scaleBoxH}
-            patternTransform={`rotate(90 ${scaleBoxX + scaleBoxW / 2} ${scaleBoxY + scaleBoxH / 2})`}
           >
             <image
               href={scaleTextureUrl ?? ''}
-              x={scaleBoxX}
-              y={scaleBoxY}
-              width={scaleBoxW}
-              height={scaleBoxH}
+              x={scaleBoxX + (scaleBoxW - scaleBoxH) / 2}
+              y={scaleBoxY + (scaleBoxH - scaleBoxW) / 2}
+              width={scaleBoxH}
+              height={scaleBoxW}
               preserveAspectRatio="xMidYMid slice"
+              transform={`rotate(90 ${scaleBoxX + scaleBoxW / 2} ${scaleBoxY + scaleBoxH / 2})`}
             />
           </pattern>
         </defs>
@@ -191,19 +191,31 @@ export function SquareProfileSVG({
         strokeLinejoin="round"
       />
 
-      {/* Pin holes */}
+      {/* Pins */}
       {showHoles &&
-        body.circles.map((c, i) => (
-          <circle
-            key={`body-hole-${i}`}
-            cx={c.cx}
-            cy={c.cy}
-            r={c.r}
-            fill="#0d0d0d"
-            stroke={bodyColor}
-            strokeWidth={bodyStrokeWidth * 0.5}
-          />
-        ))}
+        body.circles.map((c, i) => {
+          const pinColor = linerColor || '#888888'
+          const highlightId = `pin-highlight-${i}`
+          return (
+            <g key={`pin-${i}`}>
+              <defs>
+                <radialGradient id={highlightId} cx="35%" cy="35%" r="65%">
+                  <stop offset="0%" stopColor="#ffffff" stopOpacity={0.45} />
+                  <stop offset="55%" stopColor={pinColor} stopOpacity={1} />
+                  <stop offset="100%" stopColor="#000000" stopOpacity={0.35} />
+                </radialGradient>
+              </defs>
+              <circle
+                cx={c.cx}
+                cy={c.cy}
+                r={c.r * 0.95}
+                fill={`url(#${highlightId})`}
+                stroke={pinColor}
+                strokeWidth={bodyStrokeWidth * 0.4}
+              />
+            </g>
+          )
+        })}
 
       {/* Scale-only countersinks */}
       {showHoles &&
@@ -261,8 +273,8 @@ export function SquareProfileSVG({
             x={-pad * 0.5}
             y={body.height / 2}
             textAnchor="middle"
-            transform={`rotate(-90, ${-pad * 0.5}, ${body.height / 2})`}
-            dy={-fontSize * 0.5}
+            transform={`rotate(-90 ${-pad * 0.5} ${body.height / 2})`}
+            dy={fontSize * 0.4}
           >
             {specs.height}mm
           </text>

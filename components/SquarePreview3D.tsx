@@ -268,6 +268,26 @@ export default function SquarePreview3D({
     backScaleMesh.position.z = -bodyThicknessMm / 2 - linerThicknessMm - scaleThicknessMm
     scene.add(backScaleMesh)
 
+    // ─── Pins ──────────────────────────────────────────────────────────
+    const pinHeight = scaleThicknessMm + linerThicknessMm + bodyThicknessMm + linerThicknessMm + scaleThicknessMm
+    const pinMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(linerColor),
+      metalness: 0.95,
+      roughness: 0.25,
+    })
+    const pinMeshes: THREE.Mesh[] = []
+    const pinGeos: THREE.CylinderGeometry[] = []
+    body.circles.forEach((c) => {
+      const pinRadius = c.r * 0.95
+      const pinGeo = new THREE.CylinderGeometry(pinRadius, pinRadius, pinHeight, 24)
+      pinGeo.rotateX(Math.PI / 2)
+      const pin = new THREE.Mesh(pinGeo, pinMat)
+      pin.position.set(c.cx, -c.cy, 0)
+      scene.add(pin)
+      pinMeshes.push(pin)
+      pinGeos.push(pinGeo)
+    })
+
     // ─── Animation loop ───────────────────────────────────────────────
     let raf = 0
     const animate = () => {
@@ -298,6 +318,8 @@ export default function SquarePreview3D({
       backScaleGeo.dispose()
       backScaleMat.dispose()
       if (backScaleMat.map) backScaleMat.map.dispose()
+      pinGeos.forEach((g) => g.dispose())
+      pinMat.dispose()
       renderer.dispose()
       mount.removeChild(renderer.domElement)
       cameraRef.current = null
@@ -319,17 +341,17 @@ export default function SquarePreview3D({
 
   const wrapperClass = expanded
     ? 'relative w-full h-full bg-zinc-950'
-    : 'relative w-full h-[400px] rounded-lg overflow-hidden bg-zinc-950'
+    : 'relative w-full h-[280px] sm:h-[340px] md:h-[400px] rounded-lg overflow-hidden bg-zinc-950'
 
   return (
     <div className={wrapperClass}>
-      <div ref={mountRef} className="absolute inset-0" />
+      <div ref={mountRef} className="absolute inset-0" style={{ touchAction: 'none' }} />
 
-      <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
+      <div className="absolute bottom-2 right-2 sm:bottom-3 sm:right-3 flex items-center gap-1 sm:gap-1.5">
         <button
           onClick={() => handleZoom(0.8)}
           aria-label="Zoom in"
-          className="w-9 h-9 flex items-center justify-center bg-black/70 hover:bg-black/90 text-white rounded-md backdrop-blur-sm border border-white/10 transition-colors"
+          className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center bg-black/70 hover:bg-black/90 text-white rounded-md backdrop-blur-sm border border-white/10 transition-colors"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8" />
@@ -341,7 +363,7 @@ export default function SquarePreview3D({
         <button
           onClick={() => handleZoom(1.25)}
           aria-label="Zoom out"
-          className="w-9 h-9 flex items-center justify-center bg-black/70 hover:bg-black/90 text-white rounded-md backdrop-blur-sm border border-white/10 transition-colors"
+          className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center bg-black/70 hover:bg-black/90 text-white rounded-md backdrop-blur-sm border border-white/10 transition-colors"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8" />
@@ -358,7 +380,7 @@ export default function SquarePreview3D({
             k.target.copy(initialTargetRef.current)
             k.update()
           }}
-          className="px-3 h-9 text-xs bg-black/70 hover:bg-black/90 text-white rounded-md backdrop-blur-sm border border-white/10 transition-colors"
+          className="px-2.5 h-8 sm:px-3 sm:h-9 text-xs bg-black/70 hover:bg-black/90 text-white rounded-md backdrop-blur-sm border border-white/10 transition-colors"
         >
           Reset
         </button>
@@ -366,7 +388,7 @@ export default function SquarePreview3D({
           <button
             onClick={onExpandClick}
             aria-label="Expand"
-            className="w-9 h-9 flex items-center justify-center bg-black/70 hover:bg-black/90 text-white rounded-md backdrop-blur-sm border border-white/10 transition-colors"
+            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center bg-black/70 hover:bg-black/90 text-white rounded-md backdrop-blur-sm border border-white/10 transition-colors"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 3 21 3 21 9" />

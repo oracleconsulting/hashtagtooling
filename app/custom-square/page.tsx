@@ -20,7 +20,7 @@ import {
 
 const SquarePreview3D = dynamic(() => import('@/components/SquarePreview3D'), {
   ssr: false,
-  loading: () => <div className="w-full h-[400px] rounded-lg bg-zinc-900 animate-pulse" />,
+  loading: () => <div className="w-full h-[280px] sm:h-[340px] md:h-[400px] rounded-lg bg-zinc-900 animate-pulse" />,
 })
 
 interface BasePrice {
@@ -285,16 +285,16 @@ export default function CustomSquarePage() {
           tabIndex={-1}
           ref={(el) => el?.focus()}
         >
-          <div className="flex items-center justify-between p-4 border-b border-white/10">
-            <div className="text-white">
-              <p className="text-sm uppercase tracking-wider text-zinc-400">Preview</p>
-              <p className="text-base font-medium">
+          <div className="flex items-center justify-between p-3 sm:p-4 border-b border-white/10 flex-shrink-0">
+            <div className="text-white min-w-0">
+              <p className="text-xs uppercase tracking-wider text-zinc-400 hidden sm:block">Preview</p>
+              <p className="text-sm sm:text-base font-medium truncate">
                 {SQUARE_SPECS[selectedSize].label} — {SQUARE_SPECS[selectedSize].width}mm × {SQUARE_SPECS[selectedSize].height}mm
               </p>
             </div>
             <button
               onClick={() => setExpanded3D(false)}
-              className="px-4 h-9 text-sm bg-white/10 hover:bg-white/20 text-white rounded-md transition-colors"
+              className="px-3 sm:px-4 h-9 text-sm bg-white/10 hover:bg-white/20 text-white rounded-md transition-colors flex-shrink-0 ml-3"
             >
               Close
             </button>
@@ -336,14 +336,14 @@ export default function CustomSquarePage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Live Preview */}
           <div className="order-1 lg:sticky lg:top-24 h-fit">
-            <div className="sticky top-20 z-10 bg-brand-dark py-2 md:py-0 md:static lg:bg-transparent">
+            <div className="bg-brand-dark py-2 md:py-0 lg:bg-transparent">
               <div className="bg-zinc-950/60 rounded-2xl border border-brand-dark-border p-4">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs uppercase tracking-wider text-zinc-500">Preview</p>
                   <div className="flex bg-zinc-900 rounded-lg p-0.5 text-xs">
                     <button
                       onClick={() => setShow3D(false)}
-                      className={`px-3 py-1 rounded-md transition-colors ${
+                      className={`px-3 py-1.5 rounded-md transition-colors ${
                         !show3D ? 'bg-brand-orange text-black font-medium' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
@@ -351,7 +351,7 @@ export default function CustomSquarePage() {
                     </button>
                     <button
                       onClick={() => setShow3D(true)}
-                      className={`px-3 py-1 rounded-md transition-colors ${
+                      className={`px-3 py-1.5 rounded-md transition-colors ${
                         show3D ? 'bg-brand-orange text-black font-medium' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
@@ -412,7 +412,7 @@ export default function CustomSquarePage() {
           <div className="space-y-8 md:space-y-6 order-2">
             {/* Step 1: Size */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
-              <CardHeader className="sticky top-16 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
+              <CardHeader className="bg-brand-dark-card md:bg-transparent border-b border-brand-dark-border/50 md:border-0">
                 <CardTitle className="text-white">1. Choose Size</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -451,7 +451,7 @@ export default function CustomSquarePage() {
 
             {/* Step 2: Body Material */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
-              <CardHeader className="sticky top-16 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
+              <CardHeader className="bg-brand-dark-card md:bg-transparent border-b border-brand-dark-border/50 md:border-0">
                 <CardTitle className="text-white">2. Body Material</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -489,7 +489,7 @@ export default function CustomSquarePage() {
 
             {/* Step 3: Scale Type */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
-              <CardHeader className="sticky top-16 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
+              <CardHeader className="bg-brand-dark-card md:bg-transparent border-b border-brand-dark-border/50 md:border-0">
                 <CardTitle className="text-white">3. Scale Type</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -517,7 +517,7 @@ export default function CustomSquarePage() {
 
             {/* Step 4: Liner Material + Thickness (BEFORE scale) */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
-              <CardHeader className="sticky top-16 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
+              <CardHeader className="bg-brand-dark-card md:bg-transparent border-b border-brand-dark-border/50 md:border-0">
                 <CardTitle className="text-white">4. Liner Material &amp; Thickness</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -564,7 +564,7 @@ export default function CustomSquarePage() {
 
             {/* Step 5: Scale Material (filtered by liner choice) */}
             <Card className="bg-brand-dark-card border border-brand-dark-border">
-              <CardHeader className="sticky top-16 z-10 bg-brand-dark-card border-b border-brand-dark-border/50 md:static md:border-0">
+              <CardHeader className="bg-brand-dark-card md:bg-transparent border-b border-brand-dark-border/50 md:border-0">
                 <CardTitle className="text-white">5. Scale Material</CardTitle>
               </CardHeader>
               <CardContent>
