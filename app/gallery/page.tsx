@@ -28,7 +28,7 @@ interface Product {
 }
 
 export default async function GalleryPage() {
-  const [soldRes, currentRes] = await Promise.all([
+  const [soldRes, currentRes, reviewsRes] = await Promise.all([
     supabase
       .from('products')
       .select('id, name, description, image_url, category, created_at, metadata')
@@ -42,10 +42,27 @@ export default async function GalleryPage() {
       .in('stock_status', ['in_stock', 'made_to_order'])
       .order('created_at', { ascending: false })
       .limit(12),
+    supabase
+      .from('product_reviews')
+      .select('product_id, customer_name, rating, title, body, verified_purchase')
+      .eq('published', true)
+      .not('product_id', 'is', null),
   ])
 
   const soldProducts = (soldRes.data || []) as Product[]
   const currentProducts = (currentRes.data || []) as Product[]
+
+  const reviewsByProduct: Record<string, { customer_name: string; rating: number; title: string | null; body: string | null; verified_purchase: boolean }[]> = {}
+  ;(reviewsRes.data || []).forEach((r: { product_id: string; customer_name: string; rating: number; title: string | null; body: string | null; verified_purchase: boolean }) => {
+    if (!reviewsByProduct[r.product_id]) reviewsByProduct[r.product_id] = []
+    reviewsByProduct[r.product_id].push({
+      customer_name: r.customer_name,
+      rating: r.rating,
+      title: r.title,
+      body: r.body,
+      verified_purchase: r.verified_purchase,
+    })
+  })
 
   return (
     <>
@@ -53,7 +70,7 @@ export default async function GalleryPage() {
         { name: 'Home', url: 'https://hashtag.guru' },
         { name: 'Gallery', url: 'https://hashtag.guru/gallery' },
       ]} />
-      <GalleryContent soldProducts={soldProducts} currentProducts={currentProducts} />
+      <GalleryContent soldProducts={soldProducts} currentProducts={currentProducts} reviewsByProduct={reviewsByProduct} />
     </>
   )
 }

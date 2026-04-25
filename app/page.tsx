@@ -131,6 +131,7 @@ export default async function Home() {
     title: r.title,
     body: r.body,
     verified_purchase: r.verified_purchase,
+    product_id: r.product_id,
     product_name: r.product_id ? reviewProductMap.get(r.product_id) || null : null,
   }))
 

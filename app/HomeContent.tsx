@@ -32,6 +32,7 @@ interface HomeReview {
   body: string | null
   verified_purchase: boolean
   product_name: string | null
+  product_id: string | null
 }
 
 interface HomeContentProps {
@@ -331,7 +332,12 @@ export default function HomeContent({ images, heroVideoUrl, latestProducts = [],
                   <div className="mt-4 pt-3 border-t border-brand-dark-border flex items-center justify-between">
                     <div>
                       <p className="text-white text-sm font-medium">{review.customer_name}</p>
-                      {review.product_name && (
+                      {review.product_name && review.product_id && (
+                        <Link href={`/product/${review.product_id}`} className="text-zinc-500 text-xs hover:text-brand-orange transition-colors">
+                          {review.product_name}
+                        </Link>
+                      )}
+                      {review.product_name && !review.product_id && (
                         <p className="text-zinc-500 text-xs">{review.product_name}</p>
                       )}
                     </div>

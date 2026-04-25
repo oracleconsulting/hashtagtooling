@@ -23,9 +23,18 @@ interface Product {
   }
 }
 
+interface ReviewData {
+  customer_name: string
+  rating: number
+  title: string | null
+  body: string | null
+  verified_purchase: boolean
+}
+
 interface GalleryContentProps {
   soldProducts: Product[]
   currentProducts: Product[]
+  reviewsByProduct?: Record<string, ReviewData[]>
 }
 
 const CATEGORIES = ['all', 'mallet', 'awl', 'square', 'coin', 'wood', 'mystery']
@@ -104,7 +113,7 @@ function GalleryImageCarousel({ images, name, onZoom }: { images: string[]; name
   )
 }
 
-export default function GalleryContent({ soldProducts, currentProducts }: GalleryContentProps) {
+export default function GalleryContent({ soldProducts, currentProducts, reviewsByProduct = {} }: GalleryContentProps) {
   const [viewMode, setViewMode] = useState<'timeline' | 'grid'>('timeline')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -291,10 +300,17 @@ export default function GalleryContent({ soldProducts, currentProducts }: Galler
                         {[product.metadata?.head_wood, product.metadata?.handle_wood].filter(Boolean).join(' / ')}
                       </p>
                     )}
-                    <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-brand-dark-border text-zinc-400 capitalize">
-                      {product.category}
-                    </span>
-                    <p className="text-xs text-zinc-500 mt-2">{formatDate(product.created_at)}</p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-brand-dark-border text-zinc-400 capitalize">
+                        {product.category}
+                      </span>
+                      {reviewsByProduct[product.id]?.length > 0 && (
+                        <span className="text-xs text-brand-orange">
+                          {'★'.repeat(Math.round(reviewsByProduct[product.id].reduce((s, r) => s + r.rating, 0) / reviewsByProduct[product.id].length))}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-zinc-500">{formatDate(product.created_at)}</p>
                   </div>
                 </div>
               ))}
@@ -362,6 +378,11 @@ export default function GalleryContent({ soldProducts, currentProducts }: Galler
                               <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-brand-orange/20 text-brand-orange capitalize mb-2">
                                 {product.category}
                               </span>
+                              {reviewsByProduct[product.id]?.length > 0 && (
+                                <span className="text-xs text-brand-orange ml-2">
+                                  {'★'.repeat(Math.round(reviewsByProduct[product.id].reduce((s, r) => s + r.rating, 0) / reviewsByProduct[product.id].length))}
+                                </span>
+                              )}
                               <p className="text-zinc-500 text-sm mb-4">{formatDate(product.created_at)}</p>
                               <Link href={builderHref(product)}>
                                 <Button variant="outline" size="sm">
@@ -472,6 +493,30 @@ export default function GalleryContent({ soldProducts, currentProducts }: Galler
                     )}
 
                     <p className="text-zinc-500 text-sm mb-4">{formatDate(selectedProduct.created_at)}</p>
+
+                    {reviewsByProduct[selectedProduct.id]?.length > 0 && (
+                      <div className="mb-4 space-y-3">
+                        {reviewsByProduct[selectedProduct.id].map((review, i) => (
+                          <div key={i} className="bg-brand-dark border border-brand-dark-border rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <div className="flex">
+                                  {[1, 2, 3, 4, 5].map((s) => (
+                                    <span key={s} className={`text-xs ${s <= review.rating ? 'text-brand-orange' : 'text-zinc-700'}`}>★</span>
+                                  ))}
+                                </div>
+                                {review.verified_purchase && (
+                                  <span className="text-[9px] text-green-500 bg-green-900/30 px-1 py-0.5 rounded">Verified</span>
+                                )}
+                              </div>
+                              <p className="text-xs text-zinc-500">{review.customer_name}</p>
+                            </div>
+                            {review.title && <p className="text-white text-sm font-semibold mb-1">{review.title}</p>}
+                            {review.body && <p className="text-zinc-400 text-sm leading-relaxed">{review.body}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     <Link href={builderHref(selectedProduct)} onClick={() => setSelectedProduct(null)}>
                       <Button>
