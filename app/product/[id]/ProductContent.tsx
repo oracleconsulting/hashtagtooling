@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { formatPrice } from '@/lib/utils'
 import { useCart } from '@/lib/store'
 import { useWishlist } from '@/lib/wishlist-store'
+import { trackEvent } from '@/lib/tracking'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
@@ -69,6 +70,18 @@ export default function ProductContent() {
   useEffect(() => {
     if (id) loadProduct()
   }, [id])
+
+  useEffect(() => {
+    if (product) {
+      trackEvent({
+        eventType: 'view_item',
+        productId: product.id,
+        productName: product.name,
+        productCategory: product.category,
+        price: product.price,
+      })
+    }
+  }, [product?.id])
 
   const loadProduct = async () => {
     try {

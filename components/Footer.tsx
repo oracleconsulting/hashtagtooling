@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { linkSessionToEmail } from '@/lib/tracking'
 
 export function Footer() {
   const [email, setEmail] = useState('')
@@ -29,6 +30,7 @@ export function Footer() {
         setStatus('success')
         setEmail('')
         if (data.voucher_code) setVoucherCode(data.voucher_code)
+        linkSessionToEmail(trimmed)
       } else {
         setStatus('error')
       }

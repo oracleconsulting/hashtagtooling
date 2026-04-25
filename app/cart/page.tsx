@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase'
 import { SquareProfileSVG } from '@/components/SquareProfileSVG'
 import type { SquareSize, ScaleType, ScaleVariant } from '@/lib/square-geometry'
 import { computeSquareShipWindow, cartContainsCustomSquare } from '@/lib/lead-time'
+import { trackEvent, linkSessionToEmail } from '@/lib/tracking'
 
 function CartContent() {
   const searchParams = useSearchParams()
@@ -709,6 +710,15 @@ function CartContent() {
                         if (checkoutDisabled) return
                         setStripeLoading(true)
                         try {
+                          trackEvent({
+                            eventType: 'begin_checkout',
+                            metadata: {
+                              items: items.map((i) => ({ id: i.id, qty: i.quantity, price: i.price })),
+                              total: breakdown.upfrontAmount,
+                              plan: paymentPlan,
+                            },
+                          })
+                          if (customerInfo.email) linkSessionToEmail(customerInfo.email)
                           const res = await fetch('/api/create-checkout-session', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -757,6 +767,15 @@ function CartContent() {
                       <PayPalButtons
                         disabled={checkoutDisabled}
                         createOrder={(data, actions) => {
+                          trackEvent({
+                            eventType: 'begin_checkout',
+                            metadata: {
+                              items: items.map((i) => ({ id: i.id, qty: i.quantity, price: i.price })),
+                              total: breakdown.upfrontAmount,
+                              plan: paymentPlan,
+                            },
+                          })
+                          if (customerInfo.email) linkSessionToEmail(customerInfo.email)
                           return actions.order.create({
                             intent: 'CAPTURE',
                             purchase_units: [{

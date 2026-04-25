@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { ChevronDown, ChevronUp, Copy, Check } from 'lucide-react'
+import { linkSessionToEmail } from '@/lib/tracking'
 
 export default function MailingListPage() {
   const [email, setEmail] = useState('')
@@ -32,6 +33,7 @@ export default function MailingListPage() {
         setStatus('success')
         setEmail('')
         if (data.voucher_code) setVoucherCode(data.voucher_code)
+        linkSessionToEmail(trimmed)
       } else {
         setStatus('error')
       }
