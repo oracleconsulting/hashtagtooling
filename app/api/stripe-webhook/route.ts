@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
+import { Resend } from 'resend'
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY
@@ -57,6 +58,40 @@ export async function POST(req: NextRequest) {
         }),
       }).catch((err) => console.error('Voucher purchase webhook error:', err))
 
+      return NextResponse.json({ received: true })
+    }
+
+    // -----------------------------------------------------------------------
+    // BALANCE PAYMENT — mark existing order's balance as paid
+    // -----------------------------------------------------------------------
+    if (meta.balance_payment === 'true') {
+      const orderId = meta.order_id
+      if (orderId) {
+        await supabase.from('orders').update({
+          balance_status: 'paid',
+          balance_paid_at: new Date().toISOString(),
+          status: 'paid',
+          balance_payment_token: null,
+          balance_stripe_payment_intent_id: session.payment_intent as string,
+        }).eq('id', orderId)
+
+        const { data: balanceOrder } = await supabase.from('orders').select('*').eq('id', orderId).single()
+        if (balanceOrder) {
+          const resend = new Resend(process.env.RESEND_API_KEY!)
+          await resend.emails.send({
+            from: '#TOOLING <hashtagwoodworking@gmail.com>',
+            to: balanceOrder.customer_email,
+            subject: 'Balance received — your order is shipping soon',
+            html: `<div style="font-family:-apple-system,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1a1a1a;"><h1 style="color:#E8A000;">Balance received</h1><p>Hi ${balanceOrder.customer_name}, we've received the £${Number(balanceOrder.balance_amount).toFixed(2)} balance and your order is shipping soon.</p></div>`,
+          })
+          await resend.emails.send({
+            from: '#TOOLING <hashtagwoodworking@gmail.com>',
+            to: 'hashtagwoodworking@gmail.com',
+            subject: `Balance paid: ${balanceOrder.customer_name}`,
+            html: `<p>Order ${orderId} balance of £${Number(balanceOrder.balance_amount).toFixed(2)} paid via Stripe. Ready to ship.</p>`,
+          })
+        }
+      }
       return NextResponse.json({ received: true })
     }
 

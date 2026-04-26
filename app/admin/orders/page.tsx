@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, Fragment } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, Fragment, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,6 +31,8 @@ interface Order {
   balance_amount?: number | null
   upfront_amount?: number | null
   balance_status?: string | null
+  balance_due_date?: string | null
+  balance_payment_token?: string | null
 }
 
 const STATUS_OPTIONS = ['pending', 'paid', 'awaiting_balance', 'shipped', 'completed', 'refunded', 'cancelled'] as const
@@ -54,7 +56,17 @@ const BALANCE_BADGE: Record<string, { className: string; label: string }> = {
 }
 
 export default function AdminOrdersPage() {
+  return (
+    <Suspense fallback={<div className="container mx-auto px-4 py-12"><p className="text-zinc-400">Loading...</p></div>}>
+      <AdminOrdersContent />
+    </Suspense>
+  )
+}
+
+function AdminOrdersContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const filter = searchParams.get('filter')
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -69,14 +81,23 @@ export default function AdminOrdersPage() {
       return
     }
     loadOrders()
-  }, [router])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, filter])
 
   const loadOrders = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('orders')
         .select('*')
         .order('created_at', { ascending: false })
+
+      if (filter === 'awaiting_payment') {
+        query = query.eq('balance_status', 'awaiting_payment')
+      } else if (filter === 'awaiting_build') {
+        query = query.eq('balance_status', 'awaiting_build')
+      }
+
+      const { data, error } = await query
 
       if (error) throw error
       setOrders(data || [])
@@ -88,6 +109,11 @@ export default function AdminOrdersPage() {
   }
 
   const updateStatus = async (orderId: string, status: string) => {
+    const order = orders.find((o) => o.id === orderId)
+    if (status === 'shipped' && order?.payment_plan === 'deposit' && order?.balance_status !== 'paid') {
+      alert('Cannot mark as shipped — balance has not been paid yet.')
+      return
+    }
     setUpdatingId(orderId)
     try {
       const { error } = await supabase
@@ -108,6 +134,10 @@ export default function AdminOrdersPage() {
   }
 
   const markAsShipped = async (order: Order) => {
+    if (order.payment_plan === 'deposit' && order.balance_status !== 'paid') {
+      alert('Cannot mark as shipped — balance has not been paid yet.')
+      return
+    }
     const { trackingNumber, trackingUrl } = trackingInputs[order.id] ?? { trackingNumber: '', trackingUrl: '' }
     setShippingId(order.id)
     try {
@@ -209,6 +239,18 @@ export default function AdminOrdersPage() {
             Logout
           </Button>
         </div>
+      </div>
+
+      <div className="flex gap-2 mb-4">
+        <Button variant={!filter ? 'default' : 'outline'} size="sm" onClick={() => router.push('/admin/orders')}>
+          All
+        </Button>
+        <Button variant={filter === 'awaiting_build' ? 'default' : 'outline'} size="sm" onClick={() => router.push('/admin/orders?filter=awaiting_build')}>
+          Awaiting build
+        </Button>
+        <Button variant={filter === 'awaiting_payment' ? 'default' : 'outline'} size="sm" onClick={() => router.push('/admin/orders?filter=awaiting_payment')}>
+          Awaiting balance
+        </Button>
       </div>
 
       <div className="bg-brand-dark-card border border-brand-dark-border rounded-lg overflow-hidden">
@@ -428,6 +470,57 @@ export default function AdminOrdersPage() {
                               </div>
                             )}
                           </div>
+
+                          {order.balance_status === 'awaiting_build' && (
+                            <div className="mt-6 pt-6 border-t border-brand-dark-border">
+                              <Button
+                                onClick={async () => {
+                                  if (!confirm(`Mark build complete and invoice balance of £${Number(order.balance_amount).toFixed(2)} to ${order.customer_email}?`)) return
+                                  const res = await fetch('/api/admin/mark-build-complete', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ orderId: order.id }),
+                                  })
+                                  const data = await res.json()
+                                  if (data.ok) {
+                                    alert('Balance invoice sent. Customer has 14 days to pay.')
+                                    await loadOrders()
+                                  } else {
+                                    alert(`Failed: ${data.error}`)
+                                  }
+                                }}
+                                className="bg-green-700 hover:bg-green-800"
+                              >
+                                Mark build complete &amp; invoice balance
+                              </Button>
+                            </div>
+                          )}
+
+                          {order.balance_status === 'awaiting_payment' && (
+                            <div className="mt-6 pt-6 border-t border-brand-dark-border flex items-center gap-4">
+                              <p className="text-sm text-zinc-300">Balance due {order.balance_due_date ? new Date(order.balance_due_date).toLocaleDateString('en-GB') : '—'}</p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={async () => {
+                                  const days = prompt('Extend balance deadline by how many days?', '7')
+                                  if (!days || Number.isNaN(Number(days))) return
+                                  const res = await fetch('/api/admin/extend-balance-due-date', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ orderId: order.id, additionalDays: Number(days) }),
+                                  })
+                                  const data = await res.json()
+                                  if (data.ok) {
+                                    alert(`Deadline extended to ${new Date(data.newDueDate).toLocaleDateString('en-GB')}`)
+                                    await loadOrders()
+                                  }
+                                }}
+                              >
+                                Extend deadline
+                              </Button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )}
