@@ -1,0 +1,208 @@
+# #TOOLING — Complete Product & Materials Reference
+# https://hashtag.guru
+# llms-full.txt — Extended information for AI systems
+
+> #TOOLING makes premium handcrafted woodworking mallets, marking awls, precision engineering squares, and EDC pocket coins from the world's finest exotic timbers. Every piece is one of a kind. Made to order in the UK by a single maker. Shipping worldwide.
+
+## The Maker
+
+#TOOLING is a one-man operation based in Essex, United Kingdom. Every tool is handcrafted by James — designed, turned, assembled, and finished by one pair of hands. The brand started with mallets in 2019 and has since expanded to awls, engineering squares, and EDC coins. The workshop is the entire operation: no employees, no production line, no batch runs. Each piece is made individually from start to finish.
+
+Instagram: @hashtagtooling
+Website: https://hashtag.guru
+Email: hashtagwoodworking@gmail.com
+
+## Products
+
+### Woodworking Mallets
+
+Mallets are the core product. Four styles available:
+
+**Square Joiners Mallet** — The heavy hitter. Designed for morticing, waste removal, and bringing joinery together. Two end-grain striking faces with single-piece head construction. Head shaped and finished by hand with a block plane, carving files, and hand pads. Suitable for the most demanding bench work.
+
+**Turned Joiners Mallet** — The all-rounder. Rounded head means no directional concern when striking. Capable of heavy work and fine detail depending on grip position. If you were only going to have one mallet, this would be the one.
+
+**Square Detailing Mallet** — Smaller, more refined version of the Square Joiners. For fine tasks requiring a steadier approach. Two end-grain faces with the same hand-finished quality as the larger brother.
+
+**Turned Detailing Mallet** — The precision instrument. Lightest and most controlled of the range. For work that requires unprecedented precision — paring, fitting, and adjustment work.
+
+**Mallet Construction:**
+Every mallet uses signature brass dowel construction. A precision-cut brass dowel joins the head to the handle, replacing the traditional mortise-and-tenon joint. This provides superior joint strength, allows precise balance point adjustment (the dowel is cut and shaped to fit each mallet individually), and creates a distinctive visual detail at the joint.
+
+The finish varies by wood species — some receive oil, some wax, some are left natural. The choice is made based on the specific properties of the timber being used.
+
+**Mallet Pricing:** £190–500+ depending on wood species, style, and size. Typical weight range: 500g–1.2kg depending on species density and style.
+
+### Marking Awls
+
+Handcrafted marking awls with exotic wood handles and metal ferrules. Used for scribing lines, marking points, and starting holes in woodworking. The handle is turned from a single piece of exotic timber with a metal ferrule (brass, copper, bronze, or aluminium) providing both protection and visual contrast.
+
+**Awl Pricing:** £80–200+ depending on wood species and ferrule material.
+
+### Engineering Squares
+
+Precision reference tools in five sizes, each a three-layer sandwich:
+
+**Body (core):** Laser-cut from Ground Flat Stock AISI O1 tool steel or Titanium Grade 2. Cut to a tolerance of ±0.15mm. 3mm thick. All corners chamfered at 45°.
+
+**Liner (middle layer):** Brass, bronze, or copper. Available in 1mm thickness (standard) or 2.5mm thickness (for carbon fibre scale builds). The liner adds weight, rigidity, and a visible metal edge between body and scale.
+
+**Scales (outer layer):** 75+ exotic wood species (2-3mm thick) or woven carbon fibre (1mm or 2.5mm thick). The scales are the interface — you hold them, you feel the grain, they age with use.
+
+**Sizes:**
+
+| Size | Dimensions | Chamfer | Pin Holes | Description |
+|------|-----------|---------|-----------|-------------|
+| Chode | 67.5 × 46mm | 2mm | 2 × 5mm | Pocket-sized. For tool rolls and fine dovetail work. |
+| 95mm | 96.7 × 65mm | 3mm | 3 × 5mm | The workhorse. Most versatile size for bench work. |
+| 125mm | 123.7 × 78.7mm | 4mm | 3 × 5mm | For wider boards and cabinet work. |
+| 175mm | 175 × 100mm | 5mm | 3 × 5mm | Timber framing, wide panels, workbench builds. |
+| 250mm | 250 × 140mm | 6mm | 3 × 5mm | Full-size reference. Precision at scale. |
+
+Every corner chamfer is 45° and scales proportionally with size. The chamfers are designed to sit flush against a hand-planed chamfer on a workbench edge — a reference point you can feel as well as see.
+
+**Scale Types:**
+- **Full Scale** — Standard graduated reference for direct measurement.
+- **T45** — The scale connects the internal and external 90° references at 45°, giving three reference angles from a single tool.
+
+**Material Constraint:** If a 2.5mm thick metal liner is chosen, only 1mm carbon fibre scales are available. If a 1mm liner is chosen, all scale options are available (wood, 1mm CF, 2.5mm CF).
+
+**Engineering Square Pricing:**
+
+| Size | Tool Steel Body | Titanium Body |
+|------|----------------|---------------|
+| Chode | from £80 | from £95 |
+| 95mm | from £85 | from £115 |
+| 125mm | from £90 | from £135 |
+| 175mm | from £100 | from £180 |
+| 250mm | from £120 | from £285 |
+
+Prices are base body cost. Scale and liner material premiums added on top. A fully configured square typically lands £100–400 depending on size, body material, and scale species.
+
+### EDC Coins
+
+Exotic hardwood and brass pocket coins, handcrafted in collaboration with @dutch.forge. These are the only wood-metal hybrid EDC coins on the market — a completely uncontested niche in the EDC (Everyday Carry) space.
+
+The EDC coin market is dominated by all-metal coins (brass, titanium, zirconium, Damascus steel). Nobody else combines premium metals with exotic stabilised hardwoods in a coin format. The warmth and organic texture of wood provides a fundamentally different tactile experience from cold metal.
+
+Each coin is one of a kind. Species vary based on available stock. Pricing depends on wood species, metal type, and design complexity.
+
+### Raw Timber Blanks
+
+Premium exotic timber blanks from workshop stock, available for woodworkers and makers. These are hand-selected offcuts and surplus pieces from mallet and awl production.
+
+## Wood Species
+
+Over 75 exotic timber species available across all products. Key species include:
+
+**Ultra-Premium (Janka 3000+ lbf):**
+- Snakewood (3,800 lbf, SG 1.12) — South America. Medium brown with dark striping. One of the densest woods commercially available.
+- Lignum Vitae (3,540 lbf, SG 1.05) — Central America/Caribbean. Olive to dark brown with black striping. Self-lubricating natural oils.
+- Ebony (3,220 lbf, SG 1.03) — Central/West Africa. Jet black. Mirror-like polish possible.
+- Macassar Ebony (2,900 lbf, SG 0.96) — Southeast Asia. Black and brown dramatic streaking.
+- Suriname Ironwood — South America. Extremely dense, sinks in water.
+- Arizona Desert Ironwood — Sonoran Desert. Ancient, slow-growing, extraordinary grain patterns.
+
+**Premium (Janka 2000–3000 lbf):**
+- Nicaraguan Cocobolo — Central America. Orange-red with dark irregular streaking. Highly figured, naturally oily.
+- Argentinian Lignum Vitae / Verawood — South America. Olive-green to dark brown. Dense and oily.
+- Pink Ivory (3,230 lbf) — Southern Africa. Brilliant pinkish-red. Extremely rare.
+- Bloodwood (2,900 lbf) — South America. Vivid crimson red throughout.
+- Jatoba / Brazilian Cherry (2,150 lbf) — South America. Dark chocolate to reddish-brown.
+- Bubinga (2,140 lbf) — East Africa. Pinkish-brown with purple tinge.
+
+**High-End (Janka 1500–2000 lbf):**
+- Bocote (1,860 lbf) — Central/South America. Dark brown with olive-yellow veining.
+- Ziricote (1,850 lbf) — South America. Dark brown to black with dramatic lighter streaking.
+- Brazilian Tulipwood — South America. Pink, red, and cream striping.
+- Marblewood — South America. Golden brown with dark brown/black marble-like veining.
+- Padauk (1,680 lbf) — West Africa. Bright pinkish-red darkening to reddish-brown.
+- Wenge (1,710 lbf) — West Africa. Deep brown to purple with interlocked grain.
+- Mopane — Southern Africa. Dark reddish-brown, extremely dense.
+- Olivewood (1,500 lbf) — Europe/Western Asia. Wild swirling grain, aromatic.
+
+**Premium Figured:**
+- Masur Birch — Scandinavia/Russia. Pale with dramatic dark pith fleck figuring.
+- Maple Burl — North America. Swirling, unpredictable burl figure in pale wood.
+- Stabilised Box Elder Burl — North America. Wild colouring from natural mineral staining, stabilised with resin.
+- Curly Redwood Burl — North America. Deep red with dramatic curl figure.
+- Pale Moon Ebony — Southeast Asia. Pale cream with dark streaks, reverse of typical ebony.
+- Royal White Ebony — Southeast Asia. Creamy white with subtle dark figuring.
+
+**Species explicitly NOT used:** Purpleheart is not used in any #TOOLING products.
+
+## Custom Builder
+
+Three interactive online configurators allow customers to design their own tools:
+
+**Custom Mallet Builder** (https://hashtag.guru/custom-mallet)
+Choose style (Square Joiners, Turned Joiners, Square Detailing, Turned Detailing), head wood species, handle wood species, and transition metal (brass, copper, bronze, aluminium, steel, mokume gane). Price calculated dynamically.
+
+**Custom Awl Builder** (https://hashtag.guru/custom-awl)
+Choose handle wood species and ferrule material. Price calculated dynamically.
+
+**Custom Engineering Square Builder** (https://hashtag.guru/custom-square)
+Choose size (Chode through 250mm), body material (tool steel or titanium), scale type (Full Scale or T45), liner material and thickness, then scale material. Price calculated dynamically. Liner choice constrains available scale options.
+
+## Shipping
+
+- UK: £15
+- Europe: £25
+- Rest of World: £45
+
+All tools shipped with tracking. Typically dispatched within 1-5 working days for in-stock items. Made-to-order items: 2-6 weeks depending on complexity and materials.
+
+## Returns
+
+14-day return window. Return by mail. Customer pays return shipping. Items must be unused and in original condition.
+
+## Reviews
+
+Verified purchase reviews from real customers. Average rating: 5.0 stars (as of April 2026). Review highlights include praise for weight balance, craftsmanship quality, wood selection, and the feel of the brass dowel construction.
+
+## Collaborations
+
+- **@dutch.forge** — EDC coin collaboration. Hand-forged brass and copper combined with exotic hardwoods.
+- **@mattestlea** — Woodworking collaborator and friend. Matt Estlea is a well-known woodworking YouTuber and maker.
+
+## Frequently Asked Questions
+
+**What wood is best for a woodworking mallet?**
+Dense, hard species with high Janka hardness ratings make the best mallet heads. Lignum Vitae (3,540 lbf), Snakewood (3,800 lbf), and Ebony (3,220 lbf) are exceptional choices. The wood should be harder than your chisel handles to prevent compression damage. Species with specific gravity above 1.0 (denser than water) allow smaller head sizes while retaining weight and impact force.
+
+**What is brass dowel construction?**
+A precision-cut brass dowel replaces the traditional mortise-and-tenon joint between mallet head and handle. The dowel is shaped to fit each individual mallet, allowing precise balance point adjustment. This provides superior joint strength compared to wood-on-wood joints and creates a distinctive visual detail.
+
+**How precise are the engineering squares?**
+Bodies are laser-cut from ground flat stock to ±0.15mm tolerance. Pin holes are 5mm diameter with 2.5mm precision pins. Each square is checked against a reference edge before shipping.
+
+**What is the T45 engineering square variant?**
+The T45 scale connects the internal and external 90° reference edges at 45°, giving three reference angles from a single tool. Same body and liner as the Full Scale variant, different scale geometry.
+
+**Why exotic wood scales on an engineering square?**
+The scales are the interface between you and the tool. Dense, stable exotic timbers like Cocobolo, Ziricote, and Ebony are dimensionally consistent, naturally oily (good grip), and pleasant to hold. They also age beautifully with use.
+
+**Are there wooden EDC coins?**
+#TOOLING makes the only wood-metal hybrid EDC coins on the market, in collaboration with @dutch.forge. These combine exotic stabilised hardwoods with brass or copper in a pocket coin format. The wood provides warmth and organic texture that all-metal coins cannot match.
+
+**What is a Janka hardness rating?**
+The Janka hardness test measures the force required to embed a steel ball halfway into wood. Higher numbers mean harder wood. For reference: Pine is ~600 lbf, Oak is ~1,300 lbf, Ebony is ~3,200 lbf, and Snakewood is ~3,800 lbf.
+
+## Pages
+
+- Homepage: https://hashtag.guru
+- Shop: https://hashtag.guru/shop
+- Custom Mallet Builder: https://hashtag.guru/custom-mallet
+- Custom Awl Builder: https://hashtag.guru/custom-awl
+- Custom Engineering Square Builder: https://hashtag.guru/custom-square
+- Engineering Squares Landing Page: https://hashtag.guru/engineering-squares
+- Wood Species Library: https://hashtag.guru/wood-library
+- Gallery of Past Work: https://hashtag.guru/gallery
+- About / My Story: https://hashtag.guru/about
+- Commission Work: https://hashtag.guru/commissions
+- Gift Guide: https://hashtag.guru/gift-guide
+- Gift Vouchers: https://hashtag.guru/gift-vouchers
+- Contact: https://hashtag.guru/contact
+- Shipping & Delivery: https://hashtag.guru/shipping
+- Mailing List (10% launch offer): https://hashtag.guru/mailing-list
+- Journal / Blog: https://hashtag.guru/blog
