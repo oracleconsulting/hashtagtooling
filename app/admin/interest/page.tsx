@@ -6,7 +6,9 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Loader2, Plus, ArrowUp, ArrowDown, Trash2, X } from 'lucide-react'
+import { Loader2, Plus, ArrowUp, ArrowDown, Trash2, X, Upload } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { compressImage } from '@/lib/image-utils'
 import {
   parseQuestions,
   type InterestList,
@@ -104,6 +106,8 @@ export default function AdminInterestPage() {
   const [notifyMessage, setNotifyMessage] = useState('')
   const [notifyLink, setNotifyLink] = useState('')
   const [notifying, setNotifying] = useState(false)
+  const [uploadingHero, setUploadingHero] = useState(false)
+  const [uploadingGallery, setUploadingGallery] = useState(false)
 
   useEffect(() => {
     const isAuthenticated = sessionStorage.getItem('admin_auth')
@@ -134,6 +138,36 @@ export default function AdminInterestPage() {
     setForm(listToForm(list))
     setFormError('')
     setPanelOpen(true)
+  }
+
+  const uploadImage = async (file: File): Promise<string | null> => {
+    let processed = file
+    let ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+    if (ext === 'heic' || ext === 'heif' || file.type === 'image/heic' || file.type === 'image/heif') {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/convert-heic', { method: 'POST', body: fd })
+      if (!res.ok) {
+        alert('Could not convert that iPhone photo. Export it as JPG first.')
+        return null
+      }
+      processed = new File([await res.blob()], file.name.replace(/\.hei[cf]$/i, '.jpg'), { type: 'image/jpeg' })
+      ext = 'jpg'
+    }
+    try {
+      processed = await compressImage(processed)
+      ext = 'jpg'
+    } catch {
+      // upload original
+    }
+    const path = `interest/${Math.random().toString(36).slice(2)}-${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('products').upload(path, processed)
+    if (error) {
+      console.error('Interest image upload error:', error)
+      alert('Failed to upload image')
+      return null
+    }
+    return supabase.storage.from('products').getPublicUrl(path).data.publicUrl
   }
 
   const saveList = async () => {
@@ -433,39 +467,74 @@ export default function AdminInterestPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1">Hero image URL</label>
-              <Input
-                className="bg-brand-dark border-brand-dark-border text-white placeholder:text-zinc-500"
-                value={form.hero_image_url}
-                onChange={(e) => setForm((f) => ({ ...f, hero_image_url: e.target.value }))}
-              />
+              <label className="block text-sm font-medium text-zinc-300 mb-2">Hero image</label>
+              {form.hero_image_url && (
+                <div className="mb-3 relative w-full max-w-md">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={form.hero_image_url} alt="" className="w-full rounded-lg border border-brand-dark-border object-cover" />
+                  <button
+                    onClick={() => setForm((f) => ({ ...f, hero_image_url: '' }))}
+                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-black/80"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+              <label className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-brand-dark-border text-sm text-zinc-300 hover:border-brand-orange hover:text-white cursor-pointer">
+                {uploadingHero ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                {uploadingHero ? 'Uploading…' : 'Upload photo'}
+                <input
+                  type="file"
+                  accept="image/*,.heic,.heif"
+                  className="hidden"
+                  disabled={uploadingHero}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    e.target.value = ''
+                    if (!file) return
+                    setUploadingHero(true)
+                    const url = await uploadImage(file)
+                    setUploadingHero(false)
+                    if (url) setForm((f) => ({ ...f, hero_image_url: url }))
+                  }}
+                />
+              </label>
             </div>
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-2">Gallery images</label>
-              <div className="space-y-2">
-                {form.gallery_images.map((url, i) => (
-                  <div key={i} className="flex gap-2">
-                    <Input
-                      className="bg-brand-dark border-brand-dark-border text-white placeholder:text-zinc-500"
-                      value={url}
-                      onChange={(e) => setForm((f) => ({
-                        ...f,
-                        gallery_images: f.gallery_images.map((u, idx) => (idx === i ? e.target.value : u)),
-                      }))}
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setForm((f) => ({ ...f, gallery_images: f.gallery_images.filter((_, idx) => idx !== i) }))}
+              <div className="flex flex-wrap gap-2 mb-3">
+                {form.gallery_images.filter(Boolean).map((url, i) => (
+                  <div key={url} className="relative w-20 h-20">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="" className="w-full h-full rounded object-cover border border-brand-dark-border" />
+                    <button
+                      onClick={() => setForm((f) => ({ ...f, gallery_images: f.gallery_images.filter((u) => u !== url) }))}
+                      className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full bg-black/70 text-white"
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                      <X className="h-3 w-3" />
+                    </button>
                   </div>
                 ))}
-                <Button size="sm" variant="outline" onClick={() => setForm((f) => ({ ...f, gallery_images: [...f.gallery_images, ''] }))}>
-                  Add image URL
-                </Button>
               </div>
+              <label className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-brand-dark-border text-sm text-zinc-300 hover:border-brand-orange hover:text-white cursor-pointer">
+                {uploadingGallery ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                {uploadingGallery ? 'Uploading…' : 'Add gallery photo'}
+                <input
+                  type="file"
+                  accept="image/*,.heic,.heif"
+                  className="hidden"
+                  disabled={uploadingGallery}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    e.target.value = ''
+                    if (!file) return
+                    setUploadingGallery(true)
+                    const url = await uploadImage(file)
+                    setUploadingGallery(false)
+                    if (url) setForm((f) => ({ ...f, gallery_images: [...f.gallery_images.filter(Boolean), url] }))
+                  }}
+                />
+              </label>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
