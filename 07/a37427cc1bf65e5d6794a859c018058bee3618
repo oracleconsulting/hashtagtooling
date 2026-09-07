@@ -1,0 +1,21 @@
+components/Header.tsx
+  s_a11981054c9414::t_07cb9b1049996d 27
+lib/interest.ts
+  s_a11981054c9414::t_16a40220341046 49-64,67-68,70,73-75,77-78,82-86,92,101-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "07a37427cc1bf65e5d6794a859c018058bee3618",
+  "prompts": {},
+  "sessions": {
+    "s_a11981054c9414": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3f9f0b60-b0e2-426d-8a1b-c93bab59ea2c",
+        "model": "grok-4.6"
+      },
+      "human_author": "James Howard <james@ivcaccounting.co.uk>"
+    }
+  }
+}
