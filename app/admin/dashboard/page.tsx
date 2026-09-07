@@ -58,6 +58,7 @@ interface DashboardData {
     giftVouchersIssued: number
     giftVouchersRedeemed: number
     referralUses: number
+    openInterestLists: number
   }
 }
 
@@ -152,6 +153,7 @@ export default function AdminDashboardPage() {
           { label: 'Gift Vouchers', href: '/admin/gift-vouchers' },
           { label: 'Social', href: '/admin/social' },
           { label: 'Reviews', href: '/admin/reviews' },
+          { label: 'Interest Lists', href: '/admin/interest' },
           { label: 'Insights', href: '/admin/insights' },
           { label: 'Messages', href: '/admin/messages' },
         ].map((nav) => (
@@ -395,6 +397,12 @@ export default function AdminDashboardPage() {
             value={`£${operations.giftVouchersRedeemed.toFixed(0)}`}
             sublabel={`of £${operations.giftVouchersIssued.toFixed(0)} issued`}
             href="/admin/gift-vouchers"
+          />
+          <StatCard
+            label="Interest lists"
+            value={operations.openInterestLists}
+            sublabel="open"
+            href="/admin/interest"
           />
         </div>
       </section>

@@ -4,10 +4,10 @@ import { createClient } from "@supabase/supabase-js";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const [productsRes, blogRes, woodsRes] = await Promise.all([
+  const [productsRes, blogRes, woodsRes, interestRes] = await Promise.all([
     supabase
       .from("products")
       .select("id, updated_at")
@@ -21,6 +21,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .select("id, updated_at")
       .eq("category", "wood")
       .eq("available", true),
+    supabase
+      .from("interest_lists")
+      .select("slug, updated_at")
+      .neq("status", "draft"),
   ]);
 
   const productUrls = (productsRes.data || []).map((product) => ({
@@ -42,6 +46,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: wood.updated_at ? new Date(wood.updated_at) : new Date(),
     changeFrequency: "monthly" as const,
     priority: 0.6,
+  }));
+
+  const interestUrls = (interestRes.data || []).map((list) => ({
+    url: `https://hashtag.guru/interest/${list.slug}`,
+    lastModified: list.updated_at ? new Date(list.updated_at) : new Date(),
+    changeFrequency: "weekly" as const,
+    priority: 0.7,
   }));
 
   return [
@@ -180,5 +191,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...productUrls,
     ...blogUrls,
     ...woodUrls,
+    ...interestUrls,
   ];
 }

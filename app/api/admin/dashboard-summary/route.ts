@@ -175,6 +175,7 @@ export async function GET() {
       launchVouchersRes,
       giftVouchersRes,
       referralsRes,
+      openInterestListsRes,
     ] = await Promise.all([
       supabase.from('products').select('id', { count: 'exact', head: true }),
       supabase.from('products').select('id', { count: 'exact', head: true }).eq('stock_status', 'in_stock'),
@@ -182,6 +183,7 @@ export async function GET() {
       supabase.from('launch_vouchers').select('id, used'),
       supabase.from('gift_vouchers').select('id, amount_gbp, remaining_balance'),
       supabase.from('referral_uses').select('id', { count: 'exact', head: true }),
+      supabase.from('interest_lists').select('id', { count: 'exact', head: true }).eq('status', 'open'),
     ])
 
     // ─── Compute aggregates ─────────────────────────────────────────
@@ -263,6 +265,7 @@ export async function GET() {
         giftVouchersIssued: giftIssued,
         giftVouchersRedeemed: giftRedeemed,
         referralUses: referralsRes.count ?? 0,
+        openInterestLists: openInterestListsRes.count ?? 0,
       },
     })
   } catch (error) {
