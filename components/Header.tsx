@@ -24,6 +24,7 @@ const SHOP_LINKS = [
   { href: '/adopt', label: 'Adopt a Blank', desc: 'Pick a blank, follow its journey' },
   { href: '/mystery-box', label: 'Mystery Box', desc: 'A surprise tool, mystery woods' },
   { href: '/gift-vouchers', label: 'Gift Vouchers', desc: '£25–£150, instant delivery' },
+  { href: '/interest/bottle-opener', label: 'Bottle Opener', desc: 'Register interest — coming maybe' },
 ]
 
 const EXPLORE_LINKS = [

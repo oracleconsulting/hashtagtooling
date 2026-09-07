@@ -46,35 +46,42 @@ export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 export const INTEREST_PUBLIC_FIELDS =
   'id, slug, name, tagline, description, hero_image_url, gallery_images, price_from, price_to, expected_launch, status, show_count, questions, launched_product_id, created_at, updated_at'
 
+export const BOTTLE_OPENER_QUESTIONS: InterestQuestion[] = [
+  {
+    key: 'head_metal',
+    label: 'Head metal',
+    type: 'single',
+    required: true,
+    options: ['Brass', 'Copper', 'Bronze', 'Steel', 'Aluminium', 'Titanium', 'Mokume gane'],
+  },
+  {
+    key: 'extra',
+    label: 'Anything else I should know?',
+    type: 'text',
+    required: false,
+  },
+]
+
 export const BOTTLE_OPENER_SEED = {
   slug: 'bottle-opener',
-  name: 'Bottle Opener',
-  tagline: 'A proper one, from the same woods as the tools.',
+  name: 'The Bottle Opener',
+  tagline: "Not in production. Might be. That bit's on you.",
   description:
-    "I've been knocking around a bottle opener for a while — exotic timber, made the same way as everything else that leaves the bench.\n\nThis isn't a product page. I'm not taking money. I just want to know if enough people actually want one before I tool up.\n\nIf I make them, you'll hear first. If I don't, I'll say so.",
+    "Brass head, stabilised burl handle. Brass dowel through the middle, same as everything else on here.\n\nI made one to find out whether the idea held up. It does. Heavy in the hand, and it opens a bottle without any drama.\n\nWhat I'm not doing is tooling up a batch on a hunch — there's brass stock to buy and a milling setup to sort for that hook, and that's a fair bit of work before a single one gets sold.\n\nSo... this is the list. Email below, tell me what you'd actually want one made from, and if enough of you put your hand up I'll build them.\n\nNo payment, no commitment. You're not buying anything. You're just telling me it's worth doing.",
   hero_image_url: null as string | null,
   gallery_images: [] as string[],
-  price_from: 35,
-  price_to: 55,
-  expected_launch: "When there's enough interest",
+  price_from: null as number | null,
+  price_to: null as number | null,
+  expected_launch: 'If it happens — winter 2026',
   status: 'open' as InterestListStatus,
-  show_count: true,
-  questions: [
-    {
-      key: 'use',
-      label: 'What would you use it for?',
-      type: 'single' as const,
-      required: true,
-      options: ['Kitchen', 'Workshop fridge', 'EDC / keys', 'Gift'],
-    },
-    {
-      key: 'wood',
-      label: 'Any wood you particularly want?',
-      type: 'text' as const,
-      required: false,
-    },
-  ] as InterestQuestion[],
+  show_count: false,
+  questions: BOTTLE_OPENER_QUESTIONS,
   launched_product_id: null as string | null,
+}
+
+function questionsNeedRefresh(raw: unknown): boolean {
+  const keys = parseQuestions(raw).map((q) => q.key)
+  return keys.includes('handle_timber') || keys.includes('price_band')
 }
 
 export async function ensureDefaultInterestLists(supabase: {
@@ -82,7 +89,7 @@ export async function ensureDefaultInterestLists(supabase: {
 }): Promise<void> {
   const { data, error } = await supabase
     .from('interest_lists')
-    .select('id')
+    .select('id, questions')
     .eq('slug', BOTTLE_OPENER_SEED.slug)
     .maybeSingle()
 
@@ -90,11 +97,28 @@ export async function ensureDefaultInterestLists(supabase: {
     console.error('Interest seed lookup error:', error)
     return
   }
-  if (data) return
 
-  const { error: insertError } = await supabase.from('interest_lists').insert(BOTTLE_OPENER_SEED)
-  if (insertError && insertError.code !== '23505') {
-    console.error('Interest seed insert error:', insertError)
+  if (!data) {
+    const { error: insertError } = await supabase.from('interest_lists').insert(BOTTLE_OPENER_SEED)
+    if (insertError && insertError.code !== '23505') {
+      console.error('Interest seed insert error:', insertError)
+    }
+    return
+  }
+
+  if (questionsNeedRefresh(data.questions)) {
+    const { error: updateError } = await supabase
+      .from('interest_lists')
+      .update({
+        questions: BOTTLE_OPENER_QUESTIONS,
+        price_from: null,
+        price_to: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', data.id)
+    if (updateError) {
+      console.error('Interest seed update error:', updateError)
+    }
   }
 }
 
