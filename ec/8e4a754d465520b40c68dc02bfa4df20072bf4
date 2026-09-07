@@ -1,0 +1,69 @@
+app/interest/[slug]/InterestContent.tsx
+  s_a11981054c9414::t_aed54f8564fbb6 1-341
+app/sitemap.ts
+  s_a11981054c9414::t_67ecfc59a10cbb 10
+  s_a11981054c9414::t_3022486c8c0f33 194
+  s_a11981054c9414::t_9550dd2d04bf45 24-27
+  s_a11981054c9414::t_792818420a62a6 51-57
+  s_a11981054c9414::t_70a9f94142ec20 7
+app/api/interest/signup/route.ts
+  s_a11981054c9414::t_676fde2cfad6f8 1-114
+app/api/admin/dashboard-summary/route.ts
+  s_a11981054c9414::t_0185d51ea3886a 178,186
+  s_a11981054c9414::t_711895354f0143 268
+app/interest/[slug]/page.tsx
+  s_a11981054c9414::t_9976c4f2ed89bc 17-18,20-26,28
+  s_a11981054c9414::t_05061d65248954 68
+  s_a11981054c9414::t_afec0b40a4bac3 5
+  s_a11981054c9414::t_c2b1928409177d 11-13
+  s_a11981054c9414::t_b154f784e9c9e2 19,27
+  s_a11981054c9414::t_6ae5d9b25e5f52 1-4,6-10,14-16,29-67,69-94
+app/api/interest/[slug]/route.ts
+  s_a11981054c9414::t_a2f00556d68760 23
+  s_a11981054c9414::t_d69304e974743f 3
+  s_a11981054c9414::t_52f97effad675a 1-2,4-22,24-55
+app/admin/interest/page.tsx
+  s_a11981054c9414::t_94e2082f54eab9 1-787
+lib/interest.ts
+  s_a11981054c9414::t_7841a7131ca3aa 49-79,83-100
+  s_a11981054c9414::t_27dd09d22da3f9 1-48,101-232
+  s_a11981054c9414::t_b76ba73e0e834e 80-82
+app/api/interest/notify/route.ts
+  s_a11981054c9414::t_292378b4586ce5 1-97
+app/shop/ShopContent.tsx
+  s_a11981054c9414::t_aa453ce445f4b2 78
+  s_a11981054c9414::t_29dced5ce12e96 147-155
+  s_a11981054c9414::t_0420b737b16748 4
+  s_a11981054c9414::t_dad4f6f60130f5 300,317-325,329
+app/admin/dashboard/page.tsx
+  s_a11981054c9414::t_bc37fe87cc5b89 156
+  s_a11981054c9414::t_a26526f392d8c6 401-406
+  s_a11981054c9414::t_a5f83878c0b066 61
+app/api/interest/lists/route.ts
+  s_a11981054c9414::t_319c49540e49c7 145
+  s_a11981054c9414::t_d118da5170d5d9 180
+  s_a11981054c9414::t_a840274efbd6bd 1-4,6-21,40-103,105-144,146-179,181-209
+  s_a11981054c9414::t_c9f19d41c918ad 104
+  s_a11981054c9414::t_e050fcb6a818ad 5
+  s_a11981054c9414::t_d92b9d08f44c55 22-39
+app/api/interest/[slug]/signups/route.ts
+  s_a11981054c9414::t_e44829fd9e0dba 1-56
+components/Footer.tsx
+  s_a11981054c9414::t_ab01f5c82859ed 132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ec8e4a754d465520b40c68dc02bfa4df20072bf4",
+  "prompts": {},
+  "sessions": {
+    "s_a11981054c9414": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3f9f0b60-b0e2-426d-8a1b-c93bab59ea2c",
+        "model": "grok-4.6"
+      },
+      "human_author": "James Howard <james@ivcaccounting.co.uk>"
+    }
+  }
+}
