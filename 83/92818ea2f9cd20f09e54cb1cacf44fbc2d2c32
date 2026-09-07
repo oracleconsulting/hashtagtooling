@@ -1,0 +1,23 @@
+app/admin/interest/page.tsx
+  s_a11981054c9414::t_ea9c88e8caac5e 143-172
+  s_a11981054c9414::t_36dc5e51143a56 470-501,505-510,512,514-515,519-537
+  s_a11981054c9414::t_d7105892518163 511
+  s_a11981054c9414::t_bb9122e960ebfd 109-110
+  s_a11981054c9414::t_501b7184c2e1c4 9-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "8392818ea2f9cd20f09e54cb1cacf44fbc2d2c32",
+  "prompts": {},
+  "sessions": {
+    "s_a11981054c9414": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3f9f0b60-b0e2-426d-8a1b-c93bab59ea2c",
+        "model": "grok-4.6"
+      },
+      "human_author": "James Howard <james@ivcaccounting.co.uk>"
+    }
+  }
+}
