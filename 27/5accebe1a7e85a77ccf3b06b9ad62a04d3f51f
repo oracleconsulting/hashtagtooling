@@ -1,0 +1,19 @@
+app/admin/interest/page.tsx
+  s_a11981054c9414::t_a4b469e1e9dd27 777-825,828
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "275accebe1a7e85a77ccf3b06b9ad62a04d3f51f",
+  "prompts": {},
+  "sessions": {
+    "s_a11981054c9414": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3f9f0b60-b0e2-426d-8a1b-c93bab59ea2c",
+        "model": "grok-4.6"
+      },
+      "human_author": "James Howard <james@ivcaccounting.co.uk>"
+    }
+  }
+}
