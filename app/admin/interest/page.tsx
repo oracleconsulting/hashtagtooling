@@ -774,13 +774,58 @@ export default function AdminInterestPage() {
                   </div>
                 )}
 
-                <div className="flex flex-wrap gap-2 mb-6">
-                  <Button size="sm" variant="outline" onClick={exportCsv} disabled={signups.length === 0}>
-                    Export CSV
-                  </Button>
+                <div className="mb-8">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <h3 className="text-brand-orange font-semibold uppercase tracking-wider text-sm">Signups</h3>
+                    <Button size="sm" variant="outline" onClick={exportCsv} disabled={signups.length === 0}>
+                      Export CSV
+                    </Button>
+                  </div>
+                  {signups.length === 0 ? (
+                    <p className="text-zinc-500 text-sm">No signups yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {signups.map((s) => (
+                        <Card key={s.id} className="bg-brand-dark-card border border-brand-dark-border">
+                          <CardContent className="p-4">
+                            <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                              <div>
+                                <p className="text-white font-medium">{s.name || 'No name'}</p>
+                                <p className="text-zinc-300 text-sm">{s.email}</p>
+                              </div>
+                              <p className="text-zinc-500 text-xs whitespace-nowrap">
+                                {new Date(s.created_at).toLocaleDateString('en-GB')}
+                              </p>
+                            </div>
+                            <dl className="space-y-1.5 text-sm">
+                              {questions.map((q) => (
+                                <div key={q.key} className="flex gap-2">
+                                  <dt className="text-zinc-500 shrink-0">{q.label}</dt>
+                                  <dd className="text-zinc-200">{formatAnswer(s.answers?.[q.key])}</dd>
+                                </div>
+                              ))}
+                              {s.notes && (
+                                <div className="flex gap-2">
+                                  <dt className="text-zinc-500 shrink-0">Notes</dt>
+                                  <dd className="text-zinc-200">{s.notes}</dd>
+                                </div>
+                              )}
+                            </dl>
+                            <p className="text-zinc-600 text-xs mt-3">
+                              {s.source}
+                              {' · '}
+                              marketing {s.marketing_consent ? 'yes' : 'no'}
+                              {' · '}
+                              {s.notified ? 'notified' : 'not notified'}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                <Card className="bg-brand-dark-card border border-brand-dark-border mb-8">
+                <Card className="bg-brand-dark-card border border-brand-dark-border mb-4">
                   <CardHeader><CardTitle className="text-white text-base">Notify everyone</CardTitle></CardHeader>
                   <CardContent className="space-y-3">
                     <p className="text-zinc-500 text-sm">{unnotifiedCount} not yet notified</p>
@@ -808,44 +853,6 @@ export default function AdminInterestPage() {
                     </Button>
                   </CardContent>
                 </Card>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="text-zinc-500 text-xs uppercase tracking-wider">
-                      <tr>
-                        <th className="text-left py-2 pr-3">Name</th>
-                        <th className="text-left py-2 pr-3">Email</th>
-                        {questions.map((q) => (
-                          <th key={q.key} className="text-left py-2 pr-3">{q.label}</th>
-                        ))}
-                        <th className="text-left py-2 pr-3">Notes</th>
-                        <th className="text-left py-2 pr-3">Source</th>
-                        <th className="text-left py-2 pr-3">Marketing</th>
-                        <th className="text-left py-2 pr-3">Signed up</th>
-                        <th className="text-left py-2">Notified</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {signups.map((s) => (
-                        <tr key={s.id} className="border-t border-brand-dark-border/40">
-                          <td className="py-2 pr-3 text-white">{s.name || '—'}</td>
-                          <td className="py-2 pr-3 text-zinc-300">{s.email}</td>
-                          {questions.map((q) => (
-                            <td key={q.key} className="py-2 pr-3 text-zinc-300">{formatAnswer(s.answers?.[q.key])}</td>
-                          ))}
-                          <td className="py-2 pr-3 text-zinc-400">{s.notes || '—'}</td>
-                          <td className="py-2 pr-3 text-zinc-500">{s.source}</td>
-                          <td className="py-2 pr-3 text-zinc-400">{s.marketing_consent ? 'yes' : 'no'}</td>
-                          <td className="py-2 pr-3 text-zinc-500 whitespace-nowrap">{new Date(s.created_at).toLocaleDateString('en-GB')}</td>
-                          <td className="py-2 text-zinc-400">{s.notified ? 'yes' : 'no'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {signups.length === 0 && (
-                    <p className="text-zinc-500 text-sm mt-4">No signups yet.</p>
-                  )}
-                </div>
               </>
             )}
           </div>
