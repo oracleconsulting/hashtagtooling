@@ -1,0 +1,60 @@
+app/interest/[slug]/InterestContent.tsx
+  s_a11981054c9414::t_984facb7250672 216
+app/admin/interest/page.tsx
+  s_a11981054c9414::t_7697157bd2a833 30-31
+  s_a11981054c9414::t_5f3e42ffda3ddb 365-366
+  s_a11981054c9414::t_80c12c047ec4f3 444
+  s_a11981054c9414::t_6f21b4901fb968 348
+  s_a11981054c9414::t_98fec29ffd2638 403-405
+  s_a11981054c9414::t_5e40ba89c60af8 543
+  s_a11981054c9414::t_d46c34a7d67469 449-450
+  s_a11981054c9414::t_d1f119eeb3ad53 472
+  s_a11981054c9414::t_48158009c4e4ea 1196-1238
+  s_a11981054c9414::t_58e113a7049f15 1250,1252
+  s_a11981054c9414::t_276119831ff804 1281
+  s_a11981054c9414::t_9920096d6596a9 393
+  s_a11981054c9414::t_680a91e1b1f2b7 610-617
+app/api/interest/[slug]/signups/route.ts
+  s_a11981054c9414::t_268c2014b5ea5a 38-43,45,49-57
+  s_a11981054c9414::t_dfbbefaf50f27e 58
+lib/interest.ts
+  s_a11981054c9414::t_f76f1403ce8696 42-54
+app/interest/[slug]/build/InterestBuildContent.tsx
+  s_a11981054c9414::t_2a4cc7e971b423 68-92
+  s_a11981054c9414::t_b5c7f3933916a0 113
+  s_a11981054c9414::t_9e8995b706b4f1 311-313
+  s_a11981054c9414::t_8be4f653e34b41 18,23-24,28-29,38-39,42,45,54
+app/api/interest/build/[token]/route.ts
+  s_a11981054c9414::t_29e52b33901d67 1-109
+app/interest/[slug]/build/page.tsx
+  s_a11981054c9414::t_7a2e91738db680 3-5,8-21
+lib/interest-pricing.ts
+  s_a11981054c9414::t_665d2c9fb7db7a 212
+lib/constants.ts
+  s_a11981054c9414::t_423224b28a0665 47
+app/api/interest/notify/route.ts
+  s_a11981054c9414::t_9a8c8ca4f1eafa 5-6,50,53,59-63,77,80-94,103,106,110,115-123
+app/build/[token]/page.tsx
+  s_a11981054c9414::t_28dbc23fac8f15 1-64
+lib/interest-invite.ts
+  s_a11981054c9414::t_9c4e34356bd647 12-14
+  s_a11981054c9414::t_f15de674d37848 1-11,15-47
+supabase/migrations/20260912230000_interest_build_invites.sql
+  s_a11981054c9414::t_3001b49ab94010 1-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8a95a5e3db1a67450779222894109a0d1925fa74",
+  "prompts": {},
+  "sessions": {
+    "s_a11981054c9414": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3f9f0b60-b0e2-426d-8a1b-c93bab59ea2c",
+        "model": "grok-4.6"
+      },
+      "human_author": "James Howard <james@ivcaccounting.co.uk>"
+    }
+  }
+}
