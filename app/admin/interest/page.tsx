@@ -124,7 +124,6 @@ export default function AdminInterestPage() {
   const [costSlug, setCostSlug] = useState<InterestPricedSlug>('bottle-opener')
   const [costDraft, setCostDraft] = useState<InterestListPricing>(() => parseInterestPricing({}, 'bottle-opener'))
   const [costSearch, setCostSearch] = useState('')
-  const [savingCost, setSavingCost] = useState(false)
   const [costWoods, setCostWoods] = useState<{ id: string; name: string }[]>([])
   const [costMetals, setCostMetals] = useState<{ id: string; name: string; mallet_head_premium?: number }[]>([])
 
@@ -163,48 +162,6 @@ export default function AdminInterestPage() {
     }
   }
 
-  const selectCostList = (slug: InterestPricedSlug) => {
-    const list = lists.find((row) => row.slug === slug)
-    setCostSlug(slug)
-    setCostSearch('')
-    setCostDraft(parseInterestPricing(list?.pricing, slug))
-  }
-
-  const saveCost = async () => {
-    const list = lists.find((row) => row.slug === costSlug)
-    if (!list || !costDraft) return
-    setSavingCost(true)
-    try {
-      const metalPremiums = { ...costDraft.metalPremiums }
-      for (const metal of costMetals) {
-        if (metalPremiums[metal.id] === undefined) {
-          metalPremiums[metal.id] = Number(metal.mallet_head_premium) || 0
-        }
-      }
-      const res = await fetch('/api/interest/lists', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: list.id,
-          slug: list.slug,
-          pricingOnly: true,
-          pricing: { ...costDraft, metalPremiums },
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to save cost')
-      if (data.list) {
-        setLists((prev) => prev.map((row) => (row.id === data.list.id ? { ...row, ...data.list } : row)))
-        setCostDraft(parseInterestPricing(data.list.pricing, list.slug))
-      }
-    } catch (err) {
-      console.error(err)
-      alert(err instanceof Error ? err.message : 'Failed to save cost')
-    } finally {
-      setSavingCost(false)
-    }
-  }
-
   const openNew = () => {
     setForm(emptyForm())
     setFormError('')
@@ -215,6 +172,12 @@ export default function AdminInterestPage() {
     setForm(listToForm(list))
     setFormError('')
     setPanelOpen(true)
+    if (isPricedInterestSlug(list.slug)) {
+      setCostSlug(list.slug)
+      setCostSearch('')
+      setCostDraft(parseInterestPricing(list.pricing, list.slug))
+      setTimeout(() => document.getElementById('interest-pricing')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
+    }
   }
 
   const uploadImage = async (file: File): Promise<string | null> => {
@@ -276,6 +239,29 @@ export default function AdminInterestPage() {
       if (!res.ok) {
         setFormError(data.error || 'Failed to save')
         return
+      }
+      if (data.list && isPricedInterestSlug(form.slug) && costDraft) {
+        const metalPremiums = { ...costDraft.metalPremiums }
+        for (const metal of costMetals) {
+          if (metalPremiums[metal.id] === undefined) {
+            metalPremiums[metal.id] = Number(metal.mallet_head_premium) || 0
+          }
+        }
+        const priceRes = await fetch('/api/interest/lists', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: data.list.id,
+            slug: form.slug,
+            pricingOnly: true,
+            pricing: { ...costDraft, metalPremiums },
+          }),
+        })
+        const priceData = await priceRes.json()
+        if (!priceRes.ok) {
+          setFormError(priceData.error || 'List saved, but cost base failed. Run the interest pricing SQL.')
+          return
+        }
       }
       setPanelOpen(false)
       setForm(emptyForm())
@@ -467,130 +453,6 @@ export default function AdminInterestPage() {
       </div>
 
       <Card className="bg-brand-dark-card border border-brand-dark-border mb-10">
-        <CardHeader>
-          <CardTitle className="text-white">Cost base · 50% deposit · {PREORDER_DELIVERY}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <p className="text-zinc-400 text-sm">
-            This stays on the interest list until you decide it&apos;s a real product. Same model as the mallets: base, then metal, then wood. Woods and metals come from your materials list; the £ extras live here.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {(Object.keys(INTEREST_SPECS) as InterestPricedSlug[]).map((slug) => (
-              <Button
-                key={slug}
-                size="sm"
-                variant={costSlug === slug ? 'default' : 'outline'}
-                onClick={() => selectCostList(slug)}
-              >
-                {INTEREST_SPECS[slug].label}
-              </Button>
-            ))}
-          </div>
-          {costDraft && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-1">Base</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  className="w-40 bg-brand-dark border-brand-dark-border text-white"
-                  value={costDraft.base}
-                  onChange={(e) => setCostDraft({ ...costDraft, base: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
-              <div>
-                <p className="text-zinc-400 text-xs uppercase tracking-wider mb-2">{INTEREST_SPECS[costSlug].metalLabel}</p>
-                <div className="space-y-2">
-                  {costMetals.map((metal) => {
-                    const offered = !costDraft.hiddenMetalIds.includes(metal.id)
-                    const premium = costDraft.metalPremiums[metal.id] ?? (Number(metal.mallet_head_premium) || 0)
-                    return (
-                      <div key={metal.id} className="flex items-center gap-3">
-                        <label className="flex items-center gap-2 text-sm text-zinc-300 w-48 shrink-0">
-                          <input
-                            type="checkbox"
-                            className="accent-brand-orange"
-                            checked={offered}
-                            onChange={() => setCostDraft({
-                              ...costDraft,
-                              hiddenMetalIds: offered
-                                ? [...costDraft.hiddenMetalIds, metal.id]
-                                : costDraft.hiddenMetalIds.filter((id) => id !== metal.id),
-                            })}
-                          />
-                          {metal.name}
-                        </label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          className="w-28 bg-brand-dark border-brand-dark-border text-white"
-                          value={premium}
-                          onChange={(e) => setCostDraft({
-                            ...costDraft,
-                            metalPremiums: { ...costDraft.metalPremiums, [metal.id]: parseFloat(e.target.value) || 0 },
-                          })}
-                        />
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-              <div>
-                <div className="flex flex-wrap items-end justify-between gap-3 mb-2">
-                  <p className="text-zinc-400 text-xs uppercase tracking-wider">Handle wood</p>
-                  <Input
-                    placeholder="Search woods"
-                    className="w-56 bg-brand-dark border-brand-dark-border text-white placeholder:text-zinc-500"
-                    value={costSearch}
-                    onChange={(e) => setCostSearch(e.target.value)}
-                  />
-                </div>
-                <div className="max-h-80 overflow-y-auto border border-brand-dark-border rounded-lg divide-y divide-brand-dark-border/60">
-                  {costWoods
-                    .filter((wood) => !costSearch.trim() || wood.name.toLowerCase().includes(costSearch.trim().toLowerCase()))
-                    .map((wood) => {
-                      const offered = !costDraft.hiddenWoodIds.includes(wood.id)
-                      const premium = costDraft.woodPremiums[wood.id] ?? 0
-                      return (
-                        <div key={wood.id} className="flex items-center gap-3 px-3 py-2">
-                          <label className="flex items-center gap-2 text-sm text-zinc-300 flex-1 min-w-0">
-                            <input
-                              type="checkbox"
-                              className="accent-brand-orange"
-                              checked={offered}
-                              onChange={() => setCostDraft({
-                                ...costDraft,
-                                hiddenWoodIds: offered
-                                  ? [...costDraft.hiddenWoodIds, wood.id]
-                                  : costDraft.hiddenWoodIds.filter((id) => id !== wood.id),
-                              })}
-                            />
-                            <span className="truncate">{wood.name}</span>
-                          </label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            className="w-24 bg-brand-dark border-brand-dark-border text-white"
-                            value={premium}
-                            onChange={(e) => setCostDraft({
-                              ...costDraft,
-                              woodPremiums: { ...costDraft.woodPremiums, [wood.id]: parseFloat(e.target.value) || 0 },
-                            })}
-                          />
-                        </div>
-                      )
-                    })}
-                </div>
-              </div>
-              <Button onClick={saveCost} disabled={savingCost || !lists.some((list) => list.slug === costSlug)}>
-                {savingCost ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save cost base'}
-              </Button>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="bg-brand-dark-card border border-brand-dark-border mb-10">
         <CardHeader><CardTitle className="text-white">All lists</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto">
           {lists.length === 0 ? (
@@ -743,25 +605,141 @@ export default function AdminInterestPage() {
                 />
               </label>
             </div>
+            {isPricedInterestSlug(form.slug) && costDraft && (
+              <div id="interest-pricing" className="border border-brand-orange/40 rounded-lg p-4 space-y-5">
+                <div>
+                  <h3 className="text-white font-semibold">Pricing</h3>
+                  <p className="text-zinc-500 text-sm mt-1">
+                    Base + metal extra + wood extra. Metals and woods come from Materials. This stays on the interest list until it becomes a product.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1">Base cost</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    className="w-40 bg-brand-dark border-brand-dark-border text-white"
+                    value={costDraft.base}
+                    onChange={(e) => setCostDraft({ ...costDraft, base: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-zinc-300 mb-1">Metal premium</p>
+                  <p className="text-zinc-500 text-xs mb-2">From your existing transition materials. Tick to offer it.</p>
+                  <div className="space-y-2">
+                    {costMetals.length === 0 && (
+                      <p className="text-zinc-500 text-sm">No transition materials found.</p>
+                    )}
+                    {costMetals.map((metal) => {
+                      const offered = !costDraft.hiddenMetalIds.includes(metal.id)
+                      const premium = costDraft.metalPremiums[metal.id] ?? (Number(metal.mallet_head_premium) || 0)
+                      return (
+                        <div key={metal.id} className="flex items-center gap-3">
+                          <label className="flex items-center gap-2 text-sm text-zinc-300 w-48 shrink-0">
+                            <input
+                              type="checkbox"
+                              className="accent-brand-orange"
+                              checked={offered}
+                              onChange={() => setCostDraft({
+                                ...costDraft,
+                                hiddenMetalIds: offered
+                                  ? [...costDraft.hiddenMetalIds, metal.id]
+                                  : costDraft.hiddenMetalIds.filter((id) => id !== metal.id),
+                              })}
+                            />
+                            {metal.name}
+                          </label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="w-28 bg-brand-dark border-brand-dark-border text-white"
+                            value={premium}
+                            onChange={(e) => setCostDraft({
+                              ...costDraft,
+                              metalPremiums: { ...costDraft.metalPremiums, [metal.id]: parseFloat(e.target.value) || 0 },
+                            })}
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-end justify-between gap-3 mb-2">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-300">Wood premium</p>
+                      <p className="text-zinc-500 text-xs">From your existing wood list. Tick to offer it.</p>
+                    </div>
+                    <Input
+                      placeholder="Search woods"
+                      className="w-56 bg-brand-dark border-brand-dark-border text-white placeholder:text-zinc-500"
+                      value={costSearch}
+                      onChange={(e) => setCostSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="max-h-80 overflow-y-auto border border-brand-dark-border rounded-lg divide-y divide-brand-dark-border/60">
+                    {costWoods
+                      .filter((wood) => !costSearch.trim() || wood.name.toLowerCase().includes(costSearch.trim().toLowerCase()))
+                      .map((wood) => {
+                        const offered = !costDraft.hiddenWoodIds.includes(wood.id)
+                        const premium = costDraft.woodPremiums[wood.id] ?? 0
+                        return (
+                          <div key={wood.id} className="flex items-center gap-3 px-3 py-2">
+                            <label className="flex items-center gap-2 text-sm text-zinc-300 flex-1 min-w-0">
+                              <input
+                                type="checkbox"
+                                className="accent-brand-orange"
+                                checked={offered}
+                                onChange={() => setCostDraft({
+                                  ...costDraft,
+                                  hiddenWoodIds: offered
+                                    ? [...costDraft.hiddenWoodIds, wood.id]
+                                    : costDraft.hiddenWoodIds.filter((id) => id !== wood.id),
+                                })}
+                              />
+                              <span className="truncate">{wood.name}</span>
+                            </label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              className="w-24 bg-brand-dark border-brand-dark-border text-white"
+                              value={premium}
+                              onChange={(e) => setCostDraft({
+                                ...costDraft,
+                                woodPremiums: { ...costDraft.woodPremiums, [wood.id]: parseFloat(e.target.value) || 0 },
+                              })}
+                            />
+                          </div>
+                        )
+                      })}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-1">Price from</label>
-                <Input
-                  className="bg-brand-dark border-brand-dark-border text-white placeholder:text-zinc-500"
-                  value={form.price_from}
-                  onChange={(e) => setForm((f) => ({ ...f, price_from: e.target.value }))}
-                  placeholder="45"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-1">Price to</label>
-                <Input
-                  className="bg-brand-dark border-brand-dark-border text-white placeholder:text-zinc-500"
-                  value={form.price_to}
-                  onChange={(e) => setForm((f) => ({ ...f, price_to: e.target.value }))}
-                  placeholder="65"
-                />
-              </div>
+              {!isPricedInterestSlug(form.slug) && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1">Price from</label>
+                    <Input
+                      className="bg-brand-dark border-brand-dark-border text-white placeholder:text-zinc-500"
+                      value={form.price_from}
+                      onChange={(e) => setForm((f) => ({ ...f, price_from: e.target.value }))}
+                      placeholder="45"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-300 mb-1">Price to</label>
+                    <Input
+                      className="bg-brand-dark border-brand-dark-border text-white placeholder:text-zinc-500"
+                      value={form.price_to}
+                      onChange={(e) => setForm((f) => ({ ...f, price_to: e.target.value }))}
+                      placeholder="65"
+                    />
+                  </div>
+                </>
+              )}
               <div>
                 <label className="block text-sm font-medium text-zinc-300 mb-1">Expected launch</label>
                 <Input
@@ -880,7 +858,12 @@ export default function AdminInterestPage() {
                       />
                       <span className="text-sm text-zinc-300">Required</span>
                     </label>
-                    {q.type !== 'text' && (
+                    {q.type !== 'text' && isPricedInterestSlug(form.slug) && ['head_metal', 'handle_material', 'transition_metal'].includes(q.key) && (
+                      <p className="text-zinc-500 text-sm">
+                        Choices come from the Pricing section — your materials list, with the premiums you set there.
+                      </p>
+                    )}
+                    {q.type !== 'text' && !(isPricedInterestSlug(form.slug) && ['head_metal', 'handle_material', 'transition_metal'].includes(q.key)) && (
                       <div>
                         <label className="block text-xs text-zinc-500 mb-2">Options</label>
                         <div className="space-y-2">
