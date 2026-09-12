@@ -55,6 +55,7 @@ export type InterestSignup = {
   cart_at?: string | null
   order_id?: string | null
   order_placed_at?: string | null
+  bespoke_quote?: unknown
   order?: {
     id: string
     status: string

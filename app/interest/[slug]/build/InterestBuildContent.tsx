@@ -16,17 +16,24 @@ import {
 } from '@/lib/interest-pricing'
 import { parseGalleryImages, type InterestList } from '@/lib/interest'
 import type { InterestBuildIntent } from '@/lib/interest-invite'
+import {
+  acceptedQuoteTotals,
+  quoteBlocksCheckout,
+  type BespokeQuote,
+} from '@/lib/interest-quote'
 
 export default function InterestBuildContent({
   list,
   catalog,
   token,
   initialIntent,
+  initialQuote,
 }: {
   list: InterestList
   catalog: InterestPricingCatalog
   token?: string
   initialIntent?: InterestBuildIntent | null
+  initialQuote?: BespokeQuote | null
 }) {
   const spec = INTEREST_SPECS[catalog.slug]
   const gallery = parseGalleryImages(list.gallery_images)
@@ -40,6 +47,11 @@ export default function InterestBuildContent({
   const [addedToCart, setAddedToCart] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [intentSaved, setIntentSaved] = useState(Boolean(initialIntent))
+  const [hasRequest, setHasRequest] = useState(Boolean(initialQuote?.request))
+  const [requestText, setRequestText] = useState(initialQuote?.request || '')
+  const [bespoke, setBespoke] = useState<BespokeQuote | null>(initialQuote || null)
+  const [quoteBusy, setQuoteBusy] = useState(false)
+  const [quoteMessage, setQuoteMessage] = useState('')
 
   useEffect(() => {
     if (token) return
@@ -55,7 +67,7 @@ export default function InterestBuildContent({
 
   const metal = liveCatalog.metals.find((item) => item.id === metalId) || null
   const handle = liveCatalog.woods.find((item) => item.id === handleId) || null
-  const quote = quoteInterestBuild(
+  const catalogQuote = quoteInterestBuild(
     list.slug,
     {
       [spec.metalKey]: metal?.name,
@@ -63,18 +75,27 @@ export default function InterestBuildContent({
     },
     liveCatalog
   )
-  const canOrder = Boolean(quote && metal && handle)
+  const accepted = acceptedQuoteTotals(bespoke)
+  const displayQuote = accepted || catalogQuote
+  const waitingOnQuote = quoteBlocksCheckout(bespoke)
+  const canOrder = Boolean(
+    displayQuote &&
+    metal &&
+    handle &&
+    !waitingOnQuote &&
+    (!hasRequest || bespoke?.status === 'accepted' || bespoke?.status === 'refused')
+  )
 
   useEffect(() => {
-    if (!token || !quote || !metal || !handle) return
+    if (!token || !metal || !handle || !catalogQuote) return
     const intent: InterestBuildIntent = {
       metalId: metal.id,
       metalName: metal.name,
       handleId: handle.id,
       handleName: handle.name,
-      total: quote.total,
-      deposit: quote.deposit,
-      balance: quote.balance,
+      total: catalogQuote.total,
+      deposit: catalogQuote.deposit,
+      balance: catalogQuote.balance,
     }
     const timer = window.setTimeout(() => {
       fetch(`/api/interest/build/${token}`, {
@@ -88,18 +109,80 @@ export default function InterestBuildContent({
         .catch(() => {})
     }, 400)
     return () => window.clearTimeout(timer)
-  }, [token, metal?.id, handle?.id, quote?.total])
+  }, [token, metal?.id, handle?.id, catalogQuote?.total])
+
+  const submitRequest = async () => {
+    if (!token || !metal || !handle || !catalogQuote) return
+    const text = requestText.trim()
+    if (text.length < 4) {
+      setQuoteMessage('Tell me what you want — a sentence is enough.')
+      return
+    }
+    setQuoteBusy(true)
+    setQuoteMessage('')
+    try {
+      const res = await fetch('/api/interest/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'request',
+          token,
+          request: text,
+          intent: {
+            metalId: metal.id,
+            metalName: metal.name,
+            handleId: handle.id,
+            handleName: handle.name,
+            total: catalogQuote.total,
+            deposit: catalogQuote.deposit,
+            balance: catalogQuote.balance,
+          },
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not send request')
+      setBespoke(data.quote)
+      setQuoteMessage("I've got it. I'll email you a price — don't pay the standard deposit yet.")
+    } catch (err) {
+      setQuoteMessage(err instanceof Error ? err.message : 'Could not send request')
+    } finally {
+      setQuoteBusy(false)
+    }
+  }
+
+  const replyToQuote = async (action: 'accept' | 'refuse') => {
+    if (!token) return
+    setQuoteBusy(true)
+    setQuoteMessage('')
+    try {
+      const res = await fetch('/api/interest/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, token }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not save that')
+      setBespoke(data.quote)
+      setQuoteMessage(action === 'accept'
+        ? 'Quote accepted. Pay the 50% deposit when you are ready.'
+        : 'No problem. You can take the standard spec or send another request.')
+    } catch (err) {
+      setQuoteMessage(err instanceof Error ? err.message : 'Could not save that')
+    } finally {
+      setQuoteBusy(false)
+    }
+  }
 
   const handleAddToCart = () => {
-    if (!quote || !canOrder || !metal || !handle) return
+    if (!displayQuote || !canOrder || !metal || !handle) return
     const name =
       list.slug === 'muddler'
         ? `Hashtag Muddler — Lignum Vitae / ${handle.name} / ${metal.name}`
         : `Bottle Opener — ${handle.name} / ${metal.name}`
     addItem({
       id: `interest-${list.slug}-${Date.now()}`,
-      name,
-      price: quote.total,
+      name: bespoke?.status === 'accepted' ? `${name} — bespoke` : name,
+      price: displayQuote.total,
       quantity: 1,
       image_url: list.hero_image_url || '',
       category: list.slug,
@@ -111,6 +194,7 @@ export default function InterestBuildContent({
         handleWoodName: handle.name,
         transitionName: metal.name,
         inviteToken: token,
+        bespokeRequest: bespoke?.status === 'accepted' ? bespoke.request : undefined,
       },
       shipping: { uk: 5.99, europe: 15.99, world: 25.99 },
     })
@@ -246,6 +330,85 @@ export default function InterestBuildContent({
               </CardContent>
             </Card>
 
+            {token && (
+              <Card className="bg-brand-dark-card border border-brand-dark-border">
+                <CardHeader>
+                  <CardTitle className="text-white">3. Specific request</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <label className="flex items-start gap-3 text-sm text-zinc-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={hasRequest}
+                      disabled={bespoke?.status === 'requested' || bespoke?.status === 'quoted' || bespoke?.status === 'accepted'}
+                      onChange={(e) => {
+                        setHasRequest(e.target.checked)
+                        if (!e.target.checked) setQuoteMessage('')
+                      }}
+                    />
+                    <span>
+                      I have a specific request that may need its own quote — live edge, a one-off timber, something that isn&apos;t on the list.
+                    </span>
+                  </label>
+                  {hasRequest && (
+                    <>
+                      <textarea
+                        rows={4}
+                        value={requestText}
+                        onChange={(e) => setRequestText(e.target.value)}
+                        disabled={bespoke?.status === 'quoted' || bespoke?.status === 'accepted'}
+                        placeholder="e.g. live edge handle on the African Blackwood, keep the bark if it holds"
+                        className="w-full rounded-md border border-brand-dark-border bg-brand-dark text-white px-3 py-2 text-sm placeholder:text-zinc-500"
+                      />
+                      {bespoke?.status === 'requested' && (
+                        <p className="text-amber-300 text-sm">I&apos;ve got this. I&apos;ll email a price — don&apos;t pay the standard deposit yet.</p>
+                      )}
+                      {bespoke?.status === 'quoted' && (
+                        <div className="rounded-md border border-brand-orange/40 p-3 space-y-2">
+                          <p className="text-white text-sm font-medium">Quote ready — {bespoke.quotedTotal != null ? formatPrice(bespoke.quotedTotal) : ''}</p>
+                          {bespoke.quotedNote && <p className="text-zinc-300 text-sm">{bespoke.quotedNote}</p>}
+                          <p className="text-zinc-400 text-xs">
+                            50% deposit {bespoke.quotedDeposit != null ? formatPrice(bespoke.quotedDeposit) : ''} now, balance when it&apos;s done.
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" disabled={quoteBusy} onClick={() => replyToQuote('accept')}>
+                              {quoteBusy ? 'Saving…' : 'Accept quote'}
+                            </Button>
+                            <Button size="sm" variant="outline" disabled={quoteBusy} onClick={() => replyToQuote('refuse')}>
+                              Refuse
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      {bespoke?.status === 'accepted' && (
+                        <p className="text-green-400 text-sm">Quote accepted. The price below is the agreed figure.</p>
+                      )}
+                      {bespoke?.status === 'refused' && (
+                        <p className="text-zinc-400 text-sm">Quote refused. You can take the standard spec or send another request.</p>
+                      )}
+                      {(!bespoke || bespoke.status === 'refused') && (
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          disabled={quoteBusy || !metal || !handle}
+                          onClick={submitRequest}
+                        >
+                          {quoteBusy ? 'Sending…' : 'Send request for a quote'}
+                        </Button>
+                      )}
+                      {bespoke?.status === 'requested' && (
+                        <Button variant="outline" className="w-full" disabled={quoteBusy || !metal || !handle} onClick={submitRequest}>
+                          {quoteBusy ? 'Sending…' : 'Update request'}
+                        </Button>
+                      )}
+                    </>
+                  )}
+                  {quoteMessage && <p className="text-sm text-brand-orange">{quoteMessage}</p>}
+                </CardContent>
+              </Card>
+            )}
+
             <Card className="bg-brand-dark-card border border-brand-dark-border">
               <CardHeader>
                 <CardTitle className="text-white">Your build</CardTitle>
@@ -285,15 +448,28 @@ export default function InterestBuildContent({
                       <span className="text-white">+{formatPrice(handle.premium)}</span>
                     </div>
                   )}
+                  {accepted && (
+                    <div className="flex justify-between">
+                      <span className="text-zinc-400">Agreed quote</span>
+                      <span className="text-white">{formatPrice(accepted.total)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center border-t border-brand-dark-border pt-2">
                     <span className="text-lg font-semibold text-white">Total</span>
                     <span className="text-2xl font-bold text-brand-orange">
-                      {canOrder && quote ? formatPrice(quote.total) : `From ${formatPrice(liveCatalog.base)}`}
+                      {displayQuote ? formatPrice(displayQuote.total) : `From ${formatPrice(liveCatalog.base)}`}
                     </span>
                   </div>
-                  {canOrder && quote && (
+                  {displayQuote && (
                     <p className="text-zinc-400 text-sm">
-                      50% deposit now ({formatPrice(quote.deposit)}) · balance {formatPrice(quote.balance)} when it&apos;s done
+                      50% deposit now ({formatPrice(displayQuote.deposit)}) · balance {formatPrice(displayQuote.balance)} when it&apos;s done
+                    </p>
+                  )}
+                  {waitingOnQuote && (
+                    <p className="text-amber-300 text-sm">
+                      {bespoke?.status === 'quoted'
+                        ? 'Accept or refuse the quote above before you pay a deposit.'
+                        : 'This request is with me for a quote. I will email you when the price is ready.'}
                     </p>
                   )}
                 </div>
@@ -309,8 +485,12 @@ export default function InterestBuildContent({
                       <Check className="mr-2 h-5 w-5" />
                       Added to cart
                     </>
+                  ) : waitingOnQuote ? (
+                    'Waiting on quote'
                   ) : canOrder ? (
                     'Pre-order — 50% deposit'
+                  ) : hasRequest && !bespoke ? (
+                    'Send the request first'
                   ) : (
                     'Pick your spec to pre-order'
                   )}
@@ -329,11 +509,11 @@ export default function InterestBuildContent({
         <div className="flex items-center justify-between mb-2">
           <span className="text-zinc-400 text-sm">Total</span>
           <span className="text-xl font-bold text-brand-orange">
-            {canOrder && quote ? formatPrice(quote.total) : `From ${formatPrice(liveCatalog.base)}`}
+            {displayQuote ? formatPrice(displayQuote.total) : `From ${formatPrice(liveCatalog.base)}`}
           </span>
         </div>
         <Button onClick={handleAddToCart} size="lg" className="w-full" disabled={!canOrder || addedToCart}>
-          {canOrder ? 'Pre-order — 50% deposit' : 'Pick your spec'}
+          {waitingOnQuote ? 'Waiting on quote' : canOrder ? 'Pre-order — 50% deposit' : 'Pick your spec'}
         </Button>
       </div>
 

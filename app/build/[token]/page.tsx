@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { INTEREST_PUBLIC_FIELDS, type InterestList } from '@/lib/interest'
 import { isInviteToken, parseBuildIntent } from '@/lib/interest-invite'
+import { signupBespokeQuote } from '@/lib/interest-quote'
 import { loadInterestPricingCatalog } from '@/lib/interest-pricing'
 import InterestBuildContent from '@/app/interest/[slug]/build/InterestBuildContent'
 
@@ -27,11 +28,27 @@ export default async function PrivateBuildPage({ params }: Props) {
   if (!isInviteToken(token)) return notFound()
 
   const supabase = getSupabase()
-  const { data: signup } = await supabase
+  let signup: {
+    id: string
+    list_id: string
+    build_intent: unknown
+    invite_viewed_at: string | null
+    bespoke_quote?: unknown
+  } | null = null
+  const first = await supabase
     .from('interest_signups')
-    .select('id, list_id, build_intent, invite_viewed_at')
+    .select('id, list_id, build_intent, invite_viewed_at, bespoke_quote')
     .eq('invite_token', token)
     .maybeSingle()
+  signup = first.data
+  if (first.error) {
+    const fallback = await supabase
+      .from('interest_signups')
+      .select('id, list_id, build_intent, invite_viewed_at')
+      .eq('invite_token', token)
+      .maybeSingle()
+    signup = fallback.data
+  }
 
   if (!signup) return notFound()
 
@@ -59,6 +76,7 @@ export default async function PrivateBuildPage({ params }: Props) {
       catalog={catalog}
       token={token}
       initialIntent={parseBuildIntent(signup.build_intent)}
+      initialQuote={signupBespokeQuote({ build_intent: signup.build_intent, bespoke_quote: signup.bespoke_quote })}
     />
   )
 }

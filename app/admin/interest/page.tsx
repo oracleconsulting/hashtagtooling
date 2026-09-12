@@ -29,6 +29,7 @@ import {
 } from '@/lib/interest-pricing'
 import { formatBuildIntent, interestInviteUrl, parseBuildIntent } from '@/lib/interest-invite'
 import { interestPipelineLabel, interestPipelineSteps } from '@/lib/interest-progress'
+import { formatBespokeQuote, signupBespokeQuote } from '@/lib/interest-quote'
 import { formatPrice } from '@/lib/utils'
 
 type ListRow = InterestList & { signup_count: number }
@@ -157,6 +158,8 @@ export default function AdminInterestPage() {
   const [includeNotified, setIncludeNotified] = useState(false)
   const [notifying, setNotifying] = useState(false)
   const [notifyingSignupId, setNotifyingSignupId] = useState<string | null>(null)
+  const [quotingSignupId, setQuotingSignupId] = useState<string | null>(null)
+  const [quoteDrafts, setQuoteDrafts] = useState<Record<string, { total: string; note: string }>>({})
   const [convertingSlug, setConvertingSlug] = useState<string | null>(null)
   const [uploadingHero, setUploadingHero] = useState(false)
   const [uploadingGallery, setUploadingGallery] = useState(false)
@@ -423,7 +426,7 @@ export default function AdminInterestPage() {
   const exportCsv = () => {
     if (!drawerList || signups.length === 0) return
     const qCols = questions.map((q) => q.key)
-    const headers = ['name', 'email', ...qCols, 'notes', 'source', 'marketing_consent', 'created_at', 'stage', 'invite_sent', 'invite_viewed', 'spec', 'basket', 'order_id', 'order_status']
+    const headers = ['name', 'email', ...qCols, 'notes', 'source', 'marketing_consent', 'created_at', 'stage', 'invite_sent', 'invite_viewed', 'spec', 'quote', 'basket', 'order_id', 'order_status']
     const rows = signups.map((s) => {
       const cells = [
         s.name || '',
@@ -437,6 +440,7 @@ export default function AdminInterestPage() {
         s.invite_sent_at || '',
         s.invite_viewed_at || '',
         formatBuildIntent(parseBuildIntent(s.build_intent)),
+        formatBespokeQuote(signupBespokeQuote(s)),
         s.cart_at || '',
         s.order?.id || s.order_id || '',
         s.order?.status || '',
@@ -520,6 +524,38 @@ export default function AdminInterestPage() {
     }
   }
 
+  const sendBespokeQuote = async (signup: InterestSignup) => {
+    const draft = quoteDrafts[signup.id]
+    const total = Number(draft?.total)
+    if (!Number.isFinite(total) || total <= 0) {
+      alert('Put a quoted total in first')
+      return
+    }
+    if (!confirm(`Email ${signup.email} a quote of ${formatPrice(total)}?`)) return
+    setQuotingSignupId(signup.id)
+    try {
+      const res = await fetch('/api/interest/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send',
+          signupId: signup.id,
+          total,
+          note: draft?.note || '',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to send quote')
+      alert(`Quoted ${signup.email}`)
+      const list = lists.find((l) => l.slug === drawerSlug)
+      if (list) await openSignups(list)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Connection error')
+    } finally {
+      setQuotingSignupId(null)
+    }
+  }
+
   const convertList = async (list: ListRow) => {
     if (!isPricedInterestSlug(list.slug)) return
     if (!confirm(`Copy ${list.name} pricing onto Materials & Pricing?\n\nThe build form stays the storefront. After this, prices follow Materials. You can convert again later to overwrite.`)) {
@@ -577,7 +613,7 @@ export default function AdminInterestPage() {
         <div>
           <h1 className="font-heading text-4xl font-bold text-brand-orange">Interest Lists</h1>
           <p className="text-zinc-500 text-sm mt-2 max-w-2xl">
-            People join the list. You set the price here. Then send each person a private build link from View signups. You can see who opened it and what spec they saved before they pay a deposit.
+            People join the list. You set the price here. Then send each person a private build link from View signups. You can see who opened it, what spec they saved, and any specific request that needs a quote before they pay a deposit.
           </p>
         </div>
         <div className="flex gap-2">
@@ -1244,6 +1280,58 @@ export default function AdminInterestPage() {
                                   ) : (
                                     <p className="text-zinc-600 text-xs">No spec saved yet</p>
                                   )}
+                                  {(() => {
+                                    const bespoke = signupBespokeQuote(s)
+                                    if (!bespoke) return null
+                                    const draft = quoteDrafts[s.id] || {
+                                      total: bespoke.quotedTotal != null ? String(bespoke.quotedTotal) : (intent?.total != null ? String(intent.total) : ''),
+                                      note: bespoke.quotedNote || '',
+                                    }
+                                    return (
+                                      <div className="rounded-md border border-brand-orange/30 p-3 space-y-2">
+                                        <p className="text-amber-200 text-xs uppercase tracking-wider">
+                                          {bespoke.status === 'requested' ? 'Quote requested' : `Quote ${bespoke.status}`}
+                                        </p>
+                                        <p className="text-zinc-200 text-sm whitespace-pre-wrap">{bespoke.request}</p>
+                                        {intent && (
+                                          <p className="text-zinc-500 text-xs">Catalog spec {formatPrice(intent.total)}</p>
+                                        )}
+                                        {(bespoke.status === 'requested' || bespoke.status === 'quoted') && (
+                                          <>
+                                            <Input
+                                              className="bg-brand-dark border-brand-dark-border text-white"
+                                              type="number"
+                                              min="0"
+                                              step="0.01"
+                                              placeholder="Quoted total"
+                                              value={draft.total}
+                                              onChange={(e) => setQuoteDrafts((prev) => ({
+                                                ...prev,
+                                                [s.id]: { ...draft, total: e.target.value },
+                                              }))}
+                                            />
+                                            <textarea
+                                              rows={3}
+                                              className="w-full rounded-md border border-brand-dark-border bg-brand-dark text-white px-3 py-2 text-sm"
+                                              placeholder="Note to them — why this figure, what you'll do"
+                                              value={draft.note}
+                                              onChange={(e) => setQuoteDrafts((prev) => ({
+                                                ...prev,
+                                                [s.id]: { ...draft, note: e.target.value },
+                                              }))}
+                                            />
+                                            <Button
+                                              size="sm"
+                                              disabled={quotingSignupId === s.id}
+                                              onClick={() => sendBespokeQuote(s)}
+                                            >
+                                              {quotingSignupId === s.id ? 'Sending…' : bespoke.status === 'quoted' ? 'Update quote and email' : 'Email quote'}
+                                            </Button>
+                                          </>
+                                        )}
+                                      </div>
+                                    )
+                                  })()}
                                   {s.order && (
                                     <p className="text-zinc-400 text-xs">
                                       Order {s.order.id.slice(0, 8)} · {s.order.status}

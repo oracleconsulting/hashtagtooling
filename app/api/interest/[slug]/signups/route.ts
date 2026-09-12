@@ -53,6 +53,8 @@ export async function GET(
     }
     const listIds = lists.map((row) => row.id)
 
+    const quoteFields =
+      'id, list_id, email, name, answers, notes, source, marketing_consent, notified, notified_at, invite_token, invite_sent_at, invite_viewed_at, build_intent, build_intent_at, cart_at, order_id, order_placed_at, bespoke_quote, created_at'
     const progressFields =
       'id, list_id, email, name, answers, notes, source, marketing_consent, notified, notified_at, invite_token, invite_sent_at, invite_viewed_at, build_intent, build_intent_at, cart_at, order_id, order_placed_at, created_at'
     const inviteFields =
@@ -62,7 +64,7 @@ export async function GET(
 
     let signups: InterestSignup[] = []
     let signupsError = null
-    for (const fields of [progressFields, inviteFields, baseFields]) {
+    for (const fields of [quoteFields, progressFields, inviteFields, baseFields]) {
       const result = await supabase
         .from('interest_signups')
         .select(fields)

@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { INTEREST_PUBLIC_FIELDS } from '@/lib/interest'
 import { isInviteToken, parseBuildIntent } from '@/lib/interest-invite'
 import { markInterestCart } from '@/lib/interest-progress'
+import { signupBespokeQuote } from '@/lib/interest-quote'
 import { loadInterestPricingCatalog } from '@/lib/interest-pricing'
 
 function getSupabase() {
@@ -23,11 +24,29 @@ export async function GET(
     }
 
     const supabase = getSupabase()
-    const { data: signup, error: signupError } = await supabase
+    let signup: {
+      id: string
+      list_id: string
+      name: string | null
+      invite_viewed_at: string | null
+      build_intent: unknown
+      bespoke_quote?: unknown
+    } | null = null
+    let { data, error: signupError } = await supabase
       .from('interest_signups')
-      .select('id, list_id, name, invite_viewed_at, build_intent')
+      .select('id, list_id, name, invite_viewed_at, build_intent, bespoke_quote')
       .eq('invite_token', token)
       .maybeSingle()
+    signup = data
+    if (signupError) {
+      const fallback = await supabase
+        .from('interest_signups')
+        .select('id, list_id, name, invite_viewed_at, build_intent')
+        .eq('invite_token', token)
+        .maybeSingle()
+      signup = fallback.data
+      signupError = fallback.error
+    }
 
     if (signupError) {
       console.error('Interest invite lookup error:', signupError)
@@ -62,6 +81,7 @@ export async function GET(
       catalog,
       name: signup.name,
       intent: parseBuildIntent(signup.build_intent),
+      quote: signupBespokeQuote(signup),
     })
   } catch (err) {
     console.error('Interest invite GET error:', err)

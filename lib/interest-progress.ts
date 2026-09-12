@@ -1,4 +1,5 @@
 import { isInviteToken, parseBuildIntent } from '@/lib/interest-invite'
+import { signupBespokeQuote } from '@/lib/interest-quote'
 import { isPricedInterestSlug } from '@/lib/interest-pricing'
 import type { InterestSignup } from '@/lib/interest'
 
@@ -20,7 +21,7 @@ export type InterestSignupOrder = {
 }
 
 export type InterestPipelineStep = {
-  key: 'invited' | 'viewed' | 'spec' | 'basket' | 'ordered' | 'paid'
+  key: 'invited' | 'viewed' | 'spec' | 'quote' | 'quoted' | 'decided' | 'basket' | 'ordered' | 'paid'
   label: string
   done: boolean
   current: boolean
@@ -94,10 +95,26 @@ export function interestPipelineSteps(
     paidLabel = order.balance_status === 'awaiting_payment' ? 'Balance due' : 'Deposit paid'
   }
 
+  const quote = signupBespokeQuote(signup)
+  const decidedLabel = quote?.status === 'refused' ? 'Quote refused' : 'Quote accepted'
+  const quoteSteps: Omit<InterestPipelineStep, 'current'>[] = quote
+    ? [
+        { key: 'quote', label: 'Quote requested', done: true, at: quote.requestedAt || null },
+        { key: 'quoted', label: 'Quoted', done: quote.status !== 'requested', at: quote.quotedAt },
+        {
+          key: 'decided',
+          label: quote.status === 'requested' || quote.status === 'quoted' ? 'Awaiting reply' : decidedLabel,
+          done: quote.status === 'accepted' || quote.status === 'refused',
+          at: quote.respondedAt,
+        },
+      ]
+    : []
+
   const steps: Omit<InterestPipelineStep, 'current'>[] = [
     { key: 'invited', label: 'Invite sent', done: Boolean(signup.invite_sent_at), at: signup.invite_sent_at || null },
     { key: 'viewed', label: 'Viewed', done: Boolean(signup.invite_viewed_at), at: signup.invite_viewed_at || null },
     { key: 'spec', label: 'Spec saved', done: Boolean(intent), at: signup.build_intent_at || null },
+    ...quoteSteps,
     { key: 'basket', label: 'In basket', done: Boolean(cartAt || depositTaken), at: cartAt },
     { key: 'ordered', label: 'Order placed', done: depositTaken, at: placedAt },
     { key: 'paid', label: paidLabel, done: fullyPaid || cancelled, at: order?.created_at || null },
