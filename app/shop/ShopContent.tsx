@@ -75,7 +75,7 @@ function ShopContentInner() {
   const [woodInventoryParentIds, setWoodInventoryParentIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [interestTile, setInterestTile] = useState<{ slug: string; name: string } | null>(null)
+  const [interestTiles, setInterestTiles] = useState<{ slug: string; name: string }[]>([])
 
   useEffect(() => {
     setSelectedCategory(categoryParam)
@@ -151,8 +151,14 @@ function ShopContentInner() {
         .eq('status', 'open')
         .order('created_at', { ascending: true })
       const openLists = (interestRows || []) as { slug: string; name: string }[]
-      const featured = openLists.find((l) => l.slug === 'bottle-opener') || openLists[0]
-      setInterestTile(featured || { slug: 'bottle-opener', name: 'Bottle Opener' })
+      setInterestTiles(
+        openLists.length
+          ? openLists
+          : [
+              { slug: 'bottle-opener', name: 'The Bottle Opener' },
+              { slug: 'muddler', name: 'The Hashtag Muddler' },
+            ]
+      )
     } catch (err) {
       console.error('Error loading products:', err)
       setError('Unable to load products. Please try again later.')
@@ -297,7 +303,7 @@ function ShopContentInner() {
         </div>
       )}
 
-      {!loading && !error && (filteredProducts.length > 0 || interestTile) && (
+      {!loading && !error && (filteredProducts.length > 0 || interestTiles.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredProducts.map((product) => (
             <ProductCard
@@ -314,19 +320,19 @@ function ShopContentInner() {
               }
             />
           ))}
-          {interestTile && (
-            <Link href={`/interest/${interestTile.slug}`} className="block h-full">
+          {interestTiles.map((tile) => (
+            <Link key={tile.slug} href={`/interest/${tile.slug}`} className="block h-full">
               <div className="h-full min-h-[320px] border-2 border-dashed border-brand-orange/40 rounded-lg p-6 flex flex-col items-center justify-center text-center hover:border-brand-orange/70 transition-colors bg-brand-dark-card">
                 <p className="text-brand-orange text-xs font-medium uppercase tracking-widest mb-3">Coming Maybe</p>
-                <h3 className="font-heading text-2xl font-bold text-white mb-4">{interestTile.name}</h3>
+                <h3 className="font-heading text-2xl font-bold text-white mb-4">{tile.name}</h3>
                 <p className="text-zinc-400">Register interest →</p>
               </div>
             </Link>
-          )}
+          ))}
         </div>
       )}
 
-      {!loading && !error && filteredProducts.length === 0 && !interestTile && (
+      {!loading && !error && filteredProducts.length === 0 && interestTiles.length === 0 && (
         <div className="text-center py-20">
           <p className="text-zinc-400 mb-4">No products found in this category yet.</p>
           <p className="text-zinc-500 text-sm">Check back soon — new pieces are added regularly.</p>

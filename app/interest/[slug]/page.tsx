@@ -24,7 +24,7 @@ export async function generateStaticParams() {
     return (lists || []).map((list) => ({ slug: list.slug }))
   } catch (err) {
     console.error('interest generateStaticParams:', err)
-    return [{ slug: 'bottle-opener' }]
+    return [{ slug: 'bottle-opener' }, { slug: 'muddler' }]
   }
 }
 

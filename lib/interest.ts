@@ -46,38 +46,88 @@ export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 export const INTEREST_PUBLIC_FIELDS =
   'id, slug, name, tagline, description, hero_image_url, gallery_images, price_from, price_to, expected_launch, status, show_count, questions, launched_product_id, created_at, updated_at'
 
+const METAL_OPTIONS = ['Brass', 'Copper', 'Bronze', 'Steel', 'Aluminium', 'Titanium', 'Mokume gane']
+
+const extraQuestion: InterestQuestion = {
+  key: 'extra',
+  label: 'Anything else I should know?',
+  type: 'text',
+  required: false,
+}
+
 export const BOTTLE_OPENER_QUESTIONS: InterestQuestion[] = [
   {
     key: 'head_metal',
     label: 'Head metal',
     type: 'single',
     required: true,
-    options: ['Brass', 'Copper', 'Bronze', 'Steel', 'Aluminium', 'Titanium', 'Mokume gane'],
+    options: METAL_OPTIONS,
   },
-  {
-    key: 'extra',
-    label: 'Anything else I should know?',
-    type: 'text',
-    required: false,
-  },
+  extraQuestion,
 ]
 
-export const BOTTLE_OPENER_SEED = {
+export const MUDDLER_QUESTIONS: InterestQuestion[] = [
+  {
+    key: 'transition_metal',
+    label: 'Transition metal',
+    type: 'single',
+    required: true,
+    options: METAL_OPTIONS,
+  },
+  extraQuestion,
+]
+
+type InterestSeed = {
+  slug: string
+  name: string
+  tagline: string
+  description: string
+  hero_image_url: string | null
+  gallery_images: string[]
+  price_from: number | null
+  price_to: number | null
+  expected_launch: string
+  status: InterestListStatus
+  show_count: boolean
+  questions: InterestQuestion[]
+  launched_product_id: string | null
+}
+
+export const BOTTLE_OPENER_SEED: InterestSeed = {
   slug: 'bottle-opener',
   name: 'The Bottle Opener',
   tagline: "Not in production. Might be. That bit's on you.",
   description:
     "Brass head, stabilised burl handle. Brass dowel through the middle, same as everything else on here.\n\nI made one to find out whether the idea held up. It does. Heavy in the hand, and it opens a bottle without any drama.\n\nWhat I'm not doing is tooling up a batch on a hunch — there's brass stock to buy and a milling setup to sort for that hook, and that's a fair bit of work before a single one gets sold.\n\nSo... this is the list. Email below, tell me what you'd actually want one made from, and if enough of you put your hand up I'll build them.\n\nNo payment, no commitment. You're not buying anything. You're just telling me it's worth doing.",
-  hero_image_url: null as string | null,
-  gallery_images: [] as string[],
-  price_from: null as number | null,
-  price_to: null as number | null,
+  hero_image_url: null,
+  gallery_images: [],
+  price_from: null,
+  price_to: null,
   expected_launch: 'If it happens — winter 2026',
-  status: 'open' as InterestListStatus,
+  status: 'open',
   show_count: false,
   questions: BOTTLE_OPENER_QUESTIONS,
-  launched_product_id: null as string | null,
+  launched_product_id: null,
 }
+
+export const MUDDLER_SEED: InterestSeed = {
+  slug: 'muddler',
+  name: 'The Hashtag Muddler',
+  tagline: "Not in production. Might be. That bit's on you.",
+  description:
+    "African Blackwood handle, brass transition. One-piece transition, dual-ended dowel — same construction as everything else on here.\n\nI made one to find out whether a muddler belonged in the lineup. It does. Heavy enough to smash sugar and bitters for an Old Fashioned, crush mint for a Mojito, then wipe it off and put it back.\n\nWhat I'm not doing is tooling up a batch on a hunch.\n\nSo... this is the list. Email below, tell me what you'd actually want one made from, and if enough of you put your hand up I'll build them.\n\nNo payment, no commitment. You're not buying anything. You're just telling me it's worth doing.",
+  hero_image_url: null,
+  gallery_images: [],
+  price_from: null,
+  price_to: null,
+  expected_launch: 'If it happens — winter 2026',
+  status: 'open',
+  show_count: false,
+  questions: MUDDLER_QUESTIONS,
+  launched_product_id: null,
+}
+
+const DEFAULT_INTEREST_LISTS: InterestSeed[] = [BOTTLE_OPENER_SEED, MUDDLER_SEED]
 
 function questionsNeedRefresh(raw: unknown): boolean {
   const keys = parseQuestions(raw).map((q) => q.key)
@@ -87,37 +137,39 @@ function questionsNeedRefresh(raw: unknown): boolean {
 export async function ensureDefaultInterestLists(supabase: {
   from: (table: string) => any
 }): Promise<void> {
-  const { data, error } = await supabase
-    .from('interest_lists')
-    .select('id, questions')
-    .eq('slug', BOTTLE_OPENER_SEED.slug)
-    .maybeSingle()
-
-  if (error) {
-    console.error('Interest seed lookup error:', error)
-    return
-  }
-
-  if (!data) {
-    const { error: insertError } = await supabase.from('interest_lists').insert(BOTTLE_OPENER_SEED)
-    if (insertError && insertError.code !== '23505') {
-      console.error('Interest seed insert error:', insertError)
-    }
-    return
-  }
-
-  if (questionsNeedRefresh(data.questions)) {
-    const { error: updateError } = await supabase
+  for (const seed of DEFAULT_INTEREST_LISTS) {
+    const { data, error } = await supabase
       .from('interest_lists')
-      .update({
-        questions: BOTTLE_OPENER_QUESTIONS,
-        price_from: null,
-        price_to: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', data.id)
-    if (updateError) {
-      console.error('Interest seed update error:', updateError)
+      .select('id, questions')
+      .eq('slug', seed.slug)
+      .maybeSingle()
+
+    if (error) {
+      console.error('Interest seed lookup error:', error)
+      continue
+    }
+
+    if (!data) {
+      const { error: insertError } = await supabase.from('interest_lists').insert(seed)
+      if (insertError && insertError.code !== '23505') {
+        console.error('Interest seed insert error:', insertError)
+      }
+      continue
+    }
+
+    if (seed.slug === 'bottle-opener' && questionsNeedRefresh(data.questions)) {
+      const { error: updateError } = await supabase
+        .from('interest_lists')
+        .update({
+          questions: seed.questions,
+          price_from: null,
+          price_to: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', data.id)
+      if (updateError) {
+        console.error('Interest seed update error:', updateError)
+      }
     }
   }
 }

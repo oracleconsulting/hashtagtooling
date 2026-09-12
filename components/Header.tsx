@@ -25,6 +25,7 @@ const SHOP_LINKS = [
   { href: '/mystery-box', label: 'Mystery Box', desc: 'A surprise tool, mystery woods' },
   { href: '/gift-vouchers', label: 'Gift Vouchers', desc: '£25–£150, instant delivery' },
   { href: '/interest/bottle-opener', label: 'Bottle Opener', desc: 'Register interest — coming maybe' },
+  { href: '/interest/muddler', label: 'Hashtag Muddler', desc: 'Register interest — coming maybe' },
 ]
 
 const EXPLORE_LINKS = [

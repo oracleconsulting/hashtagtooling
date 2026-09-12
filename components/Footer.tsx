@@ -130,6 +130,7 @@ export function Footer() {
               <li><Link href="/gift-vouchers" className="hover:text-brand-orange transition-colors">Gift Vouchers</Link></li>
               <li><Link href="/mystery-box" className="hover:text-brand-orange transition-colors">Mystery Box</Link></li>
               <li><Link href="/interest/bottle-opener" className="hover:text-brand-orange transition-colors">Bottle Opener — Register Interest</Link></li>
+              <li><Link href="/interest/muddler" className="hover:text-brand-orange transition-colors">Hashtag Muddler — Register Interest</Link></li>
               <li><Link href="/referrals" className="hover:text-brand-orange transition-colors">Refer a Friend</Link></li>
             </ul>
           </div>
