@@ -348,7 +348,7 @@ export default function AdminInterestPage() {
     setNotifyLink('')
     setIncludeNotified(false)
     try {
-      const res = await fetch(`/api/interest/${list.slug}/signups`, { cache: 'no-store' })
+      const res = await fetch(`/api/interest/${list.slug}/signups?id=${encodeURIComponent(list.id)}&t=${Date.now()}`, { cache: 'no-store' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to load signups')
       setSignups(data.signups || [])

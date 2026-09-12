@@ -13,7 +13,7 @@ function getSupabase() {
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
@@ -21,13 +21,17 @@ export async function GET(
     if (!slug) {
       return NextResponse.json({ error: 'Missing slug' }, { status: 400 })
     }
+    const requestedId = req.nextUrl.searchParams.get('id')?.trim() || ''
 
     const supabase = getSupabase()
-    const { data: lists, error: listError } = await supabase
+    let listQuery = supabase
       .from('interest_lists')
       .select('id, slug, name, questions')
       .eq('slug', slug)
       .order('created_at', { ascending: true })
+    if (requestedId) listQuery = listQuery.eq('id', requestedId)
+
+    const { data: lists, error: listError } = await listQuery
 
     if (listError) {
       console.error('Interest signups list lookup error:', listError)
@@ -66,7 +70,12 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to load signups' }, { status: 500 })
     }
 
-    const catalog = await loadInterestPricingCatalog(supabase, slug)
+    let catalog = null
+    try {
+      catalog = await loadInterestPricingCatalog(supabase, slug)
+    } catch (err) {
+      console.error('Interest signups catalog error:', err)
+    }
 
     return NextResponse.json({
       list,
