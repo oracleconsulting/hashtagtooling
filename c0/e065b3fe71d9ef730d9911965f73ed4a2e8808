@@ -1,0 +1,35 @@
+lib/interest-quote.ts
+  s_a11981054c9414::t_7a2a68e3c75adc 103-107,110,118
+app/interest/[slug]/build/InterestBuildContent.tsx
+  s_a11981054c9414::t_25557da9df79ff 189-194
+  s_a11981054c9414::t_44e030afb2a7c0 58-74
+  s_a11981054c9414::t_8334c921828871 363,372,383,396,398-401,406-415
+  s_a11981054c9414::t_b63454e6767e94 21
+  s_a11981054c9414::t_54db5e410fac73 132
+  s_a11981054c9414::t_6dedd4cb6f540b 110
+  s_a11981054c9414::t_b831f8574e9f26 164-168
+  s_a11981054c9414::t_0da97f6a366e61 57
+app/api/interest/build/[token]/route.ts
+  s_a11981054c9414::t_55f2a4c6a24c4a 136,142-146
+app/api/interest/quote/route.ts
+  s_a11981054c9414::t_bbafe62124974e 201
+  s_a11981054c9414::t_017c1cdef5f187 172
+  s_a11981054c9414::t_4b23af3dfb0633 165
+  s_a11981054c9414::t_ffe97afa4daf44 105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c0e065b3fe71d9ef730d9911965f73ed4a2e8808",
+  "prompts": {},
+  "sessions": {
+    "s_a11981054c9414": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3f9f0b60-b0e2-426d-8a1b-c93bab59ea2c",
+        "model": "grok-4.6"
+      },
+      "human_author": "James Howard <james@ivcaccounting.co.uk>"
+    }
+  }
+}
