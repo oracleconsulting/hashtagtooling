@@ -27,6 +27,8 @@ import {
   type InterestPricedSlug,
   type InterestPricingCatalog,
 } from '@/lib/interest-pricing'
+import { formatBuildIntent, interestInviteUrl, parseBuildIntent } from '@/lib/interest-invite'
+import { formatPrice } from '@/lib/utils'
 
 type ListRow = InterestList & { signup_count: number }
 
@@ -343,7 +345,7 @@ export default function AdminInterestPage() {
         ? `You put your name down for the Hashtag Muddler.\n\nThe build form is ready. Head is Lignum Vitae — that's fixed. You pick the transition and the handle, see the price, and lock a November build with a 50% deposit if you want one. Balance when it's done.\n\nHit the button to build yours.`
         : `You put your name down.\n\nThe build form is ready. Pick your spec, see the price, and lock a November build with a 50% deposit if you want one. Balance when it's done.\n\nHit the button to build yours.`
     )
-    setNotifyLink(`https://hashtag.guru/interest/${list.slug}/build`)
+    setNotifyLink('')
     setIncludeNotified(false)
     try {
       const res = await fetch(`/api/interest/${list.slug}/signups`, { cache: 'no-store' })
@@ -360,8 +362,8 @@ export default function AdminInterestPage() {
   }
 
   const questions = applyCatalogToQuestions(parseQuestions(drawerList?.questions), drawerCatalog)
-  const unnotifiedCount = signups.filter((s) => !s.notified).length
-  const notifyAudienceCount = includeNotified ? signups.length : unnotifiedCount
+  const unsentCount = signups.filter((s) => !s.invite_sent_at && !s.notified).length
+  const notifyAudienceCount = includeNotified ? signups.length : unsentCount
 
   const summaries = useMemo(() => {
     return questions
@@ -388,7 +390,7 @@ export default function AdminInterestPage() {
   const exportCsv = () => {
     if (!drawerList || signups.length === 0) return
     const qCols = questions.map((q) => q.key)
-    const headers = ['name', 'email', ...qCols, 'notes', 'source', 'marketing_consent', 'created_at', 'notified']
+    const headers = ['name', 'email', ...qCols, 'notes', 'source', 'marketing_consent', 'created_at', 'invite_sent', 'invite_viewed', 'spec']
     const rows = signups.map((s) => {
       const cells = [
         s.name || '',
@@ -398,7 +400,9 @@ export default function AdminInterestPage() {
         s.source || '',
         s.marketing_consent ? 'yes' : 'no',
         s.created_at,
-        s.notified ? 'yes' : 'no',
+        s.invite_sent_at || '',
+        s.invite_viewed_at || '',
+        formatBuildIntent(parseBuildIntent(s.build_intent)),
       ]
       return cells.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')
     })
@@ -437,13 +441,13 @@ export default function AdminInterestPage() {
   const notifyEveryone = async () => {
     if (!drawerSlug) return
     if (notifyAudienceCount === 0) {
-      alert(includeNotified ? 'No signups to email' : 'Everyone on this list has already been emailed. Tick “include already emailed” to send again.')
+      alert(includeNotified ? 'No signups to email' : 'Everyone on this list already has an invite. Tick “include already emailed” to send again.')
       return
     }
     const who = includeNotified
       ? `${notifyAudienceCount} ${notifyAudienceCount === 1 ? 'person' : 'people'} on this list (including anyone already emailed)`
-      : `${unnotifiedCount} ${unnotifiedCount === 1 ? 'person' : 'people'} who have not been emailed`
-    if (!confirm(`Send this email to ${who}? Each person gets a link to the build form.`)) {
+      : `${unsentCount} ${unsentCount === 1 ? 'person' : 'people'} who have not been invited`
+    if (!confirm(`Send this email to ${who}? Each person gets their own private build link.`)) {
       return
     }
     setNotifying(true)
@@ -465,7 +469,7 @@ export default function AdminInterestPage() {
       alert('Fill in the subject and message in the email box below first')
       return
     }
-    if (!confirm(`Email ${signup.email} the build form?`)) return
+    if (!confirm(`Email ${signup.email} their private build form?`)) return
     setNotifyingSignupId(signup.id)
     try {
       await sendNotify({ signupIds: [signup.id] })
@@ -536,7 +540,7 @@ export default function AdminInterestPage() {
         <div>
           <h1 className="font-heading text-4xl font-bold text-brand-orange">Interest Lists</h1>
           <p className="text-zinc-500 text-sm mt-2 max-w-2xl">
-            People join the list. You set the price here. Then email them the build form — they pick the spec, see the live price, and pay a 50% deposit. When there is enough interest, convert the list — pricing then lives on Materials.
+            People join the list. You set the price here. Then send each person a private build link from View signups. You can see who opened it and what spec they saved before they pay a deposit.
           </p>
         </div>
         <div className="flex gap-2">
@@ -603,9 +607,14 @@ export default function AdminInterestPage() {
                       <Button size="sm" variant="outline" className="mr-2" onClick={() => openEdit(list)}>Edit</Button>
                       <Button size="sm" variant="outline" className="mr-2" onClick={() => openSignups(list)}>Email signups</Button>
                       {isPricedInterestSlug(list.slug) && (
-                        <a href={`/interest/${list.slug}/build`} target="_blank" rel="noreferrer" className="mr-2">
-                          <Button size="sm" variant="outline">View build form</Button>
-                        </a>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mr-2"
+                          onClick={() => openSignups(list)}
+                        >
+                          Send invites
+                        </Button>
                       )}
                       {isPricedInterestSlug(list.slug) && (
                         <Button
@@ -1184,23 +1193,49 @@ export default function AdminInterestPage() {
                                 </div>
                               )}
                             </dl>
-                            <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
-                              <p className="text-zinc-600 text-xs">
-                                {s.source}
-                                {' · '}
-                                marketing {s.marketing_consent ? 'yes' : 'no'}
-                                {' · '}
-                                {s.notified ? 'emailed' : 'not emailed'}
-                              </p>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={notifying || notifyingSignupId === s.id}
-                                onClick={() => notifyOne(s)}
-                              >
-                                {notifyingSignupId === s.id ? 'Sending…' : 'Email build form'}
-                              </Button>
-                            </div>
+                            {(() => {
+                              const intent = parseBuildIntent(s.build_intent)
+                              return (
+                                <div className="mt-3 space-y-2">
+                                  <div className="flex flex-wrap gap-1.5">
+                                    <span className={`px-2 py-0.5 rounded text-xs ${s.invite_sent_at ? 'bg-amber-900/50 text-amber-300' : 'bg-zinc-800 text-zinc-400'}`}>
+                                      {s.invite_sent_at ? `Invite sent ${new Date(s.invite_sent_at).toLocaleDateString('en-GB')}` : 'Invite not sent'}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded text-xs ${s.invite_viewed_at ? 'bg-green-900/50 text-green-300' : 'bg-zinc-800 text-zinc-500'}`}>
+                                      {s.invite_viewed_at ? `Viewed ${new Date(s.invite_viewed_at).toLocaleDateString('en-GB')}` : 'Not viewed'}
+                                    </span>
+                                  </div>
+                                  {intent ? (
+                                    <p className="text-brand-orange text-sm">
+                                      Spec {formatBuildIntent(intent)}
+                                      {s.build_intent_at ? ` · saved ${new Date(s.build_intent_at).toLocaleDateString('en-GB')}` : ''}
+                                      {' · '}deposit {formatPrice(intent.deposit)}
+                                    </p>
+                                  ) : (
+                                    <p className="text-zinc-600 text-xs">No spec saved yet</p>
+                                  )}
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={notifying || notifyingSignupId === s.id}
+                                      onClick={() => notifyOne(s)}
+                                    >
+                                      {notifyingSignupId === s.id ? 'Sending…' : s.invite_sent_at ? 'Resend invite' : 'Send invite'}
+                                    </Button>
+                                    {s.invite_token && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => navigator.clipboard.writeText(interestInviteUrl(s.invite_token!))}
+                                      >
+                                        Copy private link
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })()}
                           </CardContent>
                         </Card>
                       ))}
@@ -1212,9 +1247,9 @@ export default function AdminInterestPage() {
                   <CardHeader><CardTitle className="text-white text-base">Email signups</CardTitle></CardHeader>
                   <CardContent className="space-y-3">
                     <p className="text-zinc-500 text-sm">
-                      {unnotifiedCount} not yet emailed
+                      {unsentCount} not yet invited
                       {signups.length > 0 ? ` · ${signups.length} total` : ''}.
-                      Each email gets the same link to the build form — they spec it themselves and see the price before they pay a deposit.
+                      Each person gets a private build link. You can see if they opened it and what spec they saved.
                     </p>
                     <Input
                       className="bg-brand-dark border-brand-dark-border text-white placeholder:text-zinc-500"
@@ -1243,7 +1278,7 @@ export default function AdminInterestPage() {
                         checked={includeNotified}
                         onChange={(e) => setIncludeNotified(e.target.checked)}
                       />
-                      Include people already emailed
+                      Include people already invited
                     </label>
                     <Button onClick={notifyEveryone} disabled={notifying || notifyAudienceCount === 0}>
                       {notifying ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</> : `Email ${notifyAudienceCount || ''} ${notifyAudienceCount === 1 ? 'person' : 'people'}`}

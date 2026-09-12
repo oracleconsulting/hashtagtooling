@@ -213,12 +213,7 @@ export default function InterestContent({
                   </Link>
                 )}
                 {priced && !list.launched_product_id && (
-                  <Link
-                    href={`/interest/${list.slug}/build`}
-                    className="inline-block px-8 py-3 bg-brand-orange text-brand-dark font-bold rounded-lg hover:bg-brand-orange/90 transition-colors"
-                  >
-                    Build yours →
-                  </Link>
+                  <p className="text-zinc-400 text-sm">If you&apos;re on the list, use the private link from your email.</p>
                 )}
               </div>
             )}

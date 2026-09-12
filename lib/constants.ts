@@ -44,6 +44,7 @@ export interface CustomMalletConfig {
   transitionId?: string
   transitionName?: string
   custom_build?: boolean
+  inviteToken?: string
   square_size?: string
   scale_type?: string
   body_material?: string

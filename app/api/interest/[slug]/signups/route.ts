@@ -35,11 +35,26 @@ export async function GET(
       return NextResponse.json({ error: 'Interest list not found' }, { status: 404 })
     }
 
-    const { data: signups, error: signupsError } = await supabase
+    const inviteFields =
+      'id, list_id, email, name, answers, notes, source, marketing_consent, notified, notified_at, invite_token, invite_sent_at, invite_viewed_at, build_intent, build_intent_at, created_at'
+    const baseFields =
+      'id, list_id, email, name, answers, notes, source, marketing_consent, notified, notified_at, created_at'
+
+    let { data: signups, error: signupsError } = await supabase
       .from('interest_signups')
-      .select('id, list_id, email, name, answers, notes, source, marketing_consent, notified, notified_at, created_at')
+      .select(inviteFields)
       .eq('list_id', list.id)
       .order('created_at', { ascending: false })
+
+    if (signupsError && String(signupsError.message || '').includes('invite_')) {
+      const fallback = await supabase
+        .from('interest_signups')
+        .select(baseFields)
+        .eq('list_id', list.id)
+        .order('created_at', { ascending: false })
+      signups = fallback.data
+      signupsError = fallback.error
+    }
 
     if (signupsError) {
       console.error('Interest signups fetch error:', signupsError)

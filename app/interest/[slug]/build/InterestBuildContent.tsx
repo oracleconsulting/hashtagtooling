@@ -15,13 +15,18 @@ import {
   type InterestPricingCatalog,
 } from '@/lib/interest-pricing'
 import { parseGalleryImages, type InterestList } from '@/lib/interest'
+import type { InterestBuildIntent } from '@/lib/interest-invite'
 
 export default function InterestBuildContent({
   list,
   catalog,
+  token,
+  initialIntent,
 }: {
   list: InterestList
   catalog: InterestPricingCatalog
+  token?: string
+  initialIntent?: InterestBuildIntent | null
 }) {
   const spec = INTEREST_SPECS[catalog.slug]
   const gallery = parseGalleryImages(list.gallery_images)
@@ -30,12 +35,14 @@ export default function InterestBuildContent({
   const router = useRouter()
 
   const [liveCatalog, setLiveCatalog] = useState(catalog)
-  const [metalId, setMetalId] = useState<string | null>(null)
-  const [handleId, setHandleId] = useState<string | null>(null)
+  const [metalId, setMetalId] = useState<string | null>(initialIntent?.metalId || null)
+  const [handleId, setHandleId] = useState<string | null>(initialIntent?.handleId || null)
   const [addedToCart, setAddedToCart] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const [intentSaved, setIntentSaved] = useState(Boolean(initialIntent))
 
   useEffect(() => {
+    if (token) return
     let cancelled = false
     fetch(`/api/interest/${list.slug}`, { cache: 'no-store' })
       .then((res) => res.json())
@@ -44,7 +51,7 @@ export default function InterestBuildContent({
       })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [list.slug])
+  }, [list.slug, token])
 
   const metal = liveCatalog.metals.find((item) => item.id === metalId) || null
   const handle = liveCatalog.woods.find((item) => item.id === handleId) || null
@@ -57,6 +64,31 @@ export default function InterestBuildContent({
     liveCatalog
   )
   const canOrder = Boolean(quote && metal && handle)
+
+  useEffect(() => {
+    if (!token || !quote || !metal || !handle) return
+    const intent: InterestBuildIntent = {
+      metalId: metal.id,
+      metalName: metal.name,
+      handleId: handle.id,
+      handleName: handle.name,
+      total: quote.total,
+      deposit: quote.deposit,
+      balance: quote.balance,
+    }
+    const timer = window.setTimeout(() => {
+      fetch(`/api/interest/build/${token}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intent }),
+      })
+        .then((res) => {
+          if (res.ok) setIntentSaved(true)
+        })
+        .catch(() => {})
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [token, metal?.id, handle?.id, quote?.total])
 
   const handleAddToCart = () => {
     if (!quote || !canOrder || !metal || !handle) return
@@ -78,6 +110,7 @@ export default function InterestBuildContent({
         headWoodName: list.slug === 'muddler' ? 'Lignum Vitae' : undefined,
         handleWoodName: handle.name,
         transitionName: metal.name,
+        inviteToken: token,
       },
       shipping: { uk: 5.99, europe: 15.99, world: 25.99 },
     })
@@ -275,6 +308,9 @@ export default function InterestBuildContent({
                     'Pick your spec to pre-order'
                   )}
                 </Button>
+                {token && intentSaved && (
+                  <p className="text-xs text-green-400 text-center">Spec saved — I can see this on my side even if you don&apos;t check out yet.</p>
+                )}
                 <p className="text-xs text-zinc-500 text-center">Aimed at {PREORDER_DELIVERY}</p>
               </CardContent>
             </Card>

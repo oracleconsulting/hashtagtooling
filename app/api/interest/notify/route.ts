@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { escapeHtml, interestEmailShell } from '@/lib/interest'
-import { isPricedInterestSlug, publicInterestBuildUrl } from '@/lib/interest-pricing'
+import { generateInviteToken, interestInviteUrl } from '@/lib/interest-invite'
+import { isPricedInterestSlug } from '@/lib/interest-pricing'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -46,16 +47,20 @@ export async function POST(req: NextRequest) {
 
     let query = supabase
       .from('interest_signups')
-      .select('id, email, name')
+      .select('id, email, name, invite_token, invite_sent_at, notified')
       .eq('list_id', list.id)
     if (signupIds.length) query = query.in('id', signupIds)
-    else if (!includeNotified) query = query.eq('notified', false)
+    else if (!includeNotified) query = query.is('invite_sent_at', null)
 
     const { data: signups, error: signupsError } = await query
 
     if (signupsError) {
       console.error('Interest notify signups error:', signupsError)
-      return NextResponse.json({ error: 'Failed to load signups' }, { status: 500 })
+      return NextResponse.json({
+        error: String(signupsError.message || '').includes('invite_')
+          ? 'Run the build invite SQL first.'
+          : 'Failed to load signups',
+      }, { status: 500 })
     }
 
     if (!signups?.length) {
@@ -69,16 +74,25 @@ export async function POST(req: NextRequest) {
 
     const resend = new Resend(apiKey)
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hashtag.guru'
-    const href = isPricedInterestSlug(slug)
-      ? publicInterestBuildUrl(slug, siteUrl)
-      : (link || `${siteUrl.replace(/\/$/, '')}/interest/${slug}`)
+    const now = new Date().toISOString()
 
     for (const signup of signups) {
+      const token = signup.invite_token || generateInviteToken()
+      if (!signup.invite_token) {
+        const { error: tokenError } = await supabase
+          .from('interest_signups')
+          .update({ invite_token: token })
+          .eq('id', signup.id)
+        if (tokenError) {
+          console.error('Interest invite token error:', tokenError)
+          return NextResponse.json({ error: 'Run the build invite SQL first.' }, { status: 500 })
+        }
+      }
+
+      const href = isPricedInterestSlug(slug)
+        ? interestInviteUrl(token, siteUrl)
+        : (link || `${siteUrl.replace(/\/$/, '')}/interest/${slug}`)
       const greeting = signup.name ? `Hi ${escapeHtml(signup.name)},` : 'Hi,'
-      const paragraphs = [
-        greeting,
-        escapeHtml(message).replace(/\n/g, '<br/>'),
-      ].filter(Boolean)
 
       await resend.emails.send({
         from: process.env.RESEND_FROM ?? 'onboarding@resend.dev',
@@ -86,28 +100,27 @@ export async function POST(req: NextRequest) {
         subject,
         html: interestEmailShell({
           eyebrow: list.name,
-          paragraphs,
+          paragraphs: [greeting, escapeHtml(message).replace(/\n/g, '<br/>')],
           cardTitle: list.name,
           cardBody: isPricedInterestSlug(slug)
-            ? 'Build yours, see the price, 50% deposit to lock a November build'
+            ? 'Your private build form — pick your spec, see the price, 50% deposit'
             : undefined,
           link: {
             href: escapeHtml(href),
-            label: isPricedInterestSlug(slug) ? 'Open the build form →' : 'View the list →',
+            label: isPricedInterestSlug(slug) ? 'Open your private build form →' : 'View the list →',
           },
         }),
       }).catch((err) => console.error('Interest notify email failed:', err))
-    }
 
-    const ids = signups.map((s) => s.id)
-    const { error: updateError } = await supabase
-      .from('interest_signups')
-      .update({ notified: true, notified_at: new Date().toISOString() })
-      .in('id', ids)
-
-    if (updateError) {
-      console.error('Interest notify update error:', updateError)
-      return NextResponse.json({ error: 'Emails sent but failed to mark notified' }, { status: 500 })
+      await supabase
+        .from('interest_signups')
+        .update({
+          invite_token: token,
+          invite_sent_at: now,
+          notified: true,
+          notified_at: now,
+        })
+        .eq('id', signup.id)
     }
 
     return NextResponse.json({ count: signups.length })

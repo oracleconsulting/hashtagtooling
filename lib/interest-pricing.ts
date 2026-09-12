@@ -209,8 +209,7 @@ function siteOrigin(siteUrl: string): string {
 
 export function publicInterestBuildUrl(slug: string, siteUrl = 'https://hashtag.guru'): string {
   const origin = siteOrigin(siteUrl)
-  if (!isPricedInterestSlug(slug)) return `${origin}/interest/${slug}`
-  return `${origin}/interest/${slug}/build`
+  return `${origin}/interest/${slug}`
 }
 
 export function buildInterestCatalog(

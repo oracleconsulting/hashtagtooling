@@ -39,6 +39,19 @@ export type InterestSignup = {
   marketing_consent: boolean
   notified: boolean
   notified_at: string | null
+  invite_token?: string | null
+  invite_sent_at?: string | null
+  invite_viewed_at?: string | null
+  build_intent?: {
+    metalId: string
+    metalName: string
+    handleId: string
+    handleName: string
+    total: number
+    deposit: number
+    balance: number
+  } | null
+  build_intent_at?: string | null
   created_at: string
 }
 
