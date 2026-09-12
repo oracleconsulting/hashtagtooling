@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { escapeHtml, interestEmailShell } from '@/lib/interest'
-import { PREORDER_DELIVERY, loadInterestPricingCatalog, quoteInterestBuild } from '@/lib/interest-pricing'
+import { isPricedInterestSlug, publicInterestBuildUrl } from '@/lib/interest-pricing'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -39,11 +39,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Interest list not found' }, { status: 404 })
     }
 
-    const { data: signups, error: signupsError } = await supabase
+    const includeNotified = body.includeNotified === true
+    const signupIds = Array.isArray(body.signupIds)
+      ? body.signupIds.map((id: unknown) => String(id)).filter(Boolean)
+      : []
+
+    let query = supabase
       .from('interest_signups')
-      .select('id, email, name, answers')
+      .select('id, email, name')
       .eq('list_id', list.id)
-      .eq('notified', false)
+    if (signupIds.length) query = query.in('id', signupIds)
+    else if (!includeNotified) query = query.eq('notified', false)
+
+    const { data: signups, error: signupsError } = await query
 
     if (signupsError) {
       console.error('Interest notify signups error:', signupsError)
@@ -61,32 +69,15 @@ export async function POST(req: NextRequest) {
 
     const resend = new Resend(apiKey)
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hashtag.guru'
-    const defaultLink = link || `${siteUrl}/interest/${slug}`
-    const catalog = await loadInterestPricingCatalog(supabase, slug)
+    const href = isPricedInterestSlug(slug)
+      ? publicInterestBuildUrl(slug, siteUrl)
+      : (link || `${siteUrl.replace(/\/$/, '')}/interest/${slug}`)
 
     for (const signup of signups) {
-      const quote = quoteInterestBuild(slug, signup.answers as Record<string, string | string[]>, catalog)
       const greeting = signup.name ? `Hi ${escapeHtml(signup.name)},` : 'Hi,'
-      const specBits = [
-        slug === 'muddler' ? 'Head: Lignum Vitae (fixed)' : null,
-        quote?.metal ? `${slug === 'muddler' ? 'Transition' : 'Head metal'}: ${escapeHtml(quote.metal)}` : null,
-        quote?.handle ? `Handle: ${escapeHtml(quote.handle)}` : null,
-      ].filter(Boolean)
-      const quoteLines = quote
-        ? [
-            `Your quote: £${quote.total.toFixed(2)}`,
-            `50% deposit now: £${quote.deposit.toFixed(2)}`,
-            `Balance when it's done: £${quote.balance.toFixed(2)}`,
-            `Aimed at ${PREORDER_DELIVERY}.`,
-          ]
-        : []
-
       const paragraphs = [
         greeting,
         escapeHtml(message).replace(/\n/g, '<br/>'),
-        specBits.length ? specBits.join('<br/>') : '',
-        quoteLines.join('<br/>'),
-        "If that spec's wrong, reply to this email and we'll sort it.",
       ].filter(Boolean)
 
       await resend.emails.send({
@@ -97,8 +88,13 @@ export async function POST(req: NextRequest) {
           eyebrow: list.name,
           paragraphs,
           cardTitle: list.name,
-          cardBody: quote ? `£${quote.total.toFixed(2)} · 50% now to lock a November build` : undefined,
-          link: { href: escapeHtml(defaultLink), label: 'Pre-order →' },
+          cardBody: isPricedInterestSlug(slug)
+            ? 'Build yours, see the price, 50% deposit to lock a November build'
+            : undefined,
+          link: {
+            href: escapeHtml(href),
+            label: isPricedInterestSlug(slug) ? 'Open the build form →' : 'View the list →',
+          },
         }),
       }).catch((err) => console.error('Interest notify email failed:', err))
     }

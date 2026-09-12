@@ -54,41 +54,9 @@ const extraQuestion: InterestQuestion = {
   required: false,
 }
 
-export const BOTTLE_OPENER_QUESTIONS: InterestQuestion[] = [
-  {
-    key: 'head_metal',
-    label: 'Head metal',
-    type: 'single',
-    required: true,
-    options: [],
-  },
-  {
-    key: 'handle_material',
-    label: 'Handle material',
-    type: 'single',
-    required: true,
-    options: [],
-  },
-  extraQuestion,
-]
+export const BOTTLE_OPENER_QUESTIONS: InterestQuestion[] = [extraQuestion]
 
-export const MUDDLER_QUESTIONS: InterestQuestion[] = [
-  {
-    key: 'transition_metal',
-    label: 'Transition metal',
-    type: 'single',
-    required: true,
-    options: [],
-  },
-  {
-    key: 'handle_material',
-    label: 'Handle material',
-    type: 'single',
-    required: true,
-    options: [],
-  },
-  extraQuestion,
-]
+export const MUDDLER_QUESTIONS: InterestQuestion[] = [extraQuestion]
 
 type InterestSeed = {
   slug: string
@@ -172,6 +140,7 @@ export async function ensureDefaultInterestLists(supabase: {
 
     const keys = parseQuestions(data.questions).map((q) => q.key)
     const description = typeof data.description === 'string' ? data.description : ''
+    const waitlistOnlyNeeded = keys.includes('head_metal') || keys.includes('transition_metal')
     const muddlerNeedsCopy =
       seed.slug === 'muddler' &&
       (!keys.includes('handle_material') ||
@@ -183,6 +152,18 @@ export async function ensureDefaultInterestLists(supabase: {
         !keys.includes('handle_material') ||
         description.includes("You're not buying anything") ||
         description.includes('The head metal is yours to pick'))
+
+    if (waitlistOnlyNeeded) {
+      const { error: updateError } = await supabase
+        .from('interest_lists')
+        .update({
+          questions: seed.questions,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', data.id)
+      if (updateError) console.error('Interest seed update error:', updateError)
+      continue
+    }
 
     if (muddlerNeedsCopy || bottleNeedsCopy) {
       const { error: updateError } = await supabase
@@ -257,6 +238,12 @@ export function sanitizeAnswers(
   return { answers }
 }
 
+export const CATALOG_QUESTION_KEYS = ['head_metal', 'handle_material', 'transition_metal']
+
+export function isCatalogQuestionKey(key: string): boolean {
+  return CATALOG_QUESTION_KEYS.includes(key.trim())
+}
+
 export function validateQuestionBuilder(questions: InterestQuestion[]): string | null {
   const keys = questions.map((q) => q.key.trim())
   if (keys.some((k) => !k)) return 'Every question needs a key'
@@ -265,7 +252,11 @@ export function validateQuestionBuilder(questions: InterestQuestion[]): string |
   }
   if (new Set(keys).size !== keys.length) return 'Question keys must be unique'
   if (questions.some((q) => !q.label.trim())) return 'Every question needs a label'
-  if (questions.some((q) => (q.type === 'single' || q.type === 'multi') && !(q.options || []).some((o) => o.trim()))) {
+  if (questions.some((q) =>
+    (q.type === 'single' || q.type === 'multi') &&
+    !isCatalogQuestionKey(q.key) &&
+    !(q.options || []).some((o) => o.trim())
+  )) {
     return 'Single and multi questions need at least one option'
   }
   return null

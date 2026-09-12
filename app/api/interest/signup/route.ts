@@ -7,6 +7,7 @@ import {
   parseQuestions,
   sanitizeAnswers,
 } from '@/lib/interest'
+import { isPricedInterestSlug, waitlistQuestions } from '@/lib/interest-pricing'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'This list is not open for signups' }, { status: 409 })
     }
 
-    const questions = parseQuestions(list.questions)
+    const questions = waitlistQuestions(slug, parseQuestions(list.questions))
     const { answers, error: answersError } = sanitizeAnswers(questions, body.answers)
     if (answersError) {
       return NextResponse.json({ error: answersError }, { status: 400 })
@@ -98,8 +99,10 @@ export async function POST(req: NextRequest) {
           eyebrow: "You're on the list",
           paragraphs: [
             'Cheers — you&apos;re down.',
-            'That just puts you on the list. If you want to lock a November build, go back and put a 50% deposit down — the rest is due when it&apos;s done.',
-            'I&apos;ll email you a quote based on what you picked. If you&apos;d rather wait, do nothing. You can drop off the list any time by replying to this email.',
+            isPricedInterestSlug(slug)
+              ? 'That just puts you on the list. When the build form is ready I&apos;ll email you — you pick the spec, see the price, and pay a 50% deposit if you want one.'
+              : 'That just puts you on the list. I&apos;ll email you when there&apos;s news.',
+            'You can drop off the list any time by replying to this email.',
           ],
           cardTitle: list.name,
         }),

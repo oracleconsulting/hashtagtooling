@@ -8,6 +8,9 @@ export const INTEREST_SPECS = {
     handleLabel: 'Handle material',
     label: 'The Bottle Opener',
     defaultBase: 85,
+    productType: 'bottle_opener',
+    handlePosition: 'bottle_opener_handle',
+    metalPremiumField: 'bottle_opener_metal_premium',
   },
   muddler: {
     metalKey: 'transition_metal',
@@ -16,6 +19,9 @@ export const INTEREST_SPECS = {
     handleLabel: 'Handle material',
     label: 'The Hashtag Muddler',
     defaultBase: 165,
+    productType: 'muddler',
+    handlePosition: 'muddler_handle',
+    metalPremiumField: 'muddler_transition_premium',
   },
 } as const
 
@@ -27,12 +33,15 @@ export type InterestListPricing = {
   woodPremiums: Record<string, number>
   hiddenMetalIds: string[]
   hiddenWoodIds: string[]
+  promoted?: boolean
 }
 
 export type InterestMaterialOption = {
   id: string
   name: string
   premium: number
+  color_hex?: string | null
+  grain_image_url?: string | null
 }
 
 export type InterestPricingCatalog = {
@@ -82,7 +91,18 @@ export function parseInterestPricing(raw: unknown, slug?: string): InterestListP
     woodPremiums: recordOfNumbers(obj.woodPremiums),
     hiddenMetalIds: arrayOfStrings(obj.hiddenMetalIds),
     hiddenWoodIds: arrayOfStrings(obj.hiddenWoodIds),
+    promoted: obj.promoted === true,
   }
+}
+
+export function isInterestPricingPromoted(raw: unknown): boolean {
+  return Boolean(raw && typeof raw === 'object' && !Array.isArray(raw) && (raw as { promoted?: unknown }).promoted === true)
+}
+
+export function waitlistQuestions<T extends { key: string }>(slug: string, questions: T[]): T[] {
+  if (!isPricedInterestSlug(slug)) return questions
+  const spec = INTEREST_SPECS[slug]
+  return questions.filter((question) => question.key !== spec.metalKey && question.key !== spec.handleKey)
 }
 
 export function withInterestChoiceQuestions<T extends { key: string; label: string; type: string; required?: boolean; options?: string[] }>(
@@ -179,11 +199,25 @@ export function quoteInterestBuild(
   }
 }
 
+function siteOrigin(siteUrl: string): string {
+  try {
+    return new URL(siteUrl).origin
+  } catch {
+    return 'https://hashtag.guru'
+  }
+}
+
+export function publicInterestBuildUrl(slug: string, siteUrl = 'https://hashtag.guru'): string {
+  const origin = siteOrigin(siteUrl)
+  if (!isPricedInterestSlug(slug)) return `${origin}/interest/${slug}`
+  return `${origin}/interest/${slug}/build`
+}
+
 export function buildInterestCatalog(
   slug: InterestPricedSlug,
   pricing: InterestListPricing,
-  woods: { id: string; name: string }[],
-  metals: { id: string; name: string; mallet_head_premium?: number | string | null }[]
+  woods: { id: string; name: string; color_hex?: string | null; grain_image_url?: string | null }[],
+  metals: { id: string; name: string; color_hex?: string | null; mallet_head_premium?: number | string | null }[]
 ): InterestPricingCatalog {
   const hiddenWoods = new Set(pricing.hiddenWoodIds)
   const hiddenMetals = new Set(pricing.hiddenMetalIds)
@@ -197,6 +231,8 @@ export function buildInterestCatalog(
         id: wood.id,
         name: wood.name,
         premium: pricing.woodPremiums[wood.id] ?? 0,
+        color_hex: wood.color_hex,
+        grain_image_url: wood.grain_image_url,
       })),
     metals: metals
       .filter((metal) => !hiddenMetals.has(metal.id))
@@ -204,6 +240,7 @@ export function buildInterestCatalog(
         id: metal.id,
         name: metal.name,
         premium: pricing.metalPremiums[metal.id] ?? (Number(metal.mallet_head_premium) || 0),
+        color_hex: metal.color_hex,
       })),
   }
 }
@@ -213,41 +250,83 @@ export async function loadInterestPricingCatalog(
   slug: string
 ): Promise<InterestPricingCatalog | null> {
   if (!isPricedInterestSlug(slug)) return null
+  const spec = INTEREST_SPECS[slug]
 
   let listRes = await supabase.from('interest_lists').select('pricing').eq('slug', slug).maybeSingle()
   if (listRes.error) {
     listRes = { data: { pricing: {} }, error: null }
   }
 
+  const listPricing = parseInterestPricing(listRes.data?.pricing, slug)
+
   const [woodsRes, metalsRes] = await Promise.all([
     supabase
       .from('materials')
-      .select('id, name')
+      .select('id, name, color_hex, grain_image_url')
       .eq('category', 'wood')
       .eq('available', true)
       .order('name')
       .limit(2000),
     supabase
       .from('materials')
-      .select('id, name, mallet_head_premium')
+      .select(`id, name, color_hex, mallet_head_premium, ${spec.metalPremiumField}`)
       .eq('category', 'transition')
       .eq('available', true)
       .order('name'),
   ])
 
+  const woods = woodsRes.data || []
+  let metals = metalsRes.data as
+    | { id: string; name: string; mallet_head_premium?: number | string | null; [key: string]: unknown }[]
+    | null
+  if (metalsRes.error) {
+    const fallback = await supabase
+      .from('materials')
+      .select('id, name, color_hex, mallet_head_premium')
+      .eq('category', 'transition')
+      .eq('available', true)
+      .order('name')
+    metals = fallback.data || []
+  }
+
   if (woodsRes.error) {
     console.error('Interest catalog woods error:', woodsRes.error)
     return null
   }
-  if (metalsRes.error) {
+  if (!metals) {
     console.error('Interest catalog metals error:', metalsRes.error)
     return null
   }
 
-  return buildInterestCatalog(
-    slug,
-    parseInterestPricing(listRes.data?.pricing, slug),
-    woodsRes.data || [],
-    metalsRes.data || []
-  )
+  const pricing = { ...listPricing }
+
+  if (listPricing.promoted) {
+    const { data: baseRow } = await supabase
+      .from('base_prices')
+      .select('id, base_price')
+      .eq('product_type', spec.productType)
+      .maybeSingle()
+    if (baseRow) {
+      pricing.base = Number(baseRow.base_price) || pricing.base
+      const { data: msp } = await supabase
+        .from('material_style_pricing')
+        .select('material_id, premium')
+        .eq('base_price_id', baseRow.id)
+        .eq('position', spec.handlePosition)
+      const woodPremiums: Record<string, number> = {}
+      for (const row of msp || []) {
+        woodPremiums[row.material_id] = Number(row.premium) || 0
+      }
+      if (Object.keys(woodPremiums).length) pricing.woodPremiums = woodPremiums
+    }
+
+    const metalPremiums: Record<string, number> = {}
+    for (const metal of metals) {
+      const extra = Number(metal[spec.metalPremiumField])
+      metalPremiums[metal.id] = Number.isFinite(extra) ? extra : Number(metal.mallet_head_premium) || 0
+    }
+    if (Object.keys(metalPremiums).length) pricing.metalPremiums = metalPremiums
+  }
+
+  return buildInterestCatalog(slug, pricing, woods, metals)
 }

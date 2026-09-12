@@ -10,6 +10,7 @@ import { Loader2, Plus, ArrowUp, ArrowDown, Trash2, X, Upload } from 'lucide-rea
 import { supabase } from '@/lib/supabase'
 import { compressImage } from '@/lib/image-utils'
 import {
+  isCatalogQuestionKey,
   parseQuestions,
   type InterestList,
   type InterestListStatus,
@@ -18,16 +19,14 @@ import {
 } from '@/lib/interest'
 import {
   INTEREST_SPECS,
-  PREORDER_DELIVERY,
   applyCatalogToQuestions,
+  isInterestPricingPromoted,
   isPricedInterestSlug,
   parseInterestPricing,
-  quoteInterestBuild,
   type InterestListPricing,
   type InterestPricedSlug,
   type InterestPricingCatalog,
 } from '@/lib/interest-pricing'
-import { formatPrice } from '@/lib/utils'
 
 type ListRow = InterestList & { signup_count: number }
 
@@ -106,6 +105,8 @@ export default function AdminInterestPage() {
   const [lists, setLists] = useState<ListRow[]>([])
   const [form, setForm] = useState<FormState>(emptyForm())
   const [saving, setSaving] = useState(false)
+  const [savingPricing, setSavingPricing] = useState(false)
+  const [pricingMessage, setPricingMessage] = useState('')
   const [formError, setFormError] = useState('')
   const [panelOpen, setPanelOpen] = useState(false)
 
@@ -118,7 +119,10 @@ export default function AdminInterestPage() {
   const [notifySubject, setNotifySubject] = useState('')
   const [notifyMessage, setNotifyMessage] = useState('')
   const [notifyLink, setNotifyLink] = useState('')
+  const [includeNotified, setIncludeNotified] = useState(false)
   const [notifying, setNotifying] = useState(false)
+  const [notifyingSignupId, setNotifyingSignupId] = useState<string | null>(null)
+  const [convertingSlug, setConvertingSlug] = useState<string | null>(null)
   const [uploadingHero, setUploadingHero] = useState(false)
   const [uploadingGallery, setUploadingGallery] = useState(false)
   const [costSlug, setCostSlug] = useState<InterestPricedSlug>('bottle-opener')
@@ -171,6 +175,7 @@ export default function AdminInterestPage() {
   const openEdit = (list: ListRow) => {
     setForm(listToForm(list))
     setFormError('')
+    setPricingMessage('')
     setPanelOpen(true)
     if (isPricedInterestSlug(list.slug)) {
       setCostSlug(list.slug)
@@ -210,10 +215,45 @@ export default function AdminInterestPage() {
     return supabase.storage.from('products').getPublicUrl(path).data.publicUrl
   }
 
+  const pricingPayload = () => {
+    const metalPremiums = { ...costDraft.metalPremiums }
+    for (const metal of costMetals) {
+      if (metalPremiums[metal.id] === undefined) {
+        metalPremiums[metal.id] = Number(metal.mallet_head_premium) || 0
+      }
+    }
+    return {
+      ...costDraft,
+      metalPremiums,
+      promoted: costDraft.promoted || isInterestPricingPromoted(lists.find((l) => l.id === form.id)?.pricing),
+    }
+  }
+
   const saveList = async () => {
     setSaving(true)
     setFormError('')
     try {
+      if (form.id && isPricedInterestSlug(form.slug) && costDraft) {
+        const priceRes = await fetch('/api/interest/pricing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: form.id,
+            slug: form.slug,
+            pricing: pricingPayload(),
+          }),
+        })
+        const priceData = await priceRes.json()
+        if (!priceRes.ok) {
+          setFormError(priceData.error || 'Could not save pricing. Run the interest pricing SQL first.')
+          return
+        }
+        if (priceData.list) {
+          setLists((prev) => prev.map((list) => (list.id === priceData.list.id ? { ...list, ...priceData.list } : list)))
+        }
+        setPricingMessage('Pricing saved.')
+      }
+
       const payload = {
         id: form.id || undefined,
         slug: form.slug,
@@ -227,7 +267,9 @@ export default function AdminInterestPage() {
         expected_launch: form.expected_launch,
         status: form.status,
         show_count: form.show_count,
-        questions: form.questions,
+        questions: isPricedInterestSlug(form.slug)
+          ? form.questions.filter((q) => !isCatalogQuestionKey(q.key))
+          : form.questions,
         launched_product_id: form.launched_product_id,
       }
       const res = await fetch('/api/interest/lists', {
@@ -237,31 +279,12 @@ export default function AdminInterestPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setFormError(data.error || 'Failed to save')
+        setFormError(
+          pricingMessage === 'Pricing saved.'
+            ? `Pricing is saved. List details failed: ${data.error || 'unknown error'}`
+            : (data.error || 'Failed to save')
+        )
         return
-      }
-      if (data.list && isPricedInterestSlug(form.slug) && costDraft) {
-        const metalPremiums = { ...costDraft.metalPremiums }
-        for (const metal of costMetals) {
-          if (metalPremiums[metal.id] === undefined) {
-            metalPremiums[metal.id] = Number(metal.mallet_head_premium) || 0
-          }
-        }
-        const priceRes = await fetch('/api/interest/lists', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: data.list.id,
-            slug: form.slug,
-            pricingOnly: true,
-            pricing: { ...costDraft, metalPremiums },
-          }),
-        })
-        const priceData = await priceRes.json()
-        if (!priceRes.ok) {
-          setFormError(priceData.error || 'List saved, but cost base failed. Run the interest pricing SQL.')
-          return
-        }
       }
       setPanelOpen(false)
       setForm(emptyForm())
@@ -273,19 +296,55 @@ export default function AdminInterestPage() {
     }
   }
 
+  const savePricing = async () => {
+    if (!form.id) {
+      setPricingMessage('Save the list first, then come back and save pricing.')
+      return
+    }
+    setSavingPricing(true)
+    setPricingMessage('')
+    setFormError('')
+    try {
+      const res = await fetch('/api/interest/pricing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: form.id,
+          slug: form.slug,
+          pricing: pricingPayload(),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setPricingMessage(data.error || 'Could not save pricing. Run the interest pricing SQL first.')
+        return
+      }
+      if (data.list) {
+        setLists((prev) => prev.map((list) => (list.id === data.list.id ? { ...list, ...data.list } : list)))
+        setCostDraft(parseInterestPricing(data.list.pricing, form.slug))
+      }
+      setPricingMessage('Pricing saved.')
+    } catch {
+      setPricingMessage('Connection error — pricing was not saved.')
+    } finally {
+      setSavingPricing(false)
+    }
+  }
+
   const openSignups = async (list: ListRow) => {
     setDrawerSlug(list.slug)
     setDrawerList(list)
     setDrawerLoading(true)
     setSignups([])
     setDrawerCatalog(null)
-    setNotifySubject(`Your ${list.name} quote — 50% locks a November build`)
+    setNotifySubject(`Build your ${list.name} — 50% locks a November build`)
     setNotifyMessage(
       list.slug === 'muddler'
-        ? `You put your name down for the Hashtag Muddler.\n\nThe head is Lignum Vitae — that's fixed. The quote in this email is based on the transition and handle you picked.\n\n50% deposit now, 50% when it's done. Aimed at the end of November.\n\nIf you want it, hit the button and check out. If the spec's wrong, reply and we'll sort it.`
-        : `You put your name down.\n\nI've costed these up. The quote in this email is based on what you picked.\n\n50% deposit now, 50% when it's done. Aimed at the end of November.\n\nIf you want it, hit the button and check out. If the spec's wrong, reply and we'll sort it.`
+        ? `You put your name down for the Hashtag Muddler.\n\nThe build form is ready. Head is Lignum Vitae — that's fixed. You pick the transition and the handle, see the price, and lock a November build with a 50% deposit if you want one. Balance when it's done.\n\nHit the button to build yours.`
+        : `You put your name down.\n\nThe build form is ready. Pick your spec, see the price, and lock a November build with a 50% deposit if you want one. Balance when it's done.\n\nHit the button to build yours.`
     )
-    setNotifyLink(`https://hashtag.guru/interest/${list.slug}`)
+    setNotifyLink(`https://hashtag.guru/interest/${list.slug}/build`)
+    setIncludeNotified(false)
     try {
       const res = await fetch(`/api/interest/${list.slug}/signups`, { cache: 'no-store' })
       const data = await res.json()
@@ -302,6 +361,7 @@ export default function AdminInterestPage() {
 
   const questions = applyCatalogToQuestions(parseQuestions(drawerList?.questions), drawerCatalog)
   const unnotifiedCount = signups.filter((s) => !s.notified).length
+  const notifyAudienceCount = includeNotified ? signups.length : unnotifiedCount
 
   const summaries = useMemo(() => {
     return questions
@@ -352,39 +412,96 @@ export default function AdminInterestPage() {
     URL.revokeObjectURL(url)
   }
 
-  const notifyEveryone = async () => {
+  const sendNotify = async (opts?: { signupIds?: string[]; includeNotified?: boolean }) => {
     if (!drawerSlug) return
     if (!notifySubject.trim() || !notifyMessage.trim()) {
-      alert('Subject and message are required')
+      throw new Error('Subject and message are required')
+    }
+    const res = await fetch('/api/interest/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug: drawerSlug,
+        subject: notifySubject.trim(),
+        message: notifyMessage.trim(),
+        link: notifyLink.trim(),
+        includeNotified: opts?.includeNotified ?? includeNotified,
+        signupIds: opts?.signupIds || [],
+      }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to send')
+    return data.count as number
+  }
+
+  const notifyEveryone = async () => {
+    if (!drawerSlug) return
+    if (notifyAudienceCount === 0) {
+      alert(includeNotified ? 'No signups to email' : 'Everyone on this list has already been emailed. Tick “include already emailed” to send again.')
       return
     }
-    if (!confirm(`Send this email to ${unnotifiedCount} ${unnotifiedCount === 1 ? 'person' : 'people'} who have not been notified?`)) {
+    const who = includeNotified
+      ? `${notifyAudienceCount} ${notifyAudienceCount === 1 ? 'person' : 'people'} on this list (including anyone already emailed)`
+      : `${unnotifiedCount} ${unnotifiedCount === 1 ? 'person' : 'people'} who have not been emailed`
+    if (!confirm(`Send this email to ${who}? Each person gets a link to the build form.`)) {
       return
     }
     setNotifying(true)
     try {
-      const res = await fetch('/api/interest/notify', {
+      const count = await sendNotify()
+      alert(`Emailed ${count} ${count === 1 ? 'person' : 'people'}`)
+      const list = lists.find((l) => l.slug === drawerSlug)
+      if (list) await openSignups(list)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Connection error')
+    } finally {
+      setNotifying(false)
+    }
+  }
+
+  const notifyOne = async (signup: InterestSignup) => {
+    if (!drawerSlug) return
+    if (!notifySubject.trim() || !notifyMessage.trim()) {
+      alert('Fill in the subject and message in the email box below first')
+      return
+    }
+    if (!confirm(`Email ${signup.email} the build form?`)) return
+    setNotifyingSignupId(signup.id)
+    try {
+      await sendNotify({ signupIds: [signup.id] })
+      alert(`Emailed ${signup.email}`)
+      const list = lists.find((l) => l.slug === drawerSlug)
+      if (list) await openSignups(list)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Connection error')
+    } finally {
+      setNotifyingSignupId(null)
+    }
+  }
+
+  const convertList = async (list: ListRow) => {
+    if (!isPricedInterestSlug(list.slug)) return
+    if (!confirm(`Copy ${list.name} pricing onto Materials & Pricing?\n\nThe build form stays the storefront. After this, prices follow Materials. You can convert again later to overwrite.`)) {
+      return
+    }
+    setConvertingSlug(list.slug)
+    try {
+      const res = await fetch('/api/interest/convert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          slug: drawerSlug,
-          subject: notifySubject.trim(),
-          message: notifyMessage.trim(),
-          link: notifyLink.trim(),
-        }),
+        body: JSON.stringify({ slug: list.slug }),
       })
       const data = await res.json()
       if (!res.ok) {
-        alert(data.error || 'Failed to send')
+        alert(data.error || 'Convert failed. Run the promote pricing SQL first.')
         return
       }
-      alert(`Notified ${data.count} ${data.count === 1 ? 'person' : 'people'}`)
-      const list = lists.find((l) => l.slug === drawerSlug)
-      if (list) await openSignups(list)
+      alert('Pricing is now on Materials & Pricing.')
+      await loadLists()
     } catch {
       alert('Connection error')
     } finally {
-      setNotifying(false)
+      setConvertingSlug(null)
     }
   }
 
@@ -416,7 +533,12 @@ export default function AdminInterestPage() {
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="font-heading text-4xl font-bold text-brand-orange">Interest Lists</h1>
+        <div>
+          <h1 className="font-heading text-4xl font-bold text-brand-orange">Interest Lists</h1>
+          <p className="text-zinc-500 text-sm mt-2 max-w-2xl">
+            People join the list. You set the price here. Then email them the build form — they pick the spec, see the live price, and pay a 50% deposit. When there is enough interest, convert the list — pricing then lives on Materials.
+          </p>
+        </div>
         <div className="flex gap-2">
           <Button size="sm" onClick={openNew}>
             <Plus className="h-4 w-4 mr-1" /> New list
@@ -479,6 +601,27 @@ export default function AdminInterestPage() {
                     <td className="py-3 pr-3 text-zinc-500">{new Date(list.created_at).toLocaleDateString('en-GB')}</td>
                     <td className="py-3 text-right whitespace-nowrap">
                       <Button size="sm" variant="outline" className="mr-2" onClick={() => openEdit(list)}>Edit</Button>
+                      <Button size="sm" variant="outline" className="mr-2" onClick={() => openSignups(list)}>Email signups</Button>
+                      {isPricedInterestSlug(list.slug) && (
+                        <a href={`/interest/${list.slug}/build`} target="_blank" rel="noreferrer" className="mr-2">
+                          <Button size="sm" variant="outline">View build form</Button>
+                        </a>
+                      )}
+                      {isPricedInterestSlug(list.slug) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mr-2"
+                          disabled={convertingSlug === list.slug}
+                          onClick={() => convertList(list)}
+                        >
+                          {convertingSlug === list.slug
+                            ? 'Converting…'
+                            : isInterestPricingPromoted(list.pricing)
+                              ? 'Update Materials'
+                              : 'Convert to product'}
+                        </Button>
+                      )}
                       <Button size="sm" onClick={() => openSignups(list)}>View signups</Button>
                     </td>
                   </tr>
@@ -607,12 +750,29 @@ export default function AdminInterestPage() {
             </div>
             {isPricedInterestSlug(form.slug) && costDraft && (
               <div id="interest-pricing" className="border border-brand-orange/40 rounded-lg p-4 space-y-5">
-                <div>
-                  <h3 className="text-white font-semibold">Pricing</h3>
-                  <p className="text-zinc-500 text-sm mt-1">
-                    Base + metal extra + wood extra. Metals and woods come from Materials. This stays on the interest list until it becomes a product.
-                  </p>
+                <div className="sticky top-0 z-20 -mx-4 -mt-4 px-4 py-3 bg-brand-dark-card border-b border-brand-orange/40 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-white font-semibold">Pricing</h3>
+                    <p className="text-zinc-500 text-xs mt-0.5">
+                      These numbers stay in the browser until you save them here.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {pricingMessage && (
+                      <p className={`text-sm ${pricingMessage === 'Pricing saved.' ? 'text-green-400' : 'text-red-400'}`}>
+                        {pricingMessage}
+                      </p>
+                    )}
+                    <Button onClick={savePricing} disabled={savingPricing || !form.id}>
+                      {savingPricing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving…</> : 'Save pricing'}
+                    </Button>
+                  </div>
                 </div>
+                <p className="text-zinc-500 text-sm">
+                  {costDraft.promoted
+                    ? 'This list has been copied to Materials & Pricing. The build form now follows that page. Save here then hit Update Materials to overwrite.'
+                    : 'This is what people see on the build form. Email them that form from the list when you are ready. Convert to a product when you have enough interest — pricing then moves to Materials.'}
+                </p>
                 <div>
                   <label className="block text-sm font-medium text-zinc-300 mb-1">Base cost</label>
                   <Input
@@ -713,6 +873,16 @@ export default function AdminInterestPage() {
                         )
                       })}
                   </div>
+                  <div className="flex items-center justify-between gap-3 pt-3">
+                    {pricingMessage && (
+                      <p className={`text-sm ${pricingMessage === 'Pricing saved.' ? 'text-green-400' : 'text-red-400'}`}>
+                        {pricingMessage}
+                      </p>
+                    )}
+                    <Button className="ml-auto" onClick={savePricing} disabled={savingPricing || !form.id}>
+                      {savingPricing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving…</> : 'Save pricing'}
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
@@ -790,11 +960,16 @@ export default function AdminInterestPage() {
                   Add question
                 </Button>
               </div>
-              {form.questions.length === 0 && (
-                <p className="text-zinc-500 text-sm">No questions — email-only signup.</p>
+              {form.questions.filter((q) => !isPricedInterestSlug(form.slug) || !isCatalogQuestionKey(q.key)).length === 0 && (
+                <p className="text-zinc-500 text-sm">
+                  {isPricedInterestSlug(form.slug)
+                    ? 'Metal and handle choices live on the build form. Waitlist is email-only unless you add a note question.'
+                    : 'No questions — email-only signup.'}
+                </p>
               )}
               <div className="space-y-4">
                 {form.questions.map((q, i) => (
+                  isPricedInterestSlug(form.slug) && isCatalogQuestionKey(q.key) ? null : (
                   <div key={i} className="bg-brand-dark border border-brand-dark-border rounded-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <p className="text-zinc-400 text-xs uppercase tracking-wider">Question {i + 1}</p>
@@ -898,14 +1073,22 @@ export default function AdminInterestPage() {
                       </div>
                     )}
                   </div>
+                  )
                 ))}
               </div>
             </div>
 
             {formError && <p className="text-red-400 text-sm">{formError}</p>}
-            <Button onClick={saveList} disabled={saving}>
-              {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save list'}
-            </Button>
+            <div className="sticky bottom-0 z-20 -mx-6 px-6 py-4 bg-brand-dark-card border-t border-brand-dark-border flex flex-wrap items-center gap-3">
+              {isPricedInterestSlug(form.slug) && (
+                <Button variant="outline" onClick={savePricing} disabled={savingPricing || !form.id}>
+                  {savingPricing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving…</> : 'Save pricing'}
+                </Button>
+              )}
+              <Button onClick={saveList} disabled={saving}>
+                {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save list'}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -1001,22 +1184,23 @@ export default function AdminInterestPage() {
                                 </div>
                               )}
                             </dl>
-                            {drawerList && isPricedInterestSlug(drawerList.slug) && (() => {
-                              const q = quoteInterestBuild(drawerList.slug, s.answers, drawerCatalog)
-                              if (!q) return null
-                              return (
-                                <p className="text-brand-orange text-sm mt-3">
-                                  Quote {formatPrice(q.total)} · deposit {formatPrice(q.deposit)} · {PREORDER_DELIVERY}
-                                </p>
-                              )
-                            })()}
-                            <p className="text-zinc-600 text-xs mt-3">
-                              {s.source}
-                              {' · '}
-                              marketing {s.marketing_consent ? 'yes' : 'no'}
-                              {' · '}
-                              {s.notified ? 'notified' : 'not notified'}
-                            </p>
+                            <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
+                              <p className="text-zinc-600 text-xs">
+                                {s.source}
+                                {' · '}
+                                marketing {s.marketing_consent ? 'yes' : 'no'}
+                                {' · '}
+                                {s.notified ? 'emailed' : 'not emailed'}
+                              </p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={notifying || notifyingSignupId === s.id}
+                                onClick={() => notifyOne(s)}
+                              >
+                                {notifyingSignupId === s.id ? 'Sending…' : 'Email build form'}
+                              </Button>
+                            </div>
                           </CardContent>
                         </Card>
                       ))}
@@ -1025,10 +1209,12 @@ export default function AdminInterestPage() {
                 </div>
 
                 <Card className="bg-brand-dark-card border border-brand-dark-border mb-4">
-                  <CardHeader><CardTitle className="text-white text-base">Send quote emails</CardTitle></CardHeader>
+                  <CardHeader><CardTitle className="text-white text-base">Email signups</CardTitle></CardHeader>
                   <CardContent className="space-y-3">
                     <p className="text-zinc-500 text-sm">
-                      {unnotifiedCount} not yet notified. Each email gets their spec and quote attached automatically.
+                      {unnotifiedCount} not yet emailed
+                      {signups.length > 0 ? ` · ${signups.length} total` : ''}.
+                      Each email gets the same link to the build form — they spec it themselves and see the price before they pay a deposit.
                     </p>
                     <Input
                       className="bg-brand-dark border-brand-dark-border text-white placeholder:text-zinc-500"
@@ -1043,14 +1229,24 @@ export default function AdminInterestPage() {
                       placeholder="Message"
                       className="w-full rounded-md border border-brand-dark-border bg-brand-dark text-white px-3 py-2 text-sm placeholder:text-zinc-500"
                     />
-                    <Input
-                      className="bg-brand-dark border-brand-dark-border text-white placeholder:text-zinc-500"
-                      value={notifyLink}
-                      onChange={(e) => setNotifyLink(e.target.value)}
-                      placeholder="Optional link"
-                    />
-                    <Button onClick={notifyEveryone} disabled={notifying || unnotifiedCount === 0}>
-                      {notifying ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</> : 'Send quotes'}
+                    {!drawerList || !isPricedInterestSlug(drawerList.slug) ? (
+                      <Input
+                        className="bg-brand-dark border-brand-dark-border text-white placeholder:text-zinc-500"
+                        value={notifyLink}
+                        onChange={(e) => setNotifyLink(e.target.value)}
+                        placeholder="Optional link"
+                      />
+                    ) : null}
+                    <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={includeNotified}
+                        onChange={(e) => setIncludeNotified(e.target.checked)}
+                      />
+                      Include people already emailed
+                    </label>
+                    <Button onClick={notifyEveryone} disabled={notifying || notifyAudienceCount === 0}>
+                      {notifying ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</> : `Email ${notifyAudienceCount || ''} ${notifyAudienceCount === 1 ? 'person' : 'people'}`}
                     </Button>
                   </CardContent>
                 </Card>

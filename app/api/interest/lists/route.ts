@@ -186,11 +186,6 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Missing list id' }, { status: 400 })
     }
 
-    const normalized = normalizeListPayload(body)
-    if (!normalized.payload) {
-      return NextResponse.json({ error: normalized.error }, { status: 400 })
-    }
-
     const supabase = getSupabase()
 
     if (body.pricingOnly === true) {
@@ -206,10 +201,19 @@ export async function PATCH(req: NextRequest) {
 
       if (error) {
         console.error('Interest pricing update error:', error)
-        return NextResponse.json({ error: 'Failed to save cost base. Run the interest pricing SQL first.' }, { status: 500 })
+        return NextResponse.json({
+          error: error.message?.includes('pricing')
+            ? 'Failed to save cost base. Run the interest pricing SQL first.'
+            : error.message || 'Failed to save pricing',
+        }, { status: 500 })
       }
       if (!data) return NextResponse.json({ error: 'Interest list not found' }, { status: 404 })
       return NextResponse.json({ list: data })
+    }
+
+    const normalized = normalizeListPayload(body)
+    if (!normalized.payload) {
+      return NextResponse.json({ error: normalized.error }, { status: 400 })
     }
 
     const { data, error } = await supabase
