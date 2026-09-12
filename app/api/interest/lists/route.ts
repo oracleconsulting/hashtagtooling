@@ -1,3 +1,4 @@
+import { unstable_noStore as noStore } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import {
@@ -12,6 +13,7 @@ import {
 import { parseInterestPricing } from '@/lib/interest-pricing'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 export const revalidate = 0
 
 function getSupabase() {
@@ -103,6 +105,7 @@ function normalizeListPayload(body: Record<string, unknown>): {
 }
 
 export async function GET() {
+  noStore()
   try {
     const supabase = getSupabase()
     await ensureDefaultInterestLists(supabase)

@@ -1,8 +1,11 @@
+import { unstable_noStore as noStore } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import type { InterestSignup } from '@/lib/interest'
 import { loadInterestPricingCatalog } from '@/lib/interest-pricing'
 
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 export const revalidate = 0
 
 function getSupabase() {
@@ -12,10 +15,15 @@ function getSupabase() {
   return createClient(url, key)
 }
 
+function asSignups(rows: unknown): InterestSignup[] {
+  return (Array.isArray(rows) ? rows : []) as InterestSignup[]
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
+  noStore()
   try {
     const { slug } = await params
     if (!slug) {
@@ -49,11 +57,14 @@ export async function GET(
     const baseFields =
       'id, list_id, email, name, answers, notes, source, marketing_consent, notified, notified_at, created_at'
 
-    let { data: signups, error: signupsError } = await supabase
+    const invited = await supabase
       .from('interest_signups')
       .select(inviteFields)
       .in('list_id', listIds)
       .order('created_at', { ascending: false })
+
+    let signups = asSignups(invited.data)
+    let signupsError = invited.error
 
     if (signupsError) {
       const fallback = await supabase
@@ -61,7 +72,7 @@ export async function GET(
         .select(baseFields)
         .in('list_id', listIds)
         .order('created_at', { ascending: false })
-      signups = fallback.data
+      signups = asSignups(fallback.data)
       signupsError = fallback.error
     }
 
@@ -79,7 +90,7 @@ export async function GET(
 
     return NextResponse.json({
       list,
-      signups: signups || [],
+      signups,
       catalog,
     }, {
       headers: {
