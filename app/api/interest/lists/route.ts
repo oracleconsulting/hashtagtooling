@@ -9,6 +9,7 @@ import {
   type InterestListStatus,
   type InterestQuestion,
 } from '@/lib/interest'
+import { parseInterestPricing } from '@/lib/interest-pricing'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -102,10 +103,19 @@ export async function GET() {
   try {
     const supabase = getSupabase()
     await ensureDefaultInterestLists(supabase)
-    const { data: lists, error: listsError } = await supabase
+    let { data: lists, error: listsError } = await supabase
       .from('interest_lists')
       .select(INTEREST_PUBLIC_FIELDS)
       .order('created_at', { ascending: false })
+
+    if (listsError && String(listsError.message || '').includes('pricing')) {
+      const fallback = await supabase
+        .from('interest_lists')
+        .select('id, slug, name, tagline, description, hero_image_url, gallery_images, price_from, price_to, expected_launch, status, show_count, questions, launched_product_id, created_at, updated_at')
+        .order('created_at', { ascending: false })
+      lists = (fallback.data || []).map((list) => ({ ...list, pricing: {} }))
+      listsError = fallback.error
+    }
 
     if (listsError) {
       console.error('Interest lists fetch error:', listsError)
@@ -182,6 +192,26 @@ export async function PATCH(req: NextRequest) {
     }
 
     const supabase = getSupabase()
+
+    if (body.pricingOnly === true) {
+      const { data, error } = await supabase
+        .from('interest_lists')
+        .update({
+          pricing: parseInterestPricing(body.pricing, typeof body.slug === 'string' ? body.slug : undefined),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select(INTEREST_PUBLIC_FIELDS)
+        .single()
+
+      if (error) {
+        console.error('Interest pricing update error:', error)
+        return NextResponse.json({ error: 'Failed to save cost base. Run the interest pricing SQL first.' }, { status: 500 })
+      }
+      if (!data) return NextResponse.json({ error: 'Interest list not found' }, { status: 404 })
+      return NextResponse.json({ list: data })
+    }
+
     const { data, error } = await supabase
       .from('interest_lists')
       .update({ ...normalized.payload, updated_at: new Date().toISOString() })

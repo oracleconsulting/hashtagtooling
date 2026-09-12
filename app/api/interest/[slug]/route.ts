@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { INTEREST_PUBLIC_FIELDS, ensureDefaultInterestLists } from '@/lib/interest'
+import { loadInterestPricingCatalog } from '@/lib/interest-pricing'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -21,11 +22,21 @@ export async function GET(
 
     const supabase = getSupabase()
     await ensureDefaultInterestLists(supabase)
-    const { data: list, error: listError } = await supabase
+    let { data: list, error: listError } = await supabase
       .from('interest_lists')
       .select(INTEREST_PUBLIC_FIELDS)
       .eq('slug', slug)
       .maybeSingle()
+
+    if (listError && String(listError.message || '').includes('pricing')) {
+      const fallback = await supabase
+        .from('interest_lists')
+        .select('id, slug, name, tagline, description, hero_image_url, gallery_images, price_from, price_to, expected_launch, status, show_count, questions, launched_product_id, created_at, updated_at')
+        .eq('slug', slug)
+        .maybeSingle()
+      list = fallback.data ? { ...fallback.data, pricing: {} } : fallback.data
+      listError = fallback.error
+    }
 
     if (listError) {
       console.error('Interest list fetch error:', listError)
@@ -44,9 +55,12 @@ export async function GET(
       console.error('Interest list count error:', countError)
     }
 
+    const catalog = await loadInterestPricingCatalog(supabase, slug)
+
     return NextResponse.json({
       ...list,
       count: typeof count === 'number' ? count : Number(count) || 0,
+      catalog,
     })
   } catch (err) {
     console.error('Interest list GET error:', err)

@@ -23,6 +23,7 @@ export type InterestList = {
   show_count: boolean
   questions: InterestQuestion[] | null
   launched_product_id: string | null
+  pricing?: unknown
   created_at: string
   updated_at: string
 }
@@ -44,9 +45,7 @@ export type InterestSignup = {
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export const INTEREST_PUBLIC_FIELDS =
-  'id, slug, name, tagline, description, hero_image_url, gallery_images, price_from, price_to, expected_launch, status, show_count, questions, launched_product_id, created_at, updated_at'
-
-const METAL_OPTIONS = ['Brass', 'Copper', 'Bronze', 'Steel', 'Aluminium', 'Titanium', 'Mokume gane']
+  'id, slug, name, tagline, description, hero_image_url, gallery_images, price_from, price_to, expected_launch, status, show_count, questions, launched_product_id, pricing, created_at, updated_at'
 
 const extraQuestion: InterestQuestion = {
   key: 'extra',
@@ -61,7 +60,14 @@ export const BOTTLE_OPENER_QUESTIONS: InterestQuestion[] = [
     label: 'Head metal',
     type: 'single',
     required: true,
-    options: METAL_OPTIONS,
+    options: [],
+  },
+  {
+    key: 'handle_material',
+    label: 'Handle material',
+    type: 'single',
+    required: true,
+    options: [],
   },
   extraQuestion,
 ]
@@ -72,7 +78,14 @@ export const MUDDLER_QUESTIONS: InterestQuestion[] = [
     label: 'Transition metal',
     type: 'single',
     required: true,
-    options: METAL_OPTIONS,
+    options: [],
+  },
+  {
+    key: 'handle_material',
+    label: 'Handle material',
+    type: 'single',
+    required: true,
+    options: [],
   },
   extraQuestion,
 ]
@@ -98,12 +111,12 @@ export const BOTTLE_OPENER_SEED: InterestSeed = {
   name: 'The Bottle Opener',
   tagline: "Not in production. Might be. That bit's on you.",
   description:
-    "Brass head, stabilised burl handle. Brass dowel through the middle, same as everything else on here.\n\nI made one to find out whether the idea held up. It does. Heavy in the hand, and it opens a bottle without any drama.\n\nWhat I'm not doing is tooling up a batch on a hunch — there's brass stock to buy and a milling setup to sort for that hook, and that's a fair bit of work before a single one gets sold.\n\nSo... this is the list. Email below, tell me what you'd actually want one made from, and if enough of you put your hand up I'll build them.\n\nNo payment, no commitment. You're not buying anything. You're just telling me it's worth doing.",
+    "Pick the head metal and the handle wood. Construction is the same as everything else on here — a dowel through the middle, no shortcuts.\n\nI made one to find out whether the idea held up. It does. Heavy in the hand, and it opens a bottle without any drama.\n\nWhat I'm not doing is tooling up a batch on a hunch — there's stock to buy and a milling setup to sort for that hook, and that's a fair bit of work before a single one gets sold.\n\nIf enough of you put your hand up — and a few of you put a deposit down — I'll build them for the end of November.\n\n50% now, 50% when it's done. Or just join the list if you're not ready to commit.",
   hero_image_url: null,
   gallery_images: [],
   price_from: null,
   price_to: null,
-  expected_launch: 'If it happens — winter 2026',
+  expected_launch: 'Pre-orders aimed at the end of November 2026',
   status: 'open',
   show_count: false,
   questions: BOTTLE_OPENER_QUESTIONS,
@@ -115,12 +128,12 @@ export const MUDDLER_SEED: InterestSeed = {
   name: 'The Hashtag Muddler',
   tagline: "Not in production. Might be. That bit's on you.",
   description:
-    "African Blackwood handle, brass transition. One-piece transition, dual-ended dowel — same construction as everything else on here.\n\nI made one to find out whether a muddler belonged in the lineup. It does. Heavy enough to smash sugar and bitters for an Old Fashioned, crush mint for a Mojito, then wipe it off and put it back.\n\nWhat I'm not doing is tooling up a batch on a hunch.\n\nSo... this is the list. Email below, tell me what you'd actually want one made from, and if enough of you put your hand up I'll build them.\n\nNo payment, no commitment. You're not buying anything. You're just telling me it's worth doing.",
+    "The head is always Lignum Vitae. That's not a choice — it's the bit that does the work, and nothing else belongs there.\n\nWhat I need from you is the rest: transition metal, and the handle material. The prototype was African Blackwood with a brass transition, one-piece transition and a dual-ended dowel — same construction as everything else on here.\n\nI made one to find out whether a muddler belonged in the lineup. It does. Heavy enough to smash sugar and bitters for an Old Fashioned, crush mint for a Mojito, then wipe it off and put it back.\n\nWhat I'm not doing is tooling up a batch on a hunch. If enough of you put your hand up — and a few of you put a deposit down — I'll build them for the end of November.\n\n50% now, 50% when it's done. Or just join the list if you're not ready to commit.",
   hero_image_url: null,
   gallery_images: [],
   price_from: null,
   price_to: null,
-  expected_launch: 'If it happens — winter 2026',
+  expected_launch: 'Pre-orders aimed at the end of November 2026',
   status: 'open',
   show_count: false,
   questions: MUDDLER_QUESTIONS,
@@ -140,7 +153,7 @@ export async function ensureDefaultInterestLists(supabase: {
   for (const seed of DEFAULT_INTEREST_LISTS) {
     const { data, error } = await supabase
       .from('interest_lists')
-      .select('id, questions')
+      .select('id, questions, description')
       .eq('slug', seed.slug)
       .maybeSingle()
 
@@ -157,11 +170,28 @@ export async function ensureDefaultInterestLists(supabase: {
       continue
     }
 
-    if (seed.slug === 'bottle-opener' && questionsNeedRefresh(data.questions)) {
+    const keys = parseQuestions(data.questions).map((q) => q.key)
+    const description = typeof data.description === 'string' ? data.description : ''
+    const muddlerNeedsCopy =
+      seed.slug === 'muddler' &&
+      (!keys.includes('handle_material') ||
+        description.includes('African Blackwood handle, brass transition') ||
+        !description.includes('The head is always Lignum Vitae'))
+    const bottleNeedsCopy =
+      seed.slug === 'bottle-opener' &&
+      (questionsNeedRefresh(data.questions) ||
+        !keys.includes('handle_material') ||
+        description.includes("You're not buying anything") ||
+        description.includes('The head metal is yours to pick'))
+
+    if (muddlerNeedsCopy || bottleNeedsCopy) {
       const { error: updateError } = await supabase
         .from('interest_lists')
         .update({
           questions: seed.questions,
+          description: seed.description,
+          tagline: seed.tagline,
+          expected_launch: seed.expected_launch,
           price_from: null,
           price_to: null,
           updated_at: new Date().toISOString(),

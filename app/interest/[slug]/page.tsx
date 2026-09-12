@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
 import { BreadcrumbJsonLd } from '@/components/BreadcrumbJsonLd'
 import { INTEREST_PUBLIC_FIELDS, ensureDefaultInterestLists, type InterestList } from '@/lib/interest'
+import { loadInterestPricingCatalog } from '@/lib/interest-pricing'
 import InterestContent from './InterestContent'
 
 export const revalidate = 60
@@ -74,7 +75,10 @@ export default async function InterestPage({ params }: Props) {
 
   if (!list || (list as InterestList).status === 'draft') return notFound()
 
-  const { data: count } = await supabase.rpc('interest_list_count', { list_slug: slug })
+  const [{ data: count }, catalog] = await Promise.all([
+    supabase.rpc('interest_list_count', { list_slug: slug }),
+    loadInterestPricingCatalog(supabase, slug),
+  ])
 
   return (
     <>
@@ -88,6 +92,7 @@ export default async function InterestPage({ params }: Props) {
       <InterestContent
         list={list as InterestList}
         count={typeof count === 'number' ? count : Number(count) || 0}
+        catalog={catalog}
       />
     </>
   )

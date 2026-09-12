@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { loadInterestPricingCatalog } from '@/lib/interest-pricing'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -45,9 +46,12 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to load signups' }, { status: 500 })
     }
 
+    const catalog = await loadInterestPricingCatalog(supabase, slug)
+
     return NextResponse.json({
       list,
       signups: signups || [],
+      catalog,
     })
   } catch (err) {
     console.error('Interest signups GET error:', err)

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { escapeHtml, interestEmailShell } from '@/lib/interest'
+import { PREORDER_DELIVERY, loadInterestPricingCatalog, quoteInterestBuild } from '@/lib/interest-pricing'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
     const supabase = getSupabase()
     const { data: list, error: listError } = await supabase
       .from('interest_lists')
-      .select('id, name')
+      .select('id, name, slug')
       .eq('slug', slug)
       .maybeSingle()
 
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     const { data: signups, error: signupsError } = await supabase
       .from('interest_signups')
-      .select('id, email, name')
+      .select('id, email, name, answers')
       .eq('list_id', list.id)
       .eq('notified', false)
 
@@ -59,21 +60,45 @@ export async function POST(req: NextRequest) {
     }
 
     const resend = new Resend(apiKey)
-    const safeMessage = escapeHtml(message).replace(/\n/g, '<br/>')
-    const safeLink = link ? escapeHtml(link) : ''
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hashtag.guru'
+    const defaultLink = link || `${siteUrl}/interest/${slug}`
+    const catalog = await loadInterestPricingCatalog(supabase, slug)
 
     for (const signup of signups) {
+      const quote = quoteInterestBuild(slug, signup.answers as Record<string, string | string[]>, catalog)
+      const greeting = signup.name ? `Hi ${escapeHtml(signup.name)},` : 'Hi,'
+      const specBits = [
+        slug === 'muddler' ? 'Head: Lignum Vitae (fixed)' : null,
+        quote?.metal ? `${slug === 'muddler' ? 'Transition' : 'Head metal'}: ${escapeHtml(quote.metal)}` : null,
+        quote?.handle ? `Handle: ${escapeHtml(quote.handle)}` : null,
+      ].filter(Boolean)
+      const quoteLines = quote
+        ? [
+            `Your quote: £${quote.total.toFixed(2)}`,
+            `50% deposit now: £${quote.deposit.toFixed(2)}`,
+            `Balance when it's done: £${quote.balance.toFixed(2)}`,
+            `Aimed at ${PREORDER_DELIVERY}.`,
+          ]
+        : []
+
+      const paragraphs = [
+        greeting,
+        escapeHtml(message).replace(/\n/g, '<br/>'),
+        specBits.length ? specBits.join('<br/>') : '',
+        quoteLines.join('<br/>'),
+        "If that spec's wrong, reply to this email and we'll sort it.",
+      ].filter(Boolean)
+
       await resend.emails.send({
         from: process.env.RESEND_FROM ?? 'onboarding@resend.dev',
         to: [signup.email],
         subject,
         html: interestEmailShell({
           eyebrow: list.name,
-          paragraphs: [safeMessage],
+          paragraphs,
           cardTitle: list.name,
-          link: safeLink
-            ? { href: safeLink, label: 'Take a look →' }
-            : undefined,
+          cardBody: quote ? `£${quote.total.toFixed(2)} · 50% now to lock a November build` : undefined,
+          link: { href: escapeHtml(defaultLink), label: 'Pre-order →' },
         }),
       }).catch((err) => console.error('Interest notify email failed:', err))
     }

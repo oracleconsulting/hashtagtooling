@@ -325,7 +325,7 @@ function ShopContentInner() {
               <div className="h-full min-h-[320px] border-2 border-dashed border-brand-orange/40 rounded-lg p-6 flex flex-col items-center justify-center text-center hover:border-brand-orange/70 transition-colors bg-brand-dark-card">
                 <p className="text-brand-orange text-xs font-medium uppercase tracking-widest mb-3">Coming Maybe</p>
                 <h3 className="font-heading text-2xl font-bold text-white mb-4">{tile.name}</h3>
-                <p className="text-zinc-400">Register interest →</p>
+                <p className="text-zinc-400">Register interest or pre-order →</p>
               </div>
             </Link>
           ))}

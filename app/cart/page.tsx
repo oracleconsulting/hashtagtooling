@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase'
 import { SquareProfileSVG } from '@/components/SquareProfileSVG'
 import type { SquareSize, ScaleType, ScaleVariant } from '@/lib/square-geometry'
 import { computeSquareShipWindow, cartContainsCustomSquare } from '@/lib/lead-time'
+import { PREORDER_DELIVERY, isInterestPreorderItem } from '@/lib/interest-pricing'
 import { trackEvent, linkSessionToEmail } from '@/lib/tracking'
 
 function CartContent() {
@@ -325,6 +326,24 @@ function CartContent() {
                       <p className="text-xs text-zinc-500 mt-1">
                         Ships {computeSquareShipWindow().formattedShort}
                       </p>
+                    )}
+                    {isInterestPreorderItem(item) && item.customConfig && (
+                      <div className="mt-1 space-y-0.5">
+                        {item.category === 'muddler' && item.customConfig.headWoodName && (
+                          <p className="text-xs text-zinc-400">Head: {item.customConfig.headWoodName}</p>
+                        )}
+                        {item.customConfig.handleWoodName && (
+                          <p className="text-xs text-zinc-400">Handle: {item.customConfig.handleWoodName}</p>
+                        )}
+                        {item.customConfig.transitionName && (
+                          <p className="text-xs text-zinc-400">
+                            {item.category === 'muddler' ? 'Transition' : 'Head metal'}: {item.customConfig.transitionName}
+                          </p>
+                        )}
+                        <p className="text-xs text-zinc-500">
+                          Aimed at {PREORDER_DELIVERY} · 50% now, 50% on completion
+                        </p>
+                      </div>
                     )}
 
                     <div className="flex items-center gap-1 mt-3">

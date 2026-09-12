@@ -98,8 +98,8 @@ export async function POST(req: NextRequest) {
           eyebrow: "You're on the list",
           paragraphs: [
             'Cheers — you&apos;re down.',
-            'I&apos;ll email you when there&apos;s something worth emailing about. If it turns out I&apos;m not making these, I&apos;ll tell you that too rather than leaving you hanging.',
-            'No payment taken, nothing owed. You can drop off the list any time by replying to this email.',
+            'That just puts you on the list. If you want to lock a November build, go back and put a 50% deposit down — the rest is due when it&apos;s done.',
+            'I&apos;ll email you a quote based on what you picked. If you&apos;d rather wait, do nothing. You can drop off the list any time by replying to this email.',
           ],
           cardTitle: list.name,
         }),

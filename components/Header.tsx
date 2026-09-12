@@ -24,8 +24,8 @@ const SHOP_LINKS = [
   { href: '/adopt', label: 'Adopt a Blank', desc: 'Pick a blank, follow its journey' },
   { href: '/mystery-box', label: 'Mystery Box', desc: 'A surprise tool, mystery woods' },
   { href: '/gift-vouchers', label: 'Gift Vouchers', desc: '£25–£150, instant delivery' },
-  { href: '/interest/bottle-opener', label: 'Bottle Opener', desc: 'Register interest — coming maybe' },
-  { href: '/interest/muddler', label: 'Hashtag Muddler', desc: 'Register interest — coming maybe' },
+  { href: '/interest/bottle-opener', label: 'Bottle Opener', desc: 'Interest list or 50% pre-order' },
+  { href: '/interest/muddler', label: 'Hashtag Muddler', desc: 'Interest list or 50% pre-order' },
 ]
 
 const EXPLORE_LINKS = [

@@ -16,6 +16,18 @@ import {
   type InterestQuestion,
   type InterestSignup,
 } from '@/lib/interest'
+import {
+  INTEREST_SPECS,
+  PREORDER_DELIVERY,
+  applyCatalogToQuestions,
+  isPricedInterestSlug,
+  parseInterestPricing,
+  quoteInterestBuild,
+  type InterestListPricing,
+  type InterestPricedSlug,
+  type InterestPricingCatalog,
+} from '@/lib/interest-pricing'
+import { formatPrice } from '@/lib/utils'
 
 type ListRow = InterestList & { signup_count: number }
 
@@ -100,6 +112,7 @@ export default function AdminInterestPage() {
   const [drawerSlug, setDrawerSlug] = useState<string | null>(null)
   const [drawerList, setDrawerList] = useState<InterestList | null>(null)
   const [signups, setSignups] = useState<InterestSignup[]>([])
+  const [drawerCatalog, setDrawerCatalog] = useState<InterestPricingCatalog | null>(null)
   const [drawerLoading, setDrawerLoading] = useState(false)
 
   const [notifySubject, setNotifySubject] = useState('')
@@ -108,23 +121,87 @@ export default function AdminInterestPage() {
   const [notifying, setNotifying] = useState(false)
   const [uploadingHero, setUploadingHero] = useState(false)
   const [uploadingGallery, setUploadingGallery] = useState(false)
+  const [costSlug, setCostSlug] = useState<InterestPricedSlug>('bottle-opener')
+  const [costDraft, setCostDraft] = useState<InterestListPricing>(() => parseInterestPricing({}, 'bottle-opener'))
+  const [costSearch, setCostSearch] = useState('')
+  const [savingCost, setSavingCost] = useState(false)
+  const [costWoods, setCostWoods] = useState<{ id: string; name: string }[]>([])
+  const [costMetals, setCostMetals] = useState<{ id: string; name: string; mallet_head_premium?: number }[]>([])
 
   useEffect(() => {
     const isAuthenticated = sessionStorage.getItem('admin_auth')
     if (!isAuthenticated) { router.push('/admin'); return }
     loadLists()
+    loadCostMaterials()
   }, [router])
+
+  const loadCostMaterials = async () => {
+    const [woodsRes, metalsRes] = await Promise.all([
+      supabase.from('materials').select('id, name').eq('category', 'wood').eq('available', true).order('name').limit(2000),
+      supabase.from('materials').select('id, name, mallet_head_premium').eq('category', 'transition').eq('available', true).order('name'),
+    ])
+    if (!woodsRes.error) setCostWoods(woodsRes.data || [])
+    if (!metalsRes.error) setCostMetals((metalsRes.data || []) as { id: string; name: string; mallet_head_premium?: number }[])
+  }
 
   const loadLists = async () => {
     try {
       const res = await fetch('/api/interest/lists', { cache: 'no-store' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to load')
-      setLists(data.lists || [])
+      const nextLists = (data.lists || []) as ListRow[]
+      setLists(nextLists)
+      const current = nextLists.find((list) => list.slug === costSlug) || nextLists.find((list) => isPricedInterestSlug(list.slug))
+      if (current && isPricedInterestSlug(current.slug)) {
+        setCostSlug(current.slug)
+        setCostDraft(parseInterestPricing(current.pricing, current.slug))
+      }
     } catch (err) {
       console.error('Error loading interest lists:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const selectCostList = (slug: InterestPricedSlug) => {
+    const list = lists.find((row) => row.slug === slug)
+    setCostSlug(slug)
+    setCostSearch('')
+    setCostDraft(parseInterestPricing(list?.pricing, slug))
+  }
+
+  const saveCost = async () => {
+    const list = lists.find((row) => row.slug === costSlug)
+    if (!list || !costDraft) return
+    setSavingCost(true)
+    try {
+      const metalPremiums = { ...costDraft.metalPremiums }
+      for (const metal of costMetals) {
+        if (metalPremiums[metal.id] === undefined) {
+          metalPremiums[metal.id] = Number(metal.mallet_head_premium) || 0
+        }
+      }
+      const res = await fetch('/api/interest/lists', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: list.id,
+          slug: list.slug,
+          pricingOnly: true,
+          pricing: { ...costDraft, metalPremiums },
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to save cost')
+      if (data.list) {
+        setLists((prev) => prev.map((row) => (row.id === data.list.id ? { ...row, ...data.list } : row)))
+        setCostDraft(parseInterestPricing(data.list.pricing, list.slug))
+      }
+    } catch (err) {
+      console.error(err)
+      alert(err instanceof Error ? err.message : 'Failed to save cost')
+    } finally {
+      setSavingCost(false)
     }
   }
 
@@ -215,14 +292,20 @@ export default function AdminInterestPage() {
     setDrawerList(list)
     setDrawerLoading(true)
     setSignups([])
-    setNotifySubject('')
-    setNotifyMessage('')
-    setNotifyLink('')
+    setDrawerCatalog(null)
+    setNotifySubject(`Your ${list.name} quote — 50% locks a November build`)
+    setNotifyMessage(
+      list.slug === 'muddler'
+        ? `You put your name down for the Hashtag Muddler.\n\nThe head is Lignum Vitae — that's fixed. The quote in this email is based on the transition and handle you picked.\n\n50% deposit now, 50% when it's done. Aimed at the end of November.\n\nIf you want it, hit the button and check out. If the spec's wrong, reply and we'll sort it.`
+        : `You put your name down.\n\nI've costed these up. The quote in this email is based on what you picked.\n\n50% deposit now, 50% when it's done. Aimed at the end of November.\n\nIf you want it, hit the button and check out. If the spec's wrong, reply and we'll sort it.`
+    )
+    setNotifyLink(`https://hashtag.guru/interest/${list.slug}`)
     try {
       const res = await fetch(`/api/interest/${list.slug}/signups`, { cache: 'no-store' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to load signups')
       setSignups(data.signups || [])
+      setDrawerCatalog(data.catalog || null)
       if (data.list) setDrawerList({ ...list, ...data.list })
     } catch (err) {
       console.error('Error loading signups:', err)
@@ -231,7 +314,7 @@ export default function AdminInterestPage() {
     }
   }
 
-  const questions = parseQuestions(drawerList?.questions)
+  const questions = applyCatalogToQuestions(parseQuestions(drawerList?.questions), drawerCatalog)
   const unnotifiedCount = signups.filter((s) => !s.notified).length
 
   const summaries = useMemo(() => {
@@ -382,6 +465,130 @@ export default function AdminInterestPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="bg-brand-dark-card border border-brand-dark-border mb-10">
+        <CardHeader>
+          <CardTitle className="text-white">Cost base · 50% deposit · {PREORDER_DELIVERY}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <p className="text-zinc-400 text-sm">
+            This stays on the interest list until you decide it&apos;s a real product. Same model as the mallets: base, then metal, then wood. Woods and metals come from your materials list; the £ extras live here.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(INTEREST_SPECS) as InterestPricedSlug[]).map((slug) => (
+              <Button
+                key={slug}
+                size="sm"
+                variant={costSlug === slug ? 'default' : 'outline'}
+                onClick={() => selectCostList(slug)}
+              >
+                {INTEREST_SPECS[slug].label}
+              </Button>
+            ))}
+          </div>
+          {costDraft && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-1">Base</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  className="w-40 bg-brand-dark border-brand-dark-border text-white"
+                  value={costDraft.base}
+                  onChange={(e) => setCostDraft({ ...costDraft, base: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+              <div>
+                <p className="text-zinc-400 text-xs uppercase tracking-wider mb-2">{INTEREST_SPECS[costSlug].metalLabel}</p>
+                <div className="space-y-2">
+                  {costMetals.map((metal) => {
+                    const offered = !costDraft.hiddenMetalIds.includes(metal.id)
+                    const premium = costDraft.metalPremiums[metal.id] ?? (Number(metal.mallet_head_premium) || 0)
+                    return (
+                      <div key={metal.id} className="flex items-center gap-3">
+                        <label className="flex items-center gap-2 text-sm text-zinc-300 w-48 shrink-0">
+                          <input
+                            type="checkbox"
+                            className="accent-brand-orange"
+                            checked={offered}
+                            onChange={() => setCostDraft({
+                              ...costDraft,
+                              hiddenMetalIds: offered
+                                ? [...costDraft.hiddenMetalIds, metal.id]
+                                : costDraft.hiddenMetalIds.filter((id) => id !== metal.id),
+                            })}
+                          />
+                          {metal.name}
+                        </label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          className="w-28 bg-brand-dark border-brand-dark-border text-white"
+                          value={premium}
+                          onChange={(e) => setCostDraft({
+                            ...costDraft,
+                            metalPremiums: { ...costDraft.metalPremiums, [metal.id]: parseFloat(e.target.value) || 0 },
+                          })}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+              <div>
+                <div className="flex flex-wrap items-end justify-between gap-3 mb-2">
+                  <p className="text-zinc-400 text-xs uppercase tracking-wider">Handle wood</p>
+                  <Input
+                    placeholder="Search woods"
+                    className="w-56 bg-brand-dark border-brand-dark-border text-white placeholder:text-zinc-500"
+                    value={costSearch}
+                    onChange={(e) => setCostSearch(e.target.value)}
+                  />
+                </div>
+                <div className="max-h-80 overflow-y-auto border border-brand-dark-border rounded-lg divide-y divide-brand-dark-border/60">
+                  {costWoods
+                    .filter((wood) => !costSearch.trim() || wood.name.toLowerCase().includes(costSearch.trim().toLowerCase()))
+                    .map((wood) => {
+                      const offered = !costDraft.hiddenWoodIds.includes(wood.id)
+                      const premium = costDraft.woodPremiums[wood.id] ?? 0
+                      return (
+                        <div key={wood.id} className="flex items-center gap-3 px-3 py-2">
+                          <label className="flex items-center gap-2 text-sm text-zinc-300 flex-1 min-w-0">
+                            <input
+                              type="checkbox"
+                              className="accent-brand-orange"
+                              checked={offered}
+                              onChange={() => setCostDraft({
+                                ...costDraft,
+                                hiddenWoodIds: offered
+                                  ? [...costDraft.hiddenWoodIds, wood.id]
+                                  : costDraft.hiddenWoodIds.filter((id) => id !== wood.id),
+                              })}
+                            />
+                            <span className="truncate">{wood.name}</span>
+                          </label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="w-24 bg-brand-dark border-brand-dark-border text-white"
+                            value={premium}
+                            onChange={(e) => setCostDraft({
+                              ...costDraft,
+                              woodPremiums: { ...costDraft.woodPremiums, [wood.id]: parseFloat(e.target.value) || 0 },
+                            })}
+                          />
+                        </div>
+                      )
+                    })}
+                </div>
+              </div>
+              <Button onClick={saveCost} disabled={savingCost || !lists.some((list) => list.slug === costSlug)}>
+                {savingCost ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save cost base'}
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="bg-brand-dark-card border border-brand-dark-border mb-10">
         <CardHeader><CardTitle className="text-white">All lists</CardTitle></CardHeader>
@@ -811,6 +1018,15 @@ export default function AdminInterestPage() {
                                 </div>
                               )}
                             </dl>
+                            {drawerList && isPricedInterestSlug(drawerList.slug) && (() => {
+                              const q = quoteInterestBuild(drawerList.slug, s.answers, drawerCatalog)
+                              if (!q) return null
+                              return (
+                                <p className="text-brand-orange text-sm mt-3">
+                                  Quote {formatPrice(q.total)} · deposit {formatPrice(q.deposit)} · {PREORDER_DELIVERY}
+                                </p>
+                              )
+                            })()}
                             <p className="text-zinc-600 text-xs mt-3">
                               {s.source}
                               {' · '}
@@ -826,9 +1042,11 @@ export default function AdminInterestPage() {
                 </div>
 
                 <Card className="bg-brand-dark-card border border-brand-dark-border mb-4">
-                  <CardHeader><CardTitle className="text-white text-base">Notify everyone</CardTitle></CardHeader>
+                  <CardHeader><CardTitle className="text-white text-base">Send quote emails</CardTitle></CardHeader>
                   <CardContent className="space-y-3">
-                    <p className="text-zinc-500 text-sm">{unnotifiedCount} not yet notified</p>
+                    <p className="text-zinc-500 text-sm">
+                      {unnotifiedCount} not yet notified. Each email gets their spec and quote attached automatically.
+                    </p>
                     <Input
                       className="bg-brand-dark border-brand-dark-border text-white placeholder:text-zinc-500"
                       value={notifySubject}
@@ -836,7 +1054,7 @@ export default function AdminInterestPage() {
                       placeholder="Subject"
                     />
                     <textarea
-                      rows={4}
+                      rows={8}
                       value={notifyMessage}
                       onChange={(e) => setNotifyMessage(e.target.value)}
                       placeholder="Message"
@@ -849,7 +1067,7 @@ export default function AdminInterestPage() {
                       placeholder="Optional link"
                     />
                     <Button onClick={notifyEveryone} disabled={notifying || unnotifiedCount === 0}>
-                      {notifying ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</> : 'Notify everyone'}
+                      {notifying ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</> : 'Send quotes'}
                     </Button>
                   </CardContent>
                 </Card>
