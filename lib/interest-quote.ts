@@ -87,6 +87,21 @@ export function formatBespokeQuote(quote: BespokeQuote | null | undefined): stri
   return `${quote.status}${price}: ${quote.request}`
 }
 
+export function signupQuotedTotals(quote: BespokeQuote | null | undefined): {
+  total: number
+  deposit: number
+  balance: number
+} | null {
+  if (!quote || (quote.status !== 'quoted' && quote.status !== 'accepted')) return null
+  if (quote.quotedTotal == null) return null
+  const split = splitQuoteTotal(quote.quotedTotal)
+  return {
+    total: quote.quotedTotal,
+    deposit: quote.quotedDeposit ?? split.deposit,
+    balance: quote.quotedBalance ?? split.balance,
+  }
+}
+
 export async function saveBespokeQuote(
   supabase: QueryClient,
   signupId: string,
@@ -103,7 +118,12 @@ export async function saveBespokeQuote(
   const previous = row.build_intent && typeof row.build_intent === 'object' && !Array.isArray(row.build_intent)
     ? { ...(row.build_intent as Record<string, unknown>) }
     : {}
-  const nextIntent = { ...previous, bespokeQuote: quote }
+  const nextIntent: Record<string, unknown> = { ...previous, bespokeQuote: quote }
+  if (quote && (quote.status === 'quoted' || quote.status === 'accepted') && quote.quotedTotal != null) {
+    nextIntent.total = quote.quotedTotal
+    nextIntent.deposit = quote.quotedDeposit
+    nextIntent.balance = quote.quotedBalance
+  }
 
   const { error } = await supabase
     .from('interest_signups')

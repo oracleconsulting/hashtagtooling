@@ -29,7 +29,7 @@ import {
 } from '@/lib/interest-pricing'
 import { formatBuildIntent, interestInviteUrl, parseBuildIntent } from '@/lib/interest-invite'
 import { interestPipelineLabel, interestPipelineSteps } from '@/lib/interest-progress'
-import { formatBespokeQuote, signupBespokeQuote } from '@/lib/interest-quote'
+import { formatBespokeQuote, signupBespokeQuote, signupQuotedTotals } from '@/lib/interest-quote'
 import { formatPrice } from '@/lib/utils'
 
 type ListRow = InterestList & { signup_count: number }
@@ -439,7 +439,14 @@ export default function AdminInterestPage() {
         interestPipelineLabel(s, s.order),
         s.invite_sent_at || '',
         s.invite_viewed_at || '',
-        formatBuildIntent(parseBuildIntent(s.build_intent)),
+        (() => {
+          const intent = parseBuildIntent(s.build_intent)
+          const quoted = signupQuotedTotals(signupBespokeQuote(s))
+          if (!intent) return ''
+          return quoted
+            ? `${intent.metalName} / ${intent.handleName} · £${quoted.total.toFixed(2)}`
+            : formatBuildIntent(intent)
+        })(),
         formatBespokeQuote(signupBespokeQuote(s)),
         s.cart_at || '',
         s.order?.id || s.order_id || '',
@@ -1268,20 +1275,25 @@ export default function AdminInterestPage() {
                             </dl>
                             {(() => {
                               const intent = parseBuildIntent(s.build_intent)
+                              const bespoke = signupBespokeQuote(s)
+                              const quoted = signupQuotedTotals(bespoke)
+                              const total = quoted?.total ?? intent?.total
+                              const deposit = quoted?.deposit ?? intent?.deposit
                               return (
                                 <div className="mt-3 space-y-2">
                                   <SignupPipeline signup={s} />
                                   {intent ? (
                                     <p className="text-brand-orange text-sm">
-                                      Spec {formatBuildIntent(intent)}
+                                      Spec {intent.metalName} / {intent.handleName}
+                                      {total != null ? ` · ${formatPrice(total)}` : ''}
                                       {s.build_intent_at ? ` · saved ${new Date(s.build_intent_at).toLocaleDateString('en-GB')}` : ''}
-                                      {' · '}deposit {formatPrice(intent.deposit)}
+                                      {deposit != null ? ` · deposit ${formatPrice(deposit)}` : ''}
+                                      {quoted ? ' · agreed quote' : ''}
                                     </p>
                                   ) : (
                                     <p className="text-zinc-600 text-xs">No spec saved yet</p>
                                   )}
                                   {(() => {
-                                    const bespoke = signupBespokeQuote(s)
                                     if (!bespoke) return null
                                     const draft = quoteDrafts[s.id] || {
                                       total: bespoke.quotedTotal != null ? String(bespoke.quotedTotal) : (intent?.total != null ? String(intent.total) : ''),
@@ -1293,7 +1305,15 @@ export default function AdminInterestPage() {
                                           {bespoke.status === 'requested' ? 'Quote requested' : `Quote ${bespoke.status}`}
                                         </p>
                                         <p className="text-zinc-200 text-sm whitespace-pre-wrap">{bespoke.request}</p>
-                                        {intent && (
+                                        {quoted ? (
+                                          <p className="text-white text-sm">
+                                            Quote {formatPrice(quoted.total)} · deposit {formatPrice(quoted.deposit)}
+                                          </p>
+                                        ) : null}
+                                        {intent && quoted && intent.total !== quoted.total && (
+                                          <p className="text-zinc-500 text-xs">Catalog spec was {formatPrice(intent.total)}</p>
+                                        )}
+                                        {intent && !quoted && (
                                           <p className="text-zinc-500 text-xs">Catalog spec {formatPrice(intent.total)}</p>
                                         )}
                                         {(bespoke.status === 'requested' || bespoke.status === 'quoted') && (
