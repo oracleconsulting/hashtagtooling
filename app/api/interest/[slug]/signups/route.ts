@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { loadInterestPricingCatalog } from '@/lib/interest-pricing'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -20,20 +23,22 @@ export async function GET(
     }
 
     const supabase = getSupabase()
-    const { data: list, error: listError } = await supabase
+    const { data: lists, error: listError } = await supabase
       .from('interest_lists')
       .select('id, slug, name, questions')
       .eq('slug', slug)
-      .maybeSingle()
+      .order('created_at', { ascending: true })
 
     if (listError) {
       console.error('Interest signups list lookup error:', listError)
       return NextResponse.json({ error: 'Failed to load list' }, { status: 500 })
     }
 
+    const list = lists?.[0]
     if (!list) {
       return NextResponse.json({ error: 'Interest list not found' }, { status: 404 })
     }
+    const listIds = lists.map((row) => row.id)
 
     const inviteFields =
       'id, list_id, email, name, answers, notes, source, marketing_consent, notified, notified_at, invite_token, invite_sent_at, invite_viewed_at, build_intent, build_intent_at, created_at'
@@ -43,14 +48,14 @@ export async function GET(
     let { data: signups, error: signupsError } = await supabase
       .from('interest_signups')
       .select(inviteFields)
-      .eq('list_id', list.id)
+      .in('list_id', listIds)
       .order('created_at', { ascending: false })
 
-    if (signupsError && String(signupsError.message || '').includes('invite_')) {
+    if (signupsError) {
       const fallback = await supabase
         .from('interest_signups')
         .select(baseFields)
-        .eq('list_id', list.id)
+        .in('list_id', listIds)
         .order('created_at', { ascending: false })
       signups = fallback.data
       signupsError = fallback.error
@@ -67,6 +72,10 @@ export async function GET(
       list,
       signups: signups || [],
       catalog,
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
     })
   } catch (err) {
     console.error('Interest signups GET error:', err)

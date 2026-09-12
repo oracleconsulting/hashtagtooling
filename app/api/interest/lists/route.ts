@@ -11,6 +11,9 @@ import {
 } from '@/lib/interest'
 import { parseInterestPricing } from '@/lib/interest-pricing'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -141,6 +144,10 @@ export async function GET() {
         ...list,
         signup_count: counts.get(list.id) || 0,
       })),
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
     })
   } catch (err) {
     console.error('Interest lists GET error:', err)

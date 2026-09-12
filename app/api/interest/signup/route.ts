@@ -40,6 +40,9 @@ export async function POST(req: NextRequest) {
       .from('interest_lists')
       .select('id, slug, name, status, questions')
       .eq('slug', slug)
+      .eq('status', 'open')
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle()
 
     if (listError) {
