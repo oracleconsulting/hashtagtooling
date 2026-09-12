@@ -57,6 +57,22 @@ function CartContent() {
     }
   }, [searchParams, clearCart])
 
+  const interestTokens = items
+    .map((item) => item.customConfig?.inviteToken)
+    .filter((token): token is string => Boolean(token))
+    .join(',')
+
+  useEffect(() => {
+    if (!interestTokens) return
+    for (const token of interestTokens.split(',')) {
+      fetch(`/api/interest/build/${token}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'added_to_cart' }),
+      }).catch(() => {})
+    }
+  }, [interestTokens])
+
   const hasCustomItems = items.some(isCustomBuildItem)
 
   useEffect(() => {
@@ -884,6 +900,18 @@ function CartContent() {
                                 }
                                 setOrderNumber(order.id)
                                 setOrderComplete(true)
+                                fetch('/api/interest/link-order', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    orderId: order.id,
+                                    email: customerInfo.email,
+                                    items: items.map((item) => ({
+                                      category: item.category,
+                                      customConfig: item.customConfig,
+                                    })),
+                                  }),
+                                }).catch((err) => console.error('Interest order link failed:', err))
                                 clearCart()
                                 fetch('/api/send-order-email', {
                                   method: 'POST',

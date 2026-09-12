@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
+import { extractInterestTokens } from '@/lib/interest-progress'
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY
@@ -154,6 +155,7 @@ export async function POST(req: NextRequest) {
             customConfig: i.customConfig,
           }))
         ).slice(0, 490),
+        interest_tokens: extractInterestTokens(items).join(','),
       },
     })
 

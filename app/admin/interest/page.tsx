@@ -28,6 +28,7 @@ import {
   type InterestPricingCatalog,
 } from '@/lib/interest-pricing'
 import { formatBuildIntent, interestInviteUrl, parseBuildIntent } from '@/lib/interest-invite'
+import { interestPipelineLabel, interestPipelineSteps } from '@/lib/interest-progress'
 import { formatPrice } from '@/lib/utils'
 
 type ListRow = InterestList & { signup_count: number }
@@ -99,6 +100,38 @@ function formatAnswer(value: unknown): string {
   if (Array.isArray(value)) return value.join(', ')
   if (value === null || value === undefined) return '—'
   return String(value)
+}
+
+function formatStepDate(value: string | null): string {
+  if (!value) return ''
+  return new Date(value).toLocaleDateString('en-GB')
+}
+
+function SignupPipeline({ signup }: { signup: InterestSignup }) {
+  const steps = interestPipelineSteps(signup, signup.order)
+  return (
+    <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
+      {steps.map((step, index) => (
+        <li key={step.key} className="flex items-center gap-1.5">
+          {index > 0 && (
+            <span className={step.done ? 'text-brand-orange/40' : 'text-zinc-700'}>—</span>
+          )}
+          <span
+            className={
+              step.current
+                ? 'text-brand-orange font-medium'
+                : step.done
+                  ? 'text-zinc-200'
+                  : 'text-zinc-600'
+            }
+          >
+            {step.label}
+            {step.done && step.at ? ` ${formatStepDate(step.at)}` : ''}
+          </span>
+        </li>
+      ))}
+    </ol>
+  )
 }
 
 export default function AdminInterestPage() {
@@ -390,7 +423,7 @@ export default function AdminInterestPage() {
   const exportCsv = () => {
     if (!drawerList || signups.length === 0) return
     const qCols = questions.map((q) => q.key)
-    const headers = ['name', 'email', ...qCols, 'notes', 'source', 'marketing_consent', 'created_at', 'invite_sent', 'invite_viewed', 'spec']
+    const headers = ['name', 'email', ...qCols, 'notes', 'source', 'marketing_consent', 'created_at', 'stage', 'invite_sent', 'invite_viewed', 'spec', 'basket', 'order_id', 'order_status']
     const rows = signups.map((s) => {
       const cells = [
         s.name || '',
@@ -400,9 +433,13 @@ export default function AdminInterestPage() {
         s.source || '',
         s.marketing_consent ? 'yes' : 'no',
         s.created_at,
+        interestPipelineLabel(s, s.order),
         s.invite_sent_at || '',
         s.invite_viewed_at || '',
         formatBuildIntent(parseBuildIntent(s.build_intent)),
+        s.cart_at || '',
+        s.order?.id || s.order_id || '',
+        s.order?.status || '',
       ]
       return cells.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')
     })
@@ -1197,14 +1234,7 @@ export default function AdminInterestPage() {
                               const intent = parseBuildIntent(s.build_intent)
                               return (
                                 <div className="mt-3 space-y-2">
-                                  <div className="flex flex-wrap gap-1.5">
-                                    <span className={`px-2 py-0.5 rounded text-xs ${s.invite_sent_at ? 'bg-amber-900/50 text-amber-300' : 'bg-zinc-800 text-zinc-400'}`}>
-                                      {s.invite_sent_at ? `Invite sent ${new Date(s.invite_sent_at).toLocaleDateString('en-GB')}` : 'Invite not sent'}
-                                    </span>
-                                    <span className={`px-2 py-0.5 rounded text-xs ${s.invite_viewed_at ? 'bg-green-900/50 text-green-300' : 'bg-zinc-800 text-zinc-500'}`}>
-                                      {s.invite_viewed_at ? `Viewed ${new Date(s.invite_viewed_at).toLocaleDateString('en-GB')}` : 'Not viewed'}
-                                    </span>
-                                  </div>
+                                  <SignupPipeline signup={s} />
                                   {intent ? (
                                     <p className="text-brand-orange text-sm">
                                       Spec {formatBuildIntent(intent)}
@@ -1213,6 +1243,14 @@ export default function AdminInterestPage() {
                                     </p>
                                   ) : (
                                     <p className="text-zinc-600 text-xs">No spec saved yet</p>
+                                  )}
+                                  {s.order && (
+                                    <p className="text-zinc-400 text-xs">
+                                      Order {s.order.id.slice(0, 8)} · {s.order.status}
+                                      {s.order.payment_plan === 'deposit' && s.order.balance_status
+                                        ? ` · ${s.order.balance_status.replace(/_/g, ' ')}`
+                                        : ''}
+                                    </p>
                                   )}
                                   <div className="flex flex-wrap items-center gap-2">
                                     <Button

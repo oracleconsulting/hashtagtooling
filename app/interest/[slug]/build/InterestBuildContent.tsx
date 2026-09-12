@@ -114,6 +114,13 @@ export default function InterestBuildContent({
       },
       shipping: { uk: 5.99, europe: 15.99, world: 25.99 },
     })
+    if (token) {
+      fetch(`/api/interest/build/${token}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'added_to_cart' }),
+      }).catch(() => {})
+    }
     setAddedToCart(true)
     router.push('/cart')
   }

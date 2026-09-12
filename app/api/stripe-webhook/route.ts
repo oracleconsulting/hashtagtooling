@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import { linkInterestSignupsToOrder } from '@/lib/interest-progress'
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY
@@ -158,6 +159,13 @@ export async function POST(req: NextRequest) {
 
     if (orderError) {
       console.error('Stripe webhook order insert error:', orderError)
+    } else if (order?.id) {
+      await linkInterestSignupsToOrder(supabase, {
+        orderId: order.id,
+        email: session.customer_details?.email || meta.customerEmail || '',
+        items: orderDetails.items,
+        tokens: (meta.interest_tokens || '').split(',').filter(Boolean),
+      }).catch((err) => console.error('Interest order link error:', err))
     }
 
     // Redeem voucher if one was applied

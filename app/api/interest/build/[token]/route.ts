@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { INTEREST_PUBLIC_FIELDS } from '@/lib/interest'
 import { isInviteToken, parseBuildIntent } from '@/lib/interest-invite'
+import { markInterestCart } from '@/lib/interest-progress'
 import { loadInterestPricingCatalog } from '@/lib/interest-pricing'
 
 function getSupabase() {
@@ -79,16 +80,46 @@ export async function PATCH(
     }
 
     const body = await req.json()
+    const event = body.event === 'added_to_cart' || body.event === 'removed_from_cart'
+      ? body.event
+      : null
     const intent = parseBuildIntent(body.intent)
-    if (!intent) {
+    if (!intent && !event) {
       return NextResponse.json({ error: 'A complete spec is required' }, { status: 400 })
     }
 
     const supabase = getSupabase()
+
+    if (event) {
+      const cart = await markInterestCart(supabase, token, event === 'added_to_cart')
+      if (cart.error === 'Invite not found') {
+        return NextResponse.json({ error: 'Invite not found' }, { status: 404 })
+      }
+      if (cart.error) {
+        return NextResponse.json({ error: cart.error }, { status: 500 })
+      }
+      if (!intent) return NextResponse.json({ ok: true })
+    }
+
+    if (!intent) {
+      return NextResponse.json({ error: 'A complete spec is required' }, { status: 400 })
+    }
+
+    const { data: existing } = await supabase
+      .from('interest_signups')
+      .select('id, build_intent')
+      .eq('invite_token', token)
+      .maybeSingle()
+
+    if (!existing) return NextResponse.json({ error: 'Invite not found' }, { status: 404 })
+
+    const previous = existing.build_intent && typeof existing.build_intent === 'object'
+      ? existing.build_intent as Record<string, unknown>
+      : {}
     const { data, error } = await supabase
       .from('interest_signups')
       .update({
-        build_intent: intent,
+        build_intent: { ...previous, ...intent },
         build_intent_at: new Date().toISOString(),
       })
       .eq('invite_token', token)

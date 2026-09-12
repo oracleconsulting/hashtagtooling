@@ -2,6 +2,7 @@ import { unstable_noStore as noStore } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import type { InterestSignup } from '@/lib/interest'
+import { attachOrdersToSignups } from '@/lib/interest-progress'
 import { loadInterestPricingCatalog } from '@/lib/interest-pricing'
 
 export const dynamic = 'force-dynamic'
@@ -52,28 +53,24 @@ export async function GET(
     }
     const listIds = lists.map((row) => row.id)
 
+    const progressFields =
+      'id, list_id, email, name, answers, notes, source, marketing_consent, notified, notified_at, invite_token, invite_sent_at, invite_viewed_at, build_intent, build_intent_at, cart_at, order_id, order_placed_at, created_at'
     const inviteFields =
       'id, list_id, email, name, answers, notes, source, marketing_consent, notified, notified_at, invite_token, invite_sent_at, invite_viewed_at, build_intent, build_intent_at, created_at'
     const baseFields =
       'id, list_id, email, name, answers, notes, source, marketing_consent, notified, notified_at, created_at'
 
-    const invited = await supabase
-      .from('interest_signups')
-      .select(inviteFields)
-      .in('list_id', listIds)
-      .order('created_at', { ascending: false })
-
-    let signups = asSignups(invited.data)
-    let signupsError = invited.error
-
-    if (signupsError) {
-      const fallback = await supabase
+    let signups: InterestSignup[] = []
+    let signupsError = null
+    for (const fields of [progressFields, inviteFields, baseFields]) {
+      const result = await supabase
         .from('interest_signups')
-        .select(baseFields)
+        .select(fields)
         .in('list_id', listIds)
         .order('created_at', { ascending: false })
-      signups = asSignups(fallback.data)
-      signupsError = fallback.error
+      signups = asSignups(result.data)
+      signupsError = result.error
+      if (!signupsError) break
     }
 
     if (signupsError) {
@@ -88,9 +85,11 @@ export async function GET(
       console.error('Interest signups catalog error:', err)
     }
 
+    const withOrders = await attachOrdersToSignups(supabase, signups, slug)
+
     return NextResponse.json({
       list,
-      signups,
+      signups: withOrders,
       catalog,
     }, {
       headers: {

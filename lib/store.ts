@@ -65,6 +65,14 @@ export const useCart = create<CartStore>()(
             productName: removed.name,
             price: removed.price,
           })
+          const token = removed.customConfig?.inviteToken
+          if (token) {
+            fetch(`/api/interest/build/${token}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ event: 'removed_from_cart' }),
+            }).catch(() => {})
+          }
         }
         snapshotState({ type: 'cart', items: newItems.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity })) })
         return { items: newItems }

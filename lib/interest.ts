@@ -52,6 +52,18 @@ export type InterestSignup = {
     balance: number
   } | null
   build_intent_at?: string | null
+  cart_at?: string | null
+  order_id?: string | null
+  order_placed_at?: string | null
+  order?: {
+    id: string
+    status: string
+    payment_plan?: string | null
+    balance_status?: string | null
+    deposit_amount?: number | null
+    balance_amount?: number | null
+    created_at: string
+  } | null
   created_at: string
 }
 
