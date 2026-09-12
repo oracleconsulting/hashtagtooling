@@ -133,13 +133,17 @@ export async function PATCH(
 
     if (!existing) return NextResponse.json({ error: 'Invite not found' }, { status: 404 })
 
-    const previous = existing.build_intent && typeof existing.build_intent === 'object'
+    const previous = existing.build_intent && typeof existing.build_intent === 'object' && !Array.isArray(existing.build_intent)
       ? existing.build_intent as Record<string, unknown>
       : {}
     const { data, error } = await supabase
       .from('interest_signups')
       .update({
-        build_intent: { ...previous, ...intent },
+        build_intent: {
+          ...previous,
+          ...intent,
+          ...(previous.bespokeQuote !== undefined ? { bespokeQuote: previous.bespokeQuote } : {}),
+        },
         build_intent_at: new Date().toISOString(),
       })
       .eq('invite_token', token)

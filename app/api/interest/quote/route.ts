@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
       if (saved.error) return NextResponse.json({ error: saved.error }, { status: 500 })
 
       const { data: list } = await supabase.from('interest_lists').select('name, slug').eq('id', signup.list_id).maybeSingle()
-      const href = interestInviteUrl(token, siteUrl)
+      const href = `${interestInviteUrl(token, siteUrl)}#quote`
       await emailCustomer(signup.email, {
         subject: `I've got your request — ${list?.name || 'your build'}`,
         eyebrow: 'Quote request',
@@ -162,14 +162,14 @@ export async function POST(req: NextRequest) {
       if (saved.error) return NextResponse.json({ error: saved.error }, { status: 500 })
 
       const { data: list } = await supabase.from('interest_lists').select('name').eq('id', signup.list_id).maybeSingle()
-      const href = interestInviteUrl(signup.invite_token, siteUrl)
+      const href = `${interestInviteUrl(signup.invite_token, siteUrl)}#quote`
       const intent = parseBuildIntent(signup.build_intent)
       await emailCustomer(signup.email, {
         subject: `Your quote — ${list?.name || 'your build'}`,
         eyebrow: 'Quote ready',
         paragraphs: [
           signup.name ? `Hi ${escapeHtml(signup.name)},` : 'Hi,',
-          `I&apos;ve priced that request. ${escapeHtml(formatBuildIntent(intent) || 'Your spec')} comes to ${formatPrice(split.total)} — 50% deposit ${formatPrice(split.deposit)} now, balance when it&apos;s done.`,
+          `I&apos;ve priced that request. ${escapeHtml(intent ? `${intent.metalName} / ${intent.handleName}` : 'Your spec')} is ${formatPrice(split.total)} — 50% deposit ${formatPrice(split.deposit)} now, balance when it&apos;s done.`,
           note ? escapeHtml(note).replace(/\n/g, '<br/>') : 'Open your build form to accept or refuse.',
         ],
         cardTitle: list?.name,
@@ -198,7 +198,7 @@ export async function POST(req: NextRequest) {
       if (saved.error) return NextResponse.json({ error: saved.error }, { status: 500 })
 
       const { data: list } = await supabase.from('interest_lists').select('name').eq('id', signup.list_id).maybeSingle()
-      const href = interestInviteUrl(token, siteUrl)
+      const href = `${interestInviteUrl(token, siteUrl)}#quote`
       if (action === 'accept') {
         await emailCustomer(signup.email, {
           subject: `Quote accepted — ${list?.name || 'your build'}`,

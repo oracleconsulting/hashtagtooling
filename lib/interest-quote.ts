@@ -100,20 +100,22 @@ export async function saveBespokeQuote(
   if (loadError) return { error: loadError.message }
   if (!row) return { error: 'Invite not found' }
 
+  const previous = row.build_intent && typeof row.build_intent === 'object' && !Array.isArray(row.build_intent)
+    ? { ...(row.build_intent as Record<string, unknown>) }
+    : {}
+  const nextIntent = { ...previous, bespokeQuote: quote }
+
   const { error } = await supabase
     .from('interest_signups')
-    .update({ bespoke_quote: quote })
+    .update({ bespoke_quote: quote, build_intent: nextIntent })
     .eq('id', signupId)
 
   if (!error) return {}
   if (!String(error.message || '').includes('bespoke_quote')) return { error: error.message }
 
-  const previous = row.build_intent && typeof row.build_intent === 'object'
-    ? { ...(row.build_intent as Record<string, unknown>) }
-    : {}
   const { error: fallbackError } = await supabase
     .from('interest_signups')
-    .update({ build_intent: { ...previous, bespokeQuote: quote } })
+    .update({ build_intent: nextIntent })
     .eq('id', signupId)
 
   return fallbackError ? { error: fallbackError.message } : {}

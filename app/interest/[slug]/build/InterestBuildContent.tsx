@@ -18,6 +18,7 @@ import { parseGalleryImages, type InterestList } from '@/lib/interest'
 import type { InterestBuildIntent } from '@/lib/interest-invite'
 import {
   acceptedQuoteTotals,
+  parseBespokeQuote,
   quoteBlocksCheckout,
   type BespokeQuote,
 } from '@/lib/interest-quote'
@@ -54,6 +55,24 @@ export default function InterestBuildContent({
   const [quoteMessage, setQuoteMessage] = useState('')
 
   useEffect(() => {
+    if (!token) return
+    let cancelled = false
+    fetch(`/api/interest/build/${token}`, { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return
+        const next = parseBespokeQuote(data.quote)
+        if (next) {
+          setBespoke(next)
+          setHasRequest(true)
+          setRequestText(next.request)
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [token])
+
+  useEffect(() => {
     if (token) return
     let cancelled = false
     fetch(`/api/interest/${list.slug}`, { cache: 'no-store' })
@@ -88,6 +107,7 @@ export default function InterestBuildContent({
 
   useEffect(() => {
     if (!token || !metal || !handle || !catalogQuote) return
+    if (bespoke && bespoke.status !== 'refused') return
     const intent: InterestBuildIntent = {
       metalId: metal.id,
       metalName: metal.name,
@@ -109,7 +129,7 @@ export default function InterestBuildContent({
         .catch(() => {})
     }, 400)
     return () => window.clearTimeout(timer)
-  }, [token, metal?.id, handle?.id, catalogQuote?.total])
+  }, [token, metal?.id, handle?.id, catalogQuote?.total, bespoke?.status])
 
   const submitRequest = async () => {
     if (!token || !metal || !handle || !catalogQuote) return
@@ -141,7 +161,11 @@ export default function InterestBuildContent({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Could not send request')
-      setBespoke(data.quote)
+      const next = parseBespokeQuote(data.quote)
+      if (next) {
+        setBespoke(next)
+        setHasRequest(true)
+      }
       setQuoteMessage("I've got it. I'll email you a price — don't pay the standard deposit yet.")
     } catch (err) {
       setQuoteMessage(err instanceof Error ? err.message : 'Could not send request')
@@ -162,7 +186,12 @@ export default function InterestBuildContent({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Could not save that')
-      setBespoke(data.quote)
+      const next = parseBespokeQuote(data.quote)
+      if (next) {
+        setBespoke(next)
+        setHasRequest(true)
+        setRequestText(next.request)
+      }
       setQuoteMessage(action === 'accept'
         ? 'Quote accepted. Pay the 50% deposit when you are ready.'
         : 'No problem. You can take the standard spec or send another request.')
@@ -331,7 +360,7 @@ export default function InterestBuildContent({
             </Card>
 
             {token && (
-              <Card className="bg-brand-dark-card border border-brand-dark-border">
+              <Card id="quote" className="bg-brand-dark-card border border-brand-dark-border scroll-mt-24">
                 <CardHeader>
                   <CardTitle className="text-white">3. Specific request</CardTitle>
                 </CardHeader>
@@ -340,7 +369,7 @@ export default function InterestBuildContent({
                     <input
                       type="checkbox"
                       className="mt-1"
-                      checked={hasRequest}
+                      checked={hasRequest || Boolean(bespoke)}
                       disabled={bespoke?.status === 'requested' || bespoke?.status === 'quoted' || bespoke?.status === 'accepted'}
                       onChange={(e) => {
                         setHasRequest(e.target.checked)
@@ -351,7 +380,7 @@ export default function InterestBuildContent({
                       I have a specific request that may need its own quote — live edge, a one-off timber, something that isn&apos;t on the list.
                     </span>
                   </label>
-                  {hasRequest && (
+                  {(hasRequest || bespoke) && (
                     <>
                       <textarea
                         rows={4}
@@ -364,25 +393,27 @@ export default function InterestBuildContent({
                       {bespoke?.status === 'requested' && (
                         <p className="text-amber-300 text-sm">I&apos;ve got this. I&apos;ll email a price — don&apos;t pay the standard deposit yet.</p>
                       )}
-                      {bespoke?.status === 'quoted' && (
+                      {(bespoke?.status === 'quoted' || bespoke?.status === 'accepted') && (
                         <div className="rounded-md border border-brand-orange/40 p-3 space-y-2">
-                          <p className="text-white text-sm font-medium">Quote ready — {bespoke.quotedTotal != null ? formatPrice(bespoke.quotedTotal) : ''}</p>
+                          <p className="text-white text-sm font-medium">
+                            {bespoke.status === 'accepted' ? 'Quote accepted' : 'Quote ready'}
+                            {bespoke.quotedTotal != null ? ` — ${formatPrice(bespoke.quotedTotal)}` : ''}
+                          </p>
                           {bespoke.quotedNote && <p className="text-zinc-300 text-sm">{bespoke.quotedNote}</p>}
                           <p className="text-zinc-400 text-xs">
                             50% deposit {bespoke.quotedDeposit != null ? formatPrice(bespoke.quotedDeposit) : ''} now, balance when it&apos;s done.
                           </p>
-                          <div className="flex flex-wrap gap-2">
-                            <Button size="sm" disabled={quoteBusy} onClick={() => replyToQuote('accept')}>
-                              {quoteBusy ? 'Saving…' : 'Accept quote'}
-                            </Button>
-                            <Button size="sm" variant="outline" disabled={quoteBusy} onClick={() => replyToQuote('refuse')}>
-                              Refuse
-                            </Button>
-                          </div>
+                          {bespoke.status === 'quoted' && (
+                            <div className="flex flex-wrap gap-2">
+                              <Button size="sm" disabled={quoteBusy} onClick={() => replyToQuote('accept')}>
+                                {quoteBusy ? 'Saving…' : 'Accept quote'}
+                              </Button>
+                              <Button size="sm" variant="outline" disabled={quoteBusy} onClick={() => replyToQuote('refuse')}>
+                                Refuse
+                              </Button>
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {bespoke?.status === 'accepted' && (
-                        <p className="text-green-400 text-sm">Quote accepted. The price below is the agreed figure.</p>
                       )}
                       {bespoke?.status === 'refused' && (
                         <p className="text-zinc-400 text-sm">Quote refused. You can take the standard spec or send another request.</p>
