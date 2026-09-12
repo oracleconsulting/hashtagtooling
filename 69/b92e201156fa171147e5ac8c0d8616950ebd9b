@@ -1,0 +1,25 @@
+next.config.js
+  s_a11981054c9414::t_74c823979b414a 32-41
+app/api/interest/lists/route.ts
+  s_a11981054c9414::t_911207c9b68928 1
+  s_a11981054c9414::t_4319ca048f46fc 16
+  s_a11981054c9414::t_0d37e9d74424d5 108
+app/api/interest/[slug]/signups/route.ts
+  s_a11981054c9414::t_d96a1524016abc 1,4,8,18-21,26,60,66-68,75,93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "69b92e201156fa171147e5ac8c0d8616950ebd9b",
+  "prompts": {},
+  "sessions": {
+    "s_a11981054c9414": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3f9f0b60-b0e2-426d-8a1b-c93bab59ea2c",
+        "model": "grok-4.6"
+      },
+      "human_author": "James Howard <james@ivcaccounting.co.uk>"
+    }
+  }
+}
